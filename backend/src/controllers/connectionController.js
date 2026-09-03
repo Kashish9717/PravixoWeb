@@ -23,7 +23,7 @@ export const sendRequest = async (req, res) => {
     if (campaignId) {
       filter.campaignId = campaignId;
     } else {
-      filter.campaignId = { $exists: false };
+      filter.campaignId = null;
     }
 
     const existing = await Connection.findOne(filter);
@@ -110,7 +110,7 @@ export const acceptRequest = async (req, res) => {
     if (connection.campaignId) {
       conversationFilter.campaignId = connection.campaignId;
     } else {
-      conversationFilter.campaignId = { $exists: false };
+      conversationFilter.campaignId = null;
     }
 
     conversation = await Conversation.findOne(conversationFilter);
@@ -427,7 +427,7 @@ export const getMyRequestsForCreator = async (req, res) => {
           if (connection.campaignId) {
             filter.campaignId = connection.campaignId;
           } else {
-            filter.campaignId = { $exists: false };
+            filter.campaignId = null;
           }
 
           const conversation = await Conversation.findOne(filter).lean();
@@ -481,7 +481,7 @@ export const getApprovedCollaborationsForBrand = async (req, res) => {
         if (connection.campaignId) {
           filter.campaignId = connection.campaignId;
         } else {
-          filter.campaignId = { $exists: false };
+          filter.campaignId = null;
         }
 
         const conversation = await Conversation.findOne(filter).lean();

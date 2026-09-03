@@ -12,6 +12,7 @@ import { toast } from "sonner";
 
 import { useAuth } from "@/components/auth/AuthProvider";
 import api from "@/lib/api";
+import { useRef } from "react";
 
 const resolveImageUrl = (url) => {
   if (!url || url === "undefined" || url === "null") return null;
@@ -39,6 +40,12 @@ export default function Messages() {
   const [loading, setLoading] = useState(false);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [sending, setSending] = useState(false);
+
+  const messagesEndRef = useRef(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
 
   useEffect(() => {
     document.title = "Messages — Pravixo";
@@ -164,8 +171,49 @@ export default function Messages() {
       );
     } finally {
       setMessagesLoading(false);
+      setTimeout(scrollToBottom, 100);
     }
   };
+
+  /*
+   * ----------------------------------------------------
+   * REAL-TIME POLLING
+   * ----------------------------------------------------
+   */
+  useEffect(() => {
+    let interval;
+    if (activeConversation) {
+      interval = setInterval(() => {
+        // Silently fetch new messages without triggering loading state
+        api(`/api/messages/${activeConversation._id}`)
+          .then((response) => {
+            const data = response?.data?.data || response?.data || [];
+            const newMessages = Array.isArray(data) ? data : [];
+            setMessages((prev) => {
+              // Only update if there are new messages to avoid unnecessary re-renders
+              if (prev.length !== newMessages.length) {
+                setTimeout(scrollToBottom, 100);
+                return newMessages;
+              }
+              return prev;
+            });
+          })
+          .catch(console.error);
+
+        // Also fetch conversations quietly to update unread counts and last message
+        api(`/api/conversations?profileId=${profile._id}&role=${profile.role}`)
+          .then((response) => {
+            const data = response?.data?.data || response?.data || [];
+            setConversations(Array.isArray(data) ? data : []);
+          })
+          .catch(console.error);
+      }, 3000); // Poll every 3 seconds
+    }
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [activeConversation, profile]);
 
   /*
    * ----------------------------------------------------
@@ -368,7 +416,7 @@ export default function Messages() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+    <div className="mx-auto flex h-[calc(100vh-64px)] w-full max-w-7xl flex-col p-4 sm:p-6 lg:p-8">
 
       {/* PAGE HEADER */}
       <div className="mb-6 flex flex-col gap-2">
@@ -382,7 +430,7 @@ export default function Messages() {
       </div>
 
       {/* MAIN CHAT CONTAINER */}
-      <div className="grid h-[600px] gap-6 lg:h-[700px] lg:grid-cols-[350px_1fr]">
+      <div className="grid min-h-0 flex-1 gap-6 lg:grid-cols-[350px_1fr]">
 
         {/* ==================================================
             LEFT SIDEBAR
@@ -762,7 +810,8 @@ export default function Messages() {
                     );
                   })
                 )}
-
+                
+                <div ref={messagesEndRef} />
               </div>
 
               {/* MESSAGE INPUT */}

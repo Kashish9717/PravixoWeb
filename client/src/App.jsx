@@ -59,11 +59,14 @@ function NotFound() {
 }
 
 function Layout() {
+  const { pathname } = useLocation();
+  const isMessagesPage = pathname.startsWith('/messages');
+
   return (
     <div className="flex min-h-screen flex-col">
       <SiteNavbar />
 
-      <main className="flex-1">
+      <main className={`flex-1 ${isMessagesPage ? "flex flex-col" : ""}`}>
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/about" element={<About />} />
@@ -136,7 +139,7 @@ function Layout() {
         </Routes>
       </main>
 
-      <SiteFooter />
+      {!isMessagesPage && <SiteFooter />}
     </div>
   );
 }
