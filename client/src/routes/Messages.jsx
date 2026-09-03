@@ -7,6 +7,8 @@ import {
   ArchiveRestore,
   Send,
   ArrowLeft,
+  Trash2,
+  Ban,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -172,6 +174,25 @@ export default function Messages() {
     } finally {
       setMessagesLoading(false);
       setTimeout(scrollToBottom, 100);
+    }
+  };
+
+  const handleUnsend = async (messageId) => {
+    try {
+      // Optimistic update
+      setMessages((prev) =>
+        prev.map((msg) => (msg._id === messageId ? { ...msg, unsent: true } : msg))
+      );
+
+      await api.patch(`/api/messages/${messageId}/unsend`, {
+        profileId: profile._id,
+      });
+      toast.success("Message unsent");
+    } catch (error) {
+      console.error("Unsend message error:", error);
+      toast.error("Failed to unsend message");
+      // Revert optimistic update on failure
+      fetchMessages(activeConversation._id);
     }
   };
 
@@ -755,57 +776,52 @@ export default function Messages() {
                       <div
                         key={item._id}
                         className={`flex ${
-                          isMine
-                            ? "justify-end"
-                            : "justify-start"
+                          isMine ? "justify-end" : "justify-start"
                         }`}
                       >
-
-                        <div
-                          className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm ${
-                            isMine
-                              ? "rounded-br-md gradient-sunset text-white"
-                              : "rounded-bl-md bg-muted text-foreground"
-                          }`}
-                        >
-                          {(() => {
-                            const isDeletedForAll = item.deletedByAdmin;
-                            const isDeletedForMe = 
-                              (profile.role === "creator" && item.deletedForCreator) ||
-                              (profile.role === "brand" && item.deletedForBrand);
-                            
-                            if (isDeletedForAll || isDeletedForMe) {
-                              return (
-                                <p className="italic opacity-80 text-sm">
-                                  This message has been deleted by Admin
-                                </p>
-                              );
-                            }
-                            
-                            return <p>{item.text}</p>;
-                          })()}
-
-                          <p
-                            className={`mt-1 text-[10px] ${
-                              isMine
-                                ? "text-white/70"
-                                : "text-muted-foreground"
-                            }`}
-                          >
-                            {item.createdAt
-                              ? new Date(
-                                  item.createdAt
-                                ).toLocaleTimeString(
-                                  [],
-                                  {
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                  }
-                                )
-                              : ""}
-                          </p>
-                        </div>
-
+                        {item.unsent || item.deletedByAdmin || (profile.role === "creator" && item.deletedForCreator) || (profile.role === "brand" && item.deletedForBrand) ? (
+                          <div className={`flex max-w-[75%] flex-col ${isMine ? "items-end" : "items-start"}`}>
+                            <div className="flex items-center gap-1 rounded-2xl bg-slate-100 px-4 py-2 text-sm italic text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                              <Ban className="h-4 w-4" />
+                              <span>This message was {item.unsent ? "unsent" : "deleted"}</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-end gap-2 group">
+                            {isMine && (
+                              <button
+                                onClick={() => handleUnsend(item._id)}
+                                className="opacity-0 transition-opacity group-hover:opacity-100 p-1 text-slate-400 hover:text-red-500"
+                                title="Unsend for everyone"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            )}
+                            <div
+                              className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm ${
+                                isMine
+                                  ? "rounded-br-md gradient-sunset text-white"
+                                  : "rounded-bl-md bg-muted text-foreground"
+                              }`}
+                            >
+                              <p>{item.text}</p>
+                              <p
+                                className={`mt-1 text-[10px] ${
+                                  isMine
+                                    ? "text-white/70"
+                                    : "text-muted-foreground"
+                                }`}
+                              >
+                                {item.createdAt
+                                  ? new Date(item.createdAt).toLocaleTimeString([], {
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    })
+                                  : ""}
+                              </p>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })

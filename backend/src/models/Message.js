@@ -44,6 +44,11 @@ const messageSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+
+    unsent: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,

@@ -65,3 +65,50 @@ export const getMessages = async (req, res) => {
     });
   }
 };
+
+// Unsend message
+export const unsendMessage = async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const { profileId } = req.body;
+
+    if (!profileId) {
+      return res.status(400).json({
+        success: false,
+        message: "Profile ID is required.",
+      });
+    }
+
+    const message = await Message.findById(messageId);
+
+    if (!message) {
+      return res.status(404).json({
+        success: false,
+        message: "Message not found.",
+      });
+    }
+
+    if (message.senderId.toString() !== profileId.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: "You can only unsend your own messages.",
+      });
+    }
+
+    message.unsent = true;
+    await message.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Message unsent successfully.",
+      data: message,
+    });
+  } catch (error) {
+    console.error("Unsend message error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to unsend message.",
+    });
+  }
+};
