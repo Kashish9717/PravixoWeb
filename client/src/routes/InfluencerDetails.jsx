@@ -1204,6 +1204,7 @@ export default function InfluencerDetails() {
         console.error(error);
 
         toast.error(
+          error?.response?.data?.message ||
           error?.message ||
           "Failed to send request"
         );
