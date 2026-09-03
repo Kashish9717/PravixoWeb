@@ -1,0 +1,39 @@
+# ================================
+# IGNORE EVERYTHING BY DEFAULT
+# ================================
+/*
+
+# ================================
+# ALLOW SPECIFIC FOLDERS
+# ================================
+!/client/
+!/backend/
+!/admin/
+!/api/
+
+# ================================
+# ALLOW SPECIFIC ROOT FILES
+# ================================
+!/.gitignore
+!/package.json
+!/package-lock.json
+!/README.md
+
+# ================================
+# GLOBALLY IGNORE SENSITIVE DATA
+# (These overrides prevent them from being pushed even inside allowed folders)
+# ================================
+.env
+.env.*
+*.env
+**/.env*
+!**/.env.example
+
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+build/
+**/build/
+.DS_Store
+**/.DS_Store

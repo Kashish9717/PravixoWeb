@@ -1,0 +1,108 @@
+import express from "express";
+import cors from "cors";
+import path from "path";
+import fs from "fs";
+
+// ROUTES
+
+import reviewRoutes from "./routes/reviweRoutes.js";
+import subscriptionRoutes from "./routes/subscriptionRoutes.js";
+import popupSettingsRoutes from "./routes/popupSettingsRoutes.js";
+import offerAnalyticsRoutes from "./routes/offerAnalyticsRoutes.js";
+import blogRoutes from "./routes/blogRoutes.js";
+import proTipRoutes from "./routes/proTipRoutes.js";
+import videoReviewRoutes from "./routes/videoReviewRoutes.js";
+import trustReviewRoutes from "./routes/trustReviewRoutes.js";
+import addonServicesRoutes from "./routes/addonServicesRoutes.js";
+import campaignRoutes from "./routes/campaignRoutes.js";
+import pricingRoutes from "./routes/pricingRoutes.js";
+import favouriteRoutes from "./routes/favouriteRoutes.js";
+import connectionRoutes from "./routes/connectionRoutes.js";
+import messageRoutes from "./routes/messageRoutes.js";
+import conversationRoutes from "./routes/conversationRoutes.js";
+import portfolioRoutes from "./routes/portfolioRoutes.js";
+import profileRoutes from "./routes/profileRoutes.js";
+import socialRoutes from "./routes/socialRoutes.js";
+import taskRoutes from "./routes/taskRoutes.js";
+import otpRoutes from "./routes/otpRoutes.js";
+import paymentRoutes from "./routes/paymentRoutes.js";
+import authRoutes from "./routes/authRoutes.js";
+import adminRoutes from "./routes/adminRoutes.js";
+
+const app = express();
+
+
+app.use(cors());
+app.use(express.json());
+
+// Serve uploaded media
+const uploadDir = path.join(process.cwd(), "public", "uploads");
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+app.use("/uploads", express.static(uploadDir));
+
+
+// =====================================================
+// HEALTH CHECK
+// =====================================================
+
+app.get("/", (req, res) => {
+  res.json({
+    success: true,
+    message: "Lemen Backend API is running",
+  });
+});
+
+// =====================================================
+// API ROUTES
+// =====================================================
+
+app.use("/api/payments", paymentRoutes);
+
+app.use("/api/reviews", reviewRoutes);
+
+app.use("/api/subscriptions", subscriptionRoutes);
+
+app.use("/api/popup-settings", popupSettingsRoutes);
+
+app.use("/api/offer-analytics", offerAnalyticsRoutes);
+
+app.use("/api/blogs", blogRoutes);
+
+app.use("/api/pro-tips", proTipRoutes);
+
+app.use("/api/video-reviews", videoReviewRoutes);
+
+app.use("/api/trust-reviews", trustReviewRoutes);
+
+app.use("/api/addons", addonServicesRoutes);
+
+app.use("/api/campaigns", campaignRoutes);
+
+app.use("/api/pricing", pricingRoutes);
+
+app.use("/api/favourites", favouriteRoutes);
+app.use("/api/favorites", favouriteRoutes);
+
+app.use("/api/connections", connectionRoutes);
+
+app.use("/api/conversations", conversationRoutes);
+
+app.use("/api/messages", messageRoutes);
+
+app.use("/api/portfolio", portfolioRoutes);
+
+app.use("/api/profiles", profileRoutes);
+
+app.use("/api/social", socialRoutes);
+
+app.use("/api/tasks", taskRoutes);
+
+app.use("/api/otp", otpRoutes);
+
+app.use("/api/auth", authRoutes);
+
+app.use("/api/admin", adminRoutes);
+
+export default app;

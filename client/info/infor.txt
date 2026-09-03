@@ -1,0 +1,24 @@
+
+Package: npm install axios react-router-dom lucide-react
+
+npm install @radix-ui/react-slot @radix-ui/react-dialog @radix-ui/react-label @radix-ui/react-checkbox class-variance-authority
+
+npm i sonner
+npm install clsx tailwind-merge
+npm install cmdk
+npm install recharts
+npm install date-fns
+npm install @radix-ui/react-switch
+npm install @radix-ui/react-separator
+
+=>check connection : .env, api.js, app.jsx 
+=>used mongodb atlas and cloudinary
+
+=>shortcut to create files: cd src/Routes     -> for %f in (about addons blog browse careers connections contact dashboard-customer dashboard-influencer faq help home influencer-details login messages oauth-callback privacy protection-info register reset-password reviews tips) do type nul > "%f.jsx"
+
+
+
+
+
+=>NITE:
+Admin folder me : blog option hai add krne ka .. Blog.jsx {line 49} and Tip.jsx

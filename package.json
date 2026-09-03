@@ -1,0 +1,9 @@
+{
+  "name": "lemen-monorepo",
+  "private": true,
+  "dependencies": {
+    "convex": "^1.41.0",
+    "nodemailer": "^9.0.5",
+    "razorpay": "^2.9.8"
+  }
+}

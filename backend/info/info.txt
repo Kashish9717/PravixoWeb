@@ -1,0 +1,9 @@
+Backend
+  
+  Install : npm install express mongoose dotenv cors bcryptjs jsonwebtoken nodemailer razorpay node-cron
+  Developer : npm install -D nodemon
+
+
+
+  =>PROfile:  Favourite, portfolio,pricing,,profile
+  
