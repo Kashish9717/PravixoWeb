@@ -22,9 +22,19 @@ export const sendMessage = async (req, res) => {
 
     const conversation = await Conversation.findById(conversationId);
 
-    if (conversation?.status === "pending") {
-      conversation.status = "active";
-      await conversation.save();
+    if (conversation) {
+      let isUpdated = false;
+      if (conversation.status === "pending") {
+        conversation.status = "active";
+        isUpdated = true;
+      }
+      if (conversation.archived) {
+        conversation.archived = false;
+        isUpdated = true;
+      }
+      if (isUpdated) {
+        await conversation.save();
+      }
     }
 
     res.status(201).json({

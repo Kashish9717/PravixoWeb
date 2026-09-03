@@ -43,6 +43,29 @@ export default function Messages() {
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [sending, setSending] = useState(false);
 
+  // Touch handling for mobile Unsend / Delete Chat
+  const touchTimer = useRef(null);
+  const [pressedMessageId, setPressedMessageId] = useState(null);
+  const [pressedConversationId, setPressedConversationId] = useState(null);
+
+  const handleTouchStartMessage = (msgId) => {
+    touchTimer.current = setTimeout(() => {
+      setPressedMessageId(msgId);
+    }, 500); // 500ms long press
+  };
+
+  const handleTouchStartConversation = (convId) => {
+    touchTimer.current = setTimeout(() => {
+      setPressedConversationId(convId);
+    }, 500);
+  };
+
+  const handleTouchEnd = () => {
+    if (touchTimer.current) {
+      clearTimeout(touchTimer.current);
+      touchTimer.current = null;
+    }
+  };
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
@@ -315,7 +338,7 @@ export default function Messages() {
 
   /*
    * ----------------------------------------------------
-   * ARCHIVE / UNARCHIVE
+   * ARCHIVE / UNARCHIVE (Now "Delete Chat")
    * ----------------------------------------------------
    */
   const toggleArchive = async (conversation) => {
@@ -525,7 +548,7 @@ export default function Messages() {
                     : "bg-secondary text-muted-foreground hover:bg-secondary/80"
                 }`}
               >
-                Archived
+                Deleted
               </button>
 
             </div>
@@ -560,13 +583,42 @@ export default function Messages() {
                       onClick={() =>
                         openConversation(conversation)
                       }
-                      className={`flex cursor-pointer items-center gap-3 border-b border-border/50 p-4 transition hover:bg-secondary/50 ${
+                      onTouchStart={() => handleTouchStartConversation(conversation._id)}
+                      onTouchEnd={handleTouchEnd}
+                      onTouchCancel={handleTouchEnd}
+                      className={`relative flex cursor-pointer items-center gap-3 border-b border-border/50 p-4 transition hover:bg-secondary/50 ${
                         activeConversation?._id ===
                         conversation._id
                           ? "border-l-4 border-l-primary bg-accent/40"
                           : ""
                       }`}
                     >
+                      {/* Mobile Delete Chat Popup */}
+                      {pressedConversationId === conversation._id && (
+                        <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleArchive(conversation);
+                              setPressedConversationId(null);
+                            }}
+                            className="rounded-full bg-red-500 px-6 py-2 text-sm font-medium text-white shadow-lg"
+                          >
+                            {conversation.archived ? "Restore Chat" : "Delete Chat"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPressedConversationId(null);
+                            }}
+                            className="ml-2 rounded-full bg-secondary px-4 py-2 text-sm font-medium text-foreground shadow-lg"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      )}
 
                       {/* AVATAR */}
                       <div className="relative shrink-0">
@@ -724,7 +776,7 @@ export default function Messages() {
 
                 </div>
 
-                {/* ARCHIVE */}
+                {/* DELETE CHAT */}
                 <button
                   type="button"
                   onClick={() =>
@@ -732,17 +784,17 @@ export default function Messages() {
                       activeConversation
                     )
                   }
-                  className="rounded-xl p-2 text-muted-foreground hover:bg-secondary hover:text-foreground"
+                  className="rounded-xl p-2 text-muted-foreground hover:bg-secondary hover:text-red-500"
                   title={
                     activeConversation.archived
-                      ? "Unarchive"
-                      : "Archive"
+                      ? "Restore Chat"
+                      : "Delete Chat"
                   }
                 >
                   {activeConversation.archived ? (
                     <ArchiveRestore className="h-5 w-5" />
                   ) : (
-                    <Archive className="h-5 w-5" />
+                    <Trash2 className="h-5 w-5" />
                   )}
                 </button>
 
@@ -783,21 +835,49 @@ export default function Messages() {
                           <div className={`flex max-w-[75%] flex-col ${isMine ? "items-end" : "items-start"}`}>
                             <div className="flex items-center gap-1 rounded-2xl bg-slate-100 px-4 py-2 text-sm italic text-slate-500 dark:bg-slate-800 dark:text-slate-400">
                               <Ban className="h-4 w-4" />
-                              <span>This message was {item.unsent ? "unsent" : "deleted"}</span>
+                              <span>This message was {item.unsent ? "unsent" : item.deletedByAdmin ? "deleted by Admin" : "deleted"}</span>
                             </div>
                           </div>
                         ) : (
-                          <div className="flex items-end gap-2 group">
+                          <div className="flex items-end gap-2 group relative">
+                            {/* Mobile Unsend Popup */}
+                            {pressedMessageId === item._id && isMine && (
+                              <div className="absolute -top-12 right-0 z-10 flex items-center bg-background rounded-full shadow-lg border border-border p-1">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleUnsend(item._id);
+                                    setPressedMessageId(null);
+                                  }}
+                                  className="flex items-center gap-1 px-3 py-1.5 text-xs text-red-500 hover:bg-secondary rounded-full"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                  Unsend
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setPressedMessageId(null)}
+                                  className="flex items-center gap-1 px-3 py-1.5 text-xs text-muted-foreground hover:bg-secondary rounded-full"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            )}
+
                             {isMine && (
                               <button
                                 onClick={() => handleUnsend(item._id)}
-                                className="opacity-0 transition-opacity group-hover:opacity-100 p-1 text-slate-400 hover:text-red-500"
+                                className="opacity-0 transition-opacity group-hover:opacity-100 p-1 text-slate-400 hover:text-red-500 hidden md:block"
                                 title="Unsend for everyone"
                               >
                                 <Trash2 className="h-4 w-4" />
                               </button>
                             )}
                             <div
+                              onTouchStart={() => isMine && handleTouchStartMessage(item._id)}
+                              onTouchEnd={handleTouchEnd}
+                              onTouchCancel={handleTouchEnd}
                               className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm ${
                                 isMine
                                   ? "rounded-br-md gradient-sunset text-white"
