@@ -735,7 +735,7 @@ export const getWebhookLogs = async (req, res) => {
 // =====================================================
 export const listAllProfiles = async (req, res) => {
   try {
-    const profiles = await Profile.find().lean();
+    const profiles = await Profile.find({ isDeleted: { $ne: true } }).lean();
     return res.status(200).json({
       success: true,
       data: profiles,

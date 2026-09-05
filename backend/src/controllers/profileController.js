@@ -24,6 +24,9 @@ export const listProfiles = async (req, res) => {
       filter.category = category;
     }
 
+    // Always exclude soft-deleted profiles
+    filter.isDeleted = { $ne: true };
+
     let profiles = await Profile.find(filter).lean();
 
     // Search fullName, handle and category
