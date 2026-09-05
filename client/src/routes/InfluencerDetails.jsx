@@ -217,14 +217,14 @@ export const loader = async ({ params }) => {
 
           avatar:
             (profile.avatarUrl && profile.avatarUrl !== "undefined" && profile.avatarUrl !== "null")
-              ? (profile.avatarUrl.startsWith("/") ? `${(import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\\/api$/, "")}${profile.avatarUrl}` : profile.avatarUrl)
+              ? (profile.avatarUrl.startsWith("/") ? `${(import.meta.env.VITE_API_URL || "http://localhost:5000").replace("/api", "")}${profile.avatarUrl}` : profile.avatarUrl)
               : `https://api.dicebear.com/9.x/avataaars/svg?seed=${encodeURIComponent(
                   profile.fullName || "User"
                 )}`,
 
           cover:
             (profile.coverUrl && profile.coverUrl !== "undefined" && profile.coverUrl !== "null")
-              ? (profile.coverUrl.startsWith("/") ? `${(import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\\/api$/, "")}${profile.coverUrl}` : profile.coverUrl)
+              ? (profile.coverUrl.startsWith("/") ? `${(import.meta.env.VITE_API_URL || "http://localhost:5000").replace("/api", "")}${profile.coverUrl}` : profile.coverUrl)
               : fallbackCover,
 
           bio:

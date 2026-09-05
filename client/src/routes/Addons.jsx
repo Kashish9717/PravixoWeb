@@ -57,8 +57,8 @@ export default function Addons() {
   // ADMIN CHECK
   // =====================================================
 
-  // This line forces the button to ALWAYS show, even if you are not logged in:
-  const isAdmin = true;
+  // This line hides the buttons on the client since only the admin panel should manage these:
+  const isAdmin = false;
   
   // This line is active so ONLY the Admin can see the buttons:
   // const isAdmin = profile?.role === "brand" && profile?.fullName === "Admin";
