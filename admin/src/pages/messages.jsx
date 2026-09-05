@@ -264,7 +264,7 @@ export function MessagesPage() {
                       src={senderAvatar}
                       onError={(e) => {
                         e.target.onerror = null;
-                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(senderName)}&background=random`;
+                        e.target.src = `https://avatar.iran.liara.run/public?username=${encodeURIComponent(senderName)}`;
                       }}
                       alt=""
                       className="mt-1 h-7 w-7 shrink-0 rounded-full border border-border object-cover"

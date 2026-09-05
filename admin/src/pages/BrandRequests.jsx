@@ -131,11 +131,11 @@ export default function BrandRequests() {
                         <div className="flex items-center gap-3">
                           <img src={
                               b.avatarUrl ||
-                              `https://ui-avatars.com/api/?background=random&name=${b.fullName}`
+                              `https://avatar.iran.liara.run/public?username=${b.fullName}`
                             }
                             alt=""
                             className="h-9 w-9 rounded-full border border-border object-cover"
-                           onError={(e) => { e.target.onerror = null; e.target.src = "https://ui-avatars.com/api/?background=random&name=Fallback"; }} />
+                           onError={(e) => { e.target.onerror = null; e.target.src = "https://avatar.iran.liara.run/public?username=Fallback"; }} />
                           <span className="text-sm font-semibold">{b.fullName}</span>
                         </div>
                       </TableCell>
@@ -236,11 +236,11 @@ export default function BrandRequests() {
                       <div className="flex items-center gap-3">
                         <img src={
                             b.avatarUrl ||
-                            `https://ui-avatars.com/api/?background=random&name=${b.fullName}`
+                            `https://avatar.iran.liara.run/public?username=${b.fullName}`
                           }
                           alt=""
                           className="h-9 w-9 rounded-full border border-border object-cover"
-                         onError={(e) => { e.target.onerror = null; e.target.src = "https://ui-avatars.com/api/?background=random&name=Fallback"; }} />
+                         onError={(e) => { e.target.onerror = null; e.target.src = "https://avatar.iran.liara.run/public?username=Fallback"; }} />
                         <span className="text-sm font-semibold text-muted-foreground">{b.fullName}</span>
                       </div>
                     </TableCell>

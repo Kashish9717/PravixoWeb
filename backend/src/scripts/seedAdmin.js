@@ -44,9 +44,9 @@ const seedAdmin = async () => {
       verificationStatus: 'verified'
     });
 
-    console.log('Admin created successfully:');
-    console.log('Email:', adminEmail);
-    console.log('Password:', adminPassword);
+    // console.log('Admin created successfully:');
+    // console.log('Email:', adminEmail);
+    // console.log('Password:', adminPassword);
     
     process.exit(0);
   } catch (error) {

@@ -27,7 +27,7 @@ const creatorData = [
     startingPrice: 15000,
 
     avatarUrl:
-      "https://ui-avatars.com/api/?background=random&name=Aarav",
+      "https://avatar.iran.liara.run/public?username=Aarav",
 
     coverUrl:
       "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=1200&q=80",
@@ -70,7 +70,7 @@ const creatorData = [
     startingPrice: 25000,
 
     avatarUrl:
-      "https://ui-avatars.com/api/?background=random&name=Riya",
+      "https://avatar.iran.liara.run/public?username=Riya",
 
     coverUrl:
       "https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?w=1200&q=80",
@@ -113,7 +113,7 @@ const creatorData = [
     startingPrice: 12000,
 
     avatarUrl:
-      "https://ui-avatars.com/api/?background=random&name=Piyush",
+      "https://avatar.iran.liara.run/public?username=Piyush",
 
     coverUrl:
       "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=1200&q=80",
@@ -156,7 +156,7 @@ const creatorData = [
     startingPrice: 18000,
 
     avatarUrl:
-      "https://ui-avatars.com/api/?background=random&name=Shweta",
+      "https://avatar.iran.liara.run/public?username=Shweta",
 
     coverUrl:
       "https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=1200&q=80",
@@ -199,7 +199,7 @@ const creatorData = [
     startingPrice: 22000,
 
     avatarUrl:
-      "https://ui-avatars.com/api/?background=random&name=Nandita",
+      "https://avatar.iran.liara.run/public?username=Nandita",
 
     coverUrl:
       "https://images.unsplash.com/photo-1500534623283-312aade485b7?w=1200&q=80",
@@ -242,7 +242,7 @@ const creatorData = [
     startingPrice: 20000,
 
     avatarUrl:
-      "https://ui-avatars.com/api/?background=random&name=Kashish",
+      "https://avatar.iran.liara.run/public?username=Kashish",
 
     coverUrl:
       "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=1200&q=80",
@@ -285,7 +285,7 @@ const creatorData = [
     startingPrice: 16000,
 
     avatarUrl:
-      "https://ui-avatars.com/api/?background=random&name=Kanika",
+      "https://avatar.iran.liara.run/public?username=Kanika",
 
     coverUrl:
       "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=1200&q=80",
@@ -328,7 +328,7 @@ const creatorData = [
     startingPrice: 30000,
 
     avatarUrl:
-      "https://ui-avatars.com/api/?background=random&name=Aarya",
+      "https://avatar.iran.liara.run/public?username=Aarya",
 
     coverUrl:
       "https://images.unsplash.com/photo-1529139574466-a303027c1d8b?w=1200&q=80",
@@ -371,7 +371,7 @@ const creatorData = [
     startingPrice: 28000,
 
     avatarUrl:
-      "https://ui-avatars.com/api/?background=random&name=Rahul",
+      "https://avatar.iran.liara.run/public?username=Rahul",
 
     coverUrl:
       "https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=1200&q=80",
@@ -414,7 +414,7 @@ const creatorData = [
     startingPrice: 14000,
 
     avatarUrl:
-      "https://ui-avatars.com/api/?background=random&name=Meera",
+      "https://avatar.iran.liara.run/public?username=Meera",
 
     coverUrl:
       "https://images.unsplash.com/photo-1498837167922-ddd27525d352?w=1200&q=80",
@@ -466,7 +466,7 @@ const brandData = [
     startingPrice: 0,
 
     avatarUrl:
-      "https://ui-avatars.com/api/?background=random&name=Hawai",
+      "https://avatar.iran.liara.run/public?username=Hawai",
 
     coverUrl:
       "https://images.unsplash.com/photo-1515003197210-e0cd71810b5f?w=1200&q=80",
@@ -504,7 +504,7 @@ const brandData = [
     startingPrice: 0,
 
     avatarUrl:
-      "https://ui-avatars.com/api/?background=random&name=Xpandia",
+      "https://avatar.iran.liara.run/public?username=Xpandia",
 
     coverUrl:
       "https://images.unsplash.com/photo-1500534623283-312aade485b7?w=1200&q=80",
@@ -542,7 +542,7 @@ const brandData = [
     startingPrice: 0,
 
     avatarUrl:
-      "https://ui-avatars.com/api/?background=random&name=Aman",
+      "https://avatar.iran.liara.run/public?username=Aman",
 
     coverUrl:
       "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=1200&q=80",
@@ -580,7 +580,7 @@ const brandData = [
     startingPrice: 0,
 
     avatarUrl:
-      "https://ui-avatars.com/api/?background=random&name=HawaHawai",
+      "https://avatar.iran.liara.run/public?username=HawaHawai",
 
     coverUrl:
       "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=1200&q=80",
@@ -618,7 +618,7 @@ const brandData = [
     startingPrice: 0,
 
     avatarUrl:
-      "https://ui-avatars.com/api/?background=random&name=Nakshaa",
+      "https://avatar.iran.liara.run/public?username=Nakshaa",
 
     coverUrl:
       "https://images.unsplash.com/photo-1445205170230-053b83016050?w=1200&q=80",
@@ -656,7 +656,7 @@ const brandData = [
     startingPrice: 0,
 
     avatarUrl:
-      "https://ui-avatars.com/api/?background=random&name=KashishFashion",
+      "https://avatar.iran.liara.run/public?username=KashishFashion",
 
     coverUrl:
       "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=1200&q=80",
@@ -694,7 +694,7 @@ const brandData = [
     startingPrice: 0,
 
     avatarUrl:
-      "https://ui-avatars.com/api/?background=random&name=NikeIndia",
+      "https://avatar.iran.liara.run/public?username=NikeIndia",
 
     coverUrl:
       "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=1200&q=80",
@@ -732,7 +732,7 @@ const brandData = [
     startingPrice: 0,
 
     avatarUrl:
-      "https://ui-avatars.com/api/?background=random&name=Zomato",
+      "https://avatar.iran.liara.run/public?username=Zomato",
 
     coverUrl:
       "https://images.unsplash.com/photo-1547592180-85f173990554?w=1200&q=80",

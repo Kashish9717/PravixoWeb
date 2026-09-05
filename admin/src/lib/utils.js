@@ -7,7 +7,7 @@ export function cn(...inputs) {
 
 export function resolveImageUrl(url, fallbackName = "User") {
   if (!url || url === "undefined" || url === "null") {
-    return `https://ui-avatars.com/api/?name=${encodeURIComponent(fallbackName)}&background=random`;
+    return `https://avatar.iran.liara.run/public?username=${encodeURIComponent(fallbackName)}`;
   }
   if (url.startsWith("http")) return url;
   let apiUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";

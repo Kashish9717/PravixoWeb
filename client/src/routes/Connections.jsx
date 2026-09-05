@@ -300,13 +300,13 @@ export default function Connections() {
                     <div className="flex min-w-0 items-center gap-3">
                       <img src={
                           resolveImageUrl(partner.avatarUrl) ||
-                          `https://ui-avatars.com/api/?background=random&name=${encodeURIComponent(
+                          `https://avatar.iran.liara.run/public?username=${encodeURIComponent(
                             partner.fullName || "User"
                           )}`
                         }
                         alt={partner.fullName || "User"}
                         className="h-12 w-12 flex-shrink-0 rounded-2xl border border-border/50 object-cover shadow-sm"
-                       onError={(e) => { e.target.onerror = null; e.target.src = "https://ui-avatars.com/api/?background=random&name=Fallback"; }} />
+                       onError={(e) => { e.target.onerror = null; e.target.src = "https://avatar.iran.liara.run/public?username=Fallback"; }} />
 
                       <div className="min-w-0">
                         <Link

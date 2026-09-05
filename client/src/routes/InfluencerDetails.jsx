@@ -218,7 +218,7 @@ export const loader = async ({ params }) => {
           avatar:
             (profile.avatarUrl && profile.avatarUrl !== "undefined" && profile.avatarUrl !== "null")
               ? (profile.avatarUrl.startsWith("/") ? `${import.meta.env.VITE_API_URL || "http://localhost:5000"}${profile.avatarUrl}` : profile.avatarUrl)
-              : `https://ui-avatars.com/api/?background=random&name=${encodeURIComponent(
+              : `https://avatar.iran.liara.run/public?username=${encodeURIComponent(
                   profile.fullName || "User"
                 )}`,
 
@@ -649,7 +649,7 @@ export default function InfluencerDetails() {
   const fallbackCover =
     "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop";
   const fallbackAvatar =
-    "https://ui-avatars.com/api/?background=random&name=creator";
+    "https://avatar.iran.liara.run/public?username=creator";
 
   const resolveImageUrl = (url) => {
     if (!url) return null;
@@ -1725,7 +1725,7 @@ export default function InfluencerDetails() {
                 <img src={inf.avatar}
                   alt={inf.name}
                   className="h-28 w-28 sm:h-36 sm:w-36 rounded-full border-4 border-background object-cover shadow-elevated bg-background"
-                 onError={(e) => { e.target.onerror = null; e.target.src = "https://ui-avatars.com/api/?background=random&name=Fallback"; }} />
+                 onError={(e) => { e.target.onerror = null; e.target.src = "https://avatar.iran.liara.run/public?username=Fallback"; }} />
               </div>
 
               <div className="pb-2 space-y-2">
@@ -2271,14 +2271,14 @@ export default function InfluencerDetails() {
 
                           <img src={
                               review.brandAvatar ||
-                              `https://ui-avatars.com/api/?background=random&name=${encodeURIComponent(
+                              `https://avatar.iran.liara.run/public?username=${encodeURIComponent(
                                 review.brandName ||
                                 "Brand"
                               )}`
                             }
                             alt=""
                             className="h-10 w-10 rounded-full object-cover border"
-                           onError={(e) => { e.target.onerror = null; e.target.src = "https://ui-avatars.com/api/?background=random&name=Fallback"; }} />
+                           onError={(e) => { e.target.onerror = null; e.target.src = "https://avatar.iran.liara.run/public?username=Fallback"; }} />
 
                           <div>
 

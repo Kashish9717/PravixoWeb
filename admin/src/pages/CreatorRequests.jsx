@@ -137,11 +137,11 @@ export default function CreatorRequests() {
                         <div className="flex items-center gap-3">
                           <img src={
                               c.avatarUrl ||
-                              `https://ui-avatars.com/api/?background=random&name=${c.fullName}`
+                              `https://avatar.iran.liara.run/public?username=${c.fullName}`
                             }
                             alt=""
                             className="h-9 w-9 rounded-full border border-border object-cover"
-                           onError={(e) => { e.target.onerror = null; e.target.src = "https://ui-avatars.com/api/?background=random&name=Fallback"; }} />
+                           onError={(e) => { e.target.onerror = null; e.target.src = "https://avatar.iran.liara.run/public?username=Fallback"; }} />
                           <span className="text-sm font-semibold">{c.fullName}</span>
                         </div>
                       </TableCell>
@@ -253,11 +253,11 @@ export default function CreatorRequests() {
                       <div className="flex items-center gap-3">
                         <img src={
                             c.avatarUrl ||
-                            `https://ui-avatars.com/api/?background=random&name=${c.fullName}`
+                            `https://avatar.iran.liara.run/public?username=${c.fullName}`
                           }
                           alt=""
                           className="h-9 w-9 rounded-full border border-border object-cover"
-                         onError={(e) => { e.target.onerror = null; e.target.src = "https://ui-avatars.com/api/?background=random&name=Fallback"; }} />
+                         onError={(e) => { e.target.onerror = null; e.target.src = "https://avatar.iran.liara.run/public?username=Fallback"; }} />
                         <span className="text-sm font-semibold text-muted-foreground">{c.fullName}</span>
                       </div>
                     </TableCell>
