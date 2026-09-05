@@ -970,6 +970,10 @@ export default function Browse() {
                         loading="lazy"
                         referrerPolicy="no-referrer"
                         className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src = "https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=1200&q=80";
+                        }}
                       />
 
                       {item.verificationStatus ===
