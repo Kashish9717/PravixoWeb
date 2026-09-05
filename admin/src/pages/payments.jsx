@@ -43,8 +43,8 @@ export function PaymentsPage() {
         api.get("/admin/webhook-logs").catch(() => ({ data: { success: true, data: [] } }))
       ]);
       if (statsRes.data.success) setStats(statsRes.data.data);
-      if (paymentsRes.data.success) setPayments(statsRes.data.data);
-      if (webhookRes.data.success) setWebhookLogs(statsRes.data.data);
+      if (paymentsRes.data.success) setPayments(paymentsRes.data.data);
+      if (webhookRes.data.success) setWebhookLogs(webhookRes.data.data);
     } catch (err) {
       console.error("Failed to fetch payments data", err);
     }
