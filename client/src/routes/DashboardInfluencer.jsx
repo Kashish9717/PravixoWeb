@@ -1324,7 +1324,7 @@ console.log("Verification Status:", profile?.verificationStatus);
                   }
                   alt=""
                   className="h-20 w-20 rounded-full border border-border object-cover bg-muted"
-                 onError={(e) => { e.target.onerror = null; e.target.src = "https://avatar.iran.liara.run/public?username=Fallback"; }} />
+                 onError={(e) => { e.target.onerror = null; e.target.src = "https://api.dicebear.com/9.x/avataaars/svg?seed=Fallback"; }} />
                 <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
                   <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-border bg-background px-4 py-2 text-sm font-medium hover:bg-secondary">
                     <Camera className="h-4 w-4" />
@@ -2474,11 +2474,11 @@ console.log("Verification Status:", profile?.verificationStatus);
                     <div className="flex flex-wrap items-center gap-3">
                       <img src={
                           review.brandAvatar ||
-                          `https://avatar.iran.liara.run/public?username=${review.brandName}`
+                          `https://api.dicebear.com/9.x/avataaars/svg?seed=${review.brandName}`
                         }
                         alt=""
                         className="h-10 w-10 rounded-full object-cover border border-border/50 shadow-sm aspect-square"
-                       onError={(e) => { e.target.onerror = null; e.target.src = "https://avatar.iran.liara.run/public?username=Fallback"; }} />
+                       onError={(e) => { e.target.onerror = null; e.target.src = "https://api.dicebear.com/9.x/avataaars/svg?seed=Fallback"; }} />
                       <div>
                         <div className="flex items-center gap-2">
                           <h4 className="font-display text-sm font-semibold text-foreground">

@@ -205,7 +205,7 @@ export default function Browse() {
         avatar:
           (p.avatarUrl && p.avatarUrl !== "undefined" && p.avatarUrl !== "null")
             ? (p.avatarUrl.startsWith("/") ? `${import.meta.env.VITE_API_URL || "http://localhost:5000"}${p.avatarUrl}` : p.avatarUrl)
-            : `https://avatar.iran.liara.run/public?username=${encodeURIComponent(
+            : `https://api.dicebear.com/9.x/avataaars/svg?seed=${encodeURIComponent(
                 name
               )}`,
 
@@ -1005,7 +1005,7 @@ export default function Browse() {
                         loading="lazy"
                         referrerPolicy="no-referrer"
                         className="relative z-10 h-16 w-16 rounded-full border-4 border-card bg-muted object-cover shadow-elevated"
-                       onError={(e) => { e.target.onerror = null; e.target.src = "https://avatar.iran.liara.run/public?username=Fallback"; }} />
+                       onError={(e) => { e.target.onerror = null; e.target.src = "https://api.dicebear.com/9.x/avataaars/svg?seed=Fallback"; }} />
 
                       <div className="mt-3 flex items-start justify-between gap-2">
 

@@ -91,7 +91,7 @@ function FeaturedProfileCard({ inf, user, handleCardClick }) {
           loading="lazy"
           referrerPolicy="no-referrer"
           className="relative z-10 h-14 w-14 rounded-full border-4 border-card bg-muted object-cover shadow-elevated sm:h-20 sm:w-20"
-         onError={(e) => { e.target.onerror = null; e.target.src = "https://avatar.iran.liara.run/public?username=Fallback"; }} />
+         onError={(e) => { e.target.onerror = null; e.target.src = "https://api.dicebear.com/9.x/avataaars/svg?seed=Fallback"; }} />
 
         <div className="mt-2.5 flex items-start justify-between gap-2 sm:mt-3">
           <div className="min-w-0">
@@ -218,7 +218,7 @@ export default function Home() {
       avatar:
         (p.avatarUrl && p.avatarUrl !== "undefined" && p.avatarUrl !== "null")
           ? (p.avatarUrl.startsWith("/") ? `${import.meta.env.VITE_API_URL || "http://localhost:5000"}${p.avatarUrl}` : p.avatarUrl)
-          : `https://avatar.iran.liara.run/public?username=${encodeURIComponent(
+          : `https://api.dicebear.com/9.x/avataaars/svg?seed=${encodeURIComponent(
               p.fullName || p.name || "creator"
             )}`,
       cover:
@@ -259,7 +259,7 @@ export default function Home() {
       avatar:
         (p.avatarUrl && p.avatarUrl !== "undefined" && p.avatarUrl !== "null")
           ? (p.avatarUrl.startsWith("/") ? `${import.meta.env.VITE_API_URL || "http://localhost:5000"}${p.avatarUrl}` : p.avatarUrl)
-          : `https://avatar.iran.liara.run/public?username=${encodeURIComponent(
+          : `https://api.dicebear.com/9.x/avataaars/svg?seed=${encodeURIComponent(
               p.fullName || p.name || "brand"
             )}`,
       cover:

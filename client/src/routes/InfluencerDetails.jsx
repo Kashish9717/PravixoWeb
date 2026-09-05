@@ -218,7 +218,7 @@ export const loader = async ({ params }) => {
           avatar:
             (profile.avatarUrl && profile.avatarUrl !== "undefined" && profile.avatarUrl !== "null")
               ? (profile.avatarUrl.startsWith("/") ? `${import.meta.env.VITE_API_URL || "http://localhost:5000"}${profile.avatarUrl}` : profile.avatarUrl)
-              : `https://avatar.iran.liara.run/public?username=${encodeURIComponent(
+              : `https://api.dicebear.com/9.x/avataaars/svg?seed=${encodeURIComponent(
                   profile.fullName || "User"
                 )}`,
 
@@ -649,7 +649,7 @@ export default function InfluencerDetails() {
   const fallbackCover =
     "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop";
   const fallbackAvatar =
-    "https://avatar.iran.liara.run/public?username=creator";
+    "https://api.dicebear.com/9.x/avataaars/svg?seed=creator";
 
   const resolveImageUrl = (url) => {
     if (!url) return null;
@@ -1707,6 +1707,7 @@ export default function InfluencerDetails() {
             src={inf.cover}
             alt=""
             className="h-full w-full object-cover"
+            onError={(e) => { e.target.onerror = null; e.target.src = fallbackCover; }}
           />
         </div>
       </div>
@@ -1725,7 +1726,7 @@ export default function InfluencerDetails() {
                 <img src={inf.avatar}
                   alt={inf.name}
                   className="h-28 w-28 sm:h-36 sm:w-36 rounded-full border-4 border-background object-cover shadow-elevated bg-background"
-                 onError={(e) => { e.target.onerror = null; e.target.src = "https://avatar.iran.liara.run/public?username=Fallback"; }} />
+                 onError={(e) => { e.target.onerror = null; e.target.src = "https://api.dicebear.com/9.x/avataaars/svg?seed=Fallback"; }} />
               </div>
 
               <div className="pb-2 space-y-2">
@@ -2271,14 +2272,14 @@ export default function InfluencerDetails() {
 
                           <img src={
                               review.brandAvatar ||
-                              `https://avatar.iran.liara.run/public?username=${encodeURIComponent(
+                              `https://api.dicebear.com/9.x/avataaars/svg?seed=${encodeURIComponent(
                                 review.brandName ||
                                 "Brand"
                               )}`
                             }
                             alt=""
                             className="h-10 w-10 rounded-full object-cover border"
-                           onError={(e) => { e.target.onerror = null; e.target.src = "https://avatar.iran.liara.run/public?username=Fallback"; }} />
+                           onError={(e) => { e.target.onerror = null; e.target.src = "https://api.dicebear.com/9.x/avataaars/svg?seed=Fallback"; }} />
 
                           <div>
 

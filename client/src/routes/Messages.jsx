@@ -625,7 +625,7 @@ export default function Messages() {
 
                         <img src={
                             resolveImageUrl(other?.avatarUrl) ||
-                            `https://avatar.iran.liara.run/public?username=${encodeURIComponent(
+                            `https://api.dicebear.com/9.x/avataaars/svg?seed=${encodeURIComponent(
                               other?.fullName ||
                                 "User"
                             )}`
@@ -635,7 +635,7 @@ export default function Messages() {
                             "User"
                           }
                           className="h-12 w-12 rounded-2xl object-cover shadow-soft"
-                         onError={(e) => { e.target.onerror = null; e.target.src = "https://avatar.iran.liara.run/public?username=Fallback"; }} />
+                         onError={(e) => { e.target.onerror = null; e.target.src = "https://api.dicebear.com/9.x/avataaars/svg?seed=Fallback"; }} />
 
                         {conversation.unreadCount >
                           0 && (
@@ -747,7 +747,7 @@ export default function Messages() {
                 {/* AVATAR */}
                 <img src={
                     resolveImageUrl(otherProfile?.avatarUrl) ||
-                    `https://avatar.iran.liara.run/public?username=${encodeURIComponent(
+                    `https://api.dicebear.com/9.x/avataaars/svg?seed=${encodeURIComponent(
                       otherProfile?.fullName ||
                         "User"
                     )}`
@@ -757,7 +757,7 @@ export default function Messages() {
                     "User"
                   }
                   className="h-11 w-11 rounded-2xl object-cover"
-                 onError={(e) => { e.target.onerror = null; e.target.src = "https://avatar.iran.liara.run/public?username=Fallback"; }} />
+                 onError={(e) => { e.target.onerror = null; e.target.src = "https://api.dicebear.com/9.x/avataaars/svg?seed=Fallback"; }} />
 
                 {/* NAME */}
                 <div className="min-w-0 flex-1">

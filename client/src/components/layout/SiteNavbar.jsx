@@ -208,7 +208,7 @@ export function SiteNavbar() {
                       <img src={resolveImageUrl(profile.avatarUrl)}
                         alt=""
                         className="h-7 w-7 rounded-full object-cover border border-border/50"
-                       onError={(e) => { e.target.onerror = null; e.target.src = "https://avatar.iran.liara.run/public?username=Fallback"; }} />
+                       onError={(e) => { e.target.onerror = null; e.target.src = "https://api.dicebear.com/9.x/avataaars/svg?seed=Fallback"; }} />
                     ) : (
                       <span className="flex h-7 w-7 items-center justify-center rounded-full gradient-sunset text-[10px] font-bold text-white">
                         {initial}
