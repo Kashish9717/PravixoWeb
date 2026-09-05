@@ -217,13 +217,13 @@ export default function Home() {
       available: true,
       avatar:
         (p.avatarUrl && p.avatarUrl !== "undefined" && p.avatarUrl !== "null")
-          ? (p.avatarUrl.startsWith("/") ? `${import.meta.env.VITE_API_URL || "http://localhost:5000"}${p.avatarUrl}` : p.avatarUrl)
+          ? (p.avatarUrl.startsWith("/") ? `${(import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\\/api$/, "")}${p.avatarUrl}` : p.avatarUrl)
           : `https://api.dicebear.com/9.x/avataaars/svg?seed=${encodeURIComponent(
               p.fullName || p.name || "creator"
             )}`,
       cover:
         (p.coverUrl && p.coverUrl !== "undefined" && p.coverUrl !== "null")
-          ? (p.coverUrl.startsWith("/") ? `${import.meta.env.VITE_API_URL || "http://localhost:5000"}${p.coverUrl}` : p.coverUrl)
+          ? (p.coverUrl.startsWith("/") ? `${(import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\\/api$/, "")}${p.coverUrl}` : p.coverUrl)
           : `https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=1200&q=80`,
       bio: p.bio || "",
       role: p.role || "creator",
@@ -258,13 +258,13 @@ export default function Home() {
       available: true,
       avatar:
         (p.avatarUrl && p.avatarUrl !== "undefined" && p.avatarUrl !== "null")
-          ? (p.avatarUrl.startsWith("/") ? `${import.meta.env.VITE_API_URL || "http://localhost:5000"}${p.avatarUrl}` : p.avatarUrl)
+          ? (p.avatarUrl.startsWith("/") ? `${(import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\\/api$/, "")}${p.avatarUrl}` : p.avatarUrl)
           : `https://api.dicebear.com/9.x/avataaars/svg?seed=${encodeURIComponent(
               p.fullName || p.name || "brand"
             )}`,
       cover:
         (p.coverUrl && p.coverUrl !== "undefined" && p.coverUrl !== "null")
-          ? (p.coverUrl.startsWith("/") ? `${import.meta.env.VITE_API_URL || "http://localhost:5000"}${p.coverUrl}` : p.coverUrl)
+          ? (p.coverUrl.startsWith("/") ? `${(import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\\/api$/, "")}${p.coverUrl}` : p.coverUrl)
           : `https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=1200&q=80`,
       bio: p.bio || "",
       role: p.role || "brand",

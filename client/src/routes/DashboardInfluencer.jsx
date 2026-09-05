@@ -1848,6 +1848,7 @@ console.log("Verification Status:", profile?.verificationStatus);
                       src={resolveImageUrl(img.url)}
                       alt=""
                       className="h-full w-full object-cover"
+                      onError={(e) => { e.target.onerror = null; e.target.style.display = 'none'; }}
                     />
                   )}
                   <button
