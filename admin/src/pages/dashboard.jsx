@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatNumber } from "@/lib/format";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
+import { NotificationBell } from "@/components/notification-bell";
 
 export function Dashboard() {
   useEffect(() => {
@@ -33,7 +34,7 @@ export function Dashboard() {
         const [statsRes, profilesRes, convsRes] = await Promise.all([
           api.get("/admin/stats"),
           api.get("/admin/profiles"),
-          api.get("/admin/conversations")
+          api.get("/admin/conversations"),
         ]);
         if (statsRes.data.success) setStats(statsRes.data.data);
         if (profilesRes.data.success) setAllProfiles(profilesRes.data.data);
@@ -66,8 +67,8 @@ export function Dashboard() {
   // User Roles Data
   const totalUserRoles = (stats?.creators || 0) + (stats?.brands || 0);
   const userRoleData = [
-    { name: "Creators", value: stats?.creators || 0, color: "#8b5cf6", total: totalUserRoles }, // Violet
-    { name: "Brands", value: stats?.brands || 0, color: "#f59e0b", total: totalUserRoles },    // Amber
+    { name: "Creators", value: stats?.creators || 0, color: "#8b5cf6", total: totalUserRoles },
+    { name: "Brands", value: stats?.brands || 0, color: "#f59e0b", total: totalUserRoles },
   ];
 
   // Verification Statuses Data
@@ -78,10 +79,10 @@ export function Dashboard() {
   const totalVerification = verifiedCount + pendingCount + rejectedCount + unverifiedCount;
 
   const verificationData = [
-    { name: "Verified", value: verifiedCount, color: "#10b981", total: totalVerification },   // Emerald
-    { name: "Pending", value: pendingCount, color: "#f59e0b", total: totalVerification },     // Amber
-    { name: "Rejected", value: rejectedCount, color: "#f43f5e", total: totalVerification },    // Rose
-    { name: "Unverified", value: unverifiedCount, color: "#64748b", total: totalVerification }, // Slate
+    { name: "Verified", value: verifiedCount, color: "#10b981", total: totalVerification },
+    { name: "Pending", value: pendingCount, color: "#f59e0b", total: totalVerification },
+    { name: "Rejected", value: rejectedCount, color: "#f43f5e", total: totalVerification },
+    { name: "Unverified", value: unverifiedCount, color: "#64748b", total: totalVerification },
   ];
 
   // Conversation Statuses Data
@@ -91,9 +92,9 @@ export function Dashboard() {
   const totalConversations = activeConvs + pendingConvs + completedConvs;
 
   const conversationData = [
-    { name: "Active", value: activeConvs, color: "#10b981", total: totalConversations },     // Emerald
-    { name: "Pending", value: pendingConvs, color: "#f59e0b", total: totalConversations },   // Amber
-    { name: "Completed", value: completedConvs, color: "#64748b", total: totalConversations }, // Slate
+    { name: "Active", value: activeConvs, color: "#10b981", total: totalConversations },
+    { name: "Pending", value: pendingConvs, color: "#f59e0b", total: totalConversations },
+    { name: "Completed", value: completedConvs, color: "#64748b", total: totalConversations },
   ];
 
   const isLoading = !stats || !allProfiles || !allConversations;
@@ -108,13 +109,16 @@ export function Dashboard() {
             Platform overview and analytics charts
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <TrendingUp className="h-4 w-4 text-emerald-500" />
-          <span className="text-xs font-medium text-emerald-600 animate-pulse">Live data</span>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="h-4 w-4 text-emerald-500" />
+            <span className="text-xs font-medium text-emerald-600 animate-pulse">Live data</span>
+          </div>
+          <NotificationBell align="right" />
         </div>
       </div>
 
-      {/* Top Stat Cards (Screenshot Style) */}
+      {/* Top Stat Cards */}
       <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
         {statCards.map((card) => {
           const CardWrapper = card.href ? Link : "div";
@@ -122,7 +126,7 @@ export function Dashboard() {
             <CardWrapper
               key={card.label}
               to={card.href}
-              className={`rounded-2xl border border-border bg-card p-4 shadow-sm ${card.href ? 'hover:bg-secondary/50 transition-colors' : ''}`}
+              className={`rounded-2xl border border-border bg-card p-4 shadow-sm ${card.href ? "hover:bg-secondary/50 transition-colors" : ""}`}
             >
               <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                 {card.label}
@@ -351,10 +355,7 @@ export function Dashboard() {
         <div className="rounded-3xl border border-border bg-card p-6 shadow-sm">
           <div className="flex items-center justify-between">
             <h2 className="font-display text-lg font-semibold">Recent Users</h2>
-            <Link
-              to="/users"
-              className="text-xs font-medium text-primary hover:underline"
-            >
+            <Link to="/users" className="text-xs font-medium text-primary hover:underline">
               View all →
             </Link>
           </div>
@@ -370,14 +371,17 @@ export function Dashboard() {
                 </div>
               ))
             ) : recentUsers.length === 0 ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">
-                No users yet
-              </p>
+              <p className="py-8 text-center text-sm text-muted-foreground">No users yet</p>
             ) : (
               recentUsers.map((u) => (
                 <button
                   key={u._id}
-                  onClick={() => window.open(`http://localhost:5173/${u.role === 'creator' ? 'influencer' : 'brand'}/${u._id}`, '_blank')}
+                  onClick={() =>
+                    window.open(
+                      `http://localhost:5173/${u.role === "creator" ? "influencer" : "brand"}/${u._id}`,
+                      "_blank"
+                    )
+                  }
                   className="w-full text-left flex items-center gap-3 rounded-2xl border border-border/50 p-3 transition-colors hover:bg-secondary/50 cursor-pointer"
                 >
                   <img
@@ -390,9 +394,7 @@ export function Dashboard() {
                     className="h-10 w-10 rounded-full border border-border object-cover"
                   />
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-semibold">
-                      {u.fullName}
-                    </div>
+                    <div className="truncate text-sm font-semibold">{u.fullName}</div>
                     <div className="text-xs text-muted-foreground">
                       {u.handle ? `@${u.handle}` : u.category || "—"}
                     </div>
@@ -400,9 +402,7 @@ export function Dashboard() {
                   <Badge
                     variant="secondary"
                     className={`rounded-full text-[10px] ${
-                      u.role === "creator"
-                        ? "bg-violet/10 text-violet"
-                        : "bg-amber/10 text-amber"
+                      u.role === "creator" ? "bg-violet/10 text-violet" : "bg-amber/10 text-amber"
                     }`}
                   >
                     {u.role}
@@ -416,13 +416,8 @@ export function Dashboard() {
         {/* Recent Conversations */}
         <div className="rounded-3xl border border-border bg-card p-6 shadow-sm">
           <div className="flex items-center justify-between">
-            <h2 className="font-display text-lg font-semibold">
-              Recent Conversations
-            </h2>
-            <Link
-              to="/conversations"
-              className="text-xs font-medium text-primary hover:underline"
-            >
+            <h2 className="font-display text-lg font-semibold">Recent Conversations</h2>
+            <Link to="/conversations" className="text-xs font-medium text-primary hover:underline">
               View all →
             </Link>
           </div>
@@ -438,9 +433,7 @@ export function Dashboard() {
                 </div>
               ))
             ) : recentConvs.length === 0 ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">
-                No conversations yet
-              </p>
+              <p className="py-8 text-center text-sm text-muted-foreground">No conversations yet</p>
             ) : (
               recentConvs.map((c) => (
                 <Link
@@ -471,9 +464,7 @@ export function Dashboard() {
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-semibold">
                       {c.creator?.fullName || "Unknown"}{" "}
-                      <span className="font-normal text-muted-foreground">
-                        ↔
-                      </span>{" "}
+                      <span className="font-normal text-muted-foreground">↔</span>{" "}
                       {c.brand?.fullName || "Unknown"}
                     </div>
                     <div className="truncate text-xs text-muted-foreground">
@@ -486,8 +477,8 @@ export function Dashboard() {
                       c.status === "active"
                         ? "bg-emerald-500/10 text-emerald-600"
                         : c.status === "pending"
-                          ? "bg-amber/10 text-amber"
-                          : "bg-muted text-muted-foreground"
+                        ? "bg-amber/10 text-amber"
+                        : "bg-muted text-muted-foreground"
                     }`}
                   >
                     {c.status}

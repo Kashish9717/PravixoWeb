@@ -1136,3 +1136,86 @@ export const bulkDeleteMessages = async (req, res) => {
     return res.status(500).json({ success: false, message: "Failed to delete messages." });
   }
 };
+
+
+// =====================================================
+// ADMIN ACTIVITY FEED
+// GET /api/admin/activity
+// =====================================================
+export const getAdminActivityFeed = async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 40;
+    const since = req.query.since ? parseInt(req.query.since) : null;
+
+    const sinceDate = since ? new Date(since) : null;
+    const sinceFilter = sinceDate ? { createdAt: { $gt: sinceDate } } : {};
+
+    const newUsers = await Profile.find({ isDeleted: { $ne: true }, ...sinceFilter })
+      .sort({ createdAt: -1 }).limit(20)
+      .select("fullName avatarUrl role handle createdAt").lean();
+
+    const signupEvents = newUsers.map((u) => ({
+      id: "signup_" + u._id,
+      type: "signup",
+      role: u.role,
+      title: "New " + u.role + " joined",
+      body: u.fullName + (u.handle ? " (@" + u.handle + ")" : "") + " created an account",
+      avatarUrl: u.avatarUrl || null,
+      actorName: u.fullName,
+      timestamp: new Date(u.createdAt).getTime(),
+    }));
+
+    const recentConversations = await Conversation.find(sinceFilter)
+      .sort({ createdAt: -1 }).limit(15)
+      .populate("creatorId", "fullName handle avatarUrl")
+      .populate("brandId", "fullName handle").lean();
+
+    const collaborationEvents = recentConversations.map((c) => ({
+      id: "collab_" + c._id,
+      type: "collaboration",
+      title: "New collaboration started",
+      body: (c.creatorId && c.creatorId.fullName ? c.creatorId.fullName : "A creator") + " connected with " + (c.brandId && c.brandId.fullName ? c.brandId.fullName : "a brand"),
+      avatarUrl: c.creatorId ? c.creatorId.avatarUrl : null,
+      actorName: c.creatorId ? c.creatorId.fullName : "Creator",
+      timestamp: new Date(c.createdAt).getTime(),
+    }));
+
+    const recentPayments = await Payment.find(sinceFilter)
+      .sort({ createdAt: -1 }).limit(10).lean();
+
+    const paymentEvents = recentPayments.map((p) => ({
+      id: "payment_" + p._id,
+      type: "payment",
+      title: "Payment processed",
+      body: "A payment of Rs " + ((p.amount || 0) / 100).toLocaleString("en-IN") + " was recorded",
+      avatarUrl: null,
+      actorName: "Payment System",
+      timestamp: new Date(p.createdAt).getTime(),
+    }));
+
+    const adminActions = await Notification.find({
+      type: { $in: ["account_suspended", "account_deleted"] },
+      ...sinceFilter,
+    }).sort({ createdAt: -1 }).limit(10)
+      .populate("recipientId", "fullName avatarUrl role").lean();
+
+    const actionEvents = adminActions.map((n) => ({
+      id: "action_" + n._id,
+      type: n.type === "account_deleted" ? "deleted" : "suspended",
+      title: n.type === "account_deleted" ? "Account deleted" : "Account suspended",
+      body: n.text,
+      avatarUrl: n.recipientId ? n.recipientId.avatarUrl : null,
+      actorName: n.recipientId ? n.recipientId.fullName : "User",
+      timestamp: new Date(n.createdAt).getTime(),
+    }));
+
+    const allEvents = [...signupEvents, ...collaborationEvents, ...paymentEvents, ...actionEvents]
+      .sort((a, b) => b.timestamp - a.timestamp)
+      .slice(0, limit);
+
+    return res.status(200).json({ success: true, data: allEvents, count: allEvents.length });
+  } catch (error) {
+    console.error("Admin getAdminActivityFeed error:", error);
+    return res.status(500).json({ success: false, message: "Failed to fetch activity feed.", error: error.message });
+  }
+};

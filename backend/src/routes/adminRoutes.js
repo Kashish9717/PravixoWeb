@@ -49,6 +49,7 @@ import {
   deleteProTip,
   updateAdminCredentials,
   bulkDeleteMessages,
+  getAdminActivityFeed,
 } from "../controllers/adminController.js";
 
 const router = express.Router();
@@ -129,5 +130,8 @@ router.post("/payments/:id/resolve-dispute", resolveDispute);
 
 // Webhook audit logs
 router.get("/webhooks/logs", getWebhookLogs);
+
+// Admin activity feed (for notification bell)
+router.get("/activity", getAdminActivityFeed);
 
 export default router;
