@@ -38,6 +38,25 @@ export function SiteNavbar() {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [connectionCount, setConnectionCount] = useState(0);
+  const [isNavVisible, setIsNavVisible] = useState(true);
+  const lastScrollY = useRef(0);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      if (currentScrollY < 80) {
+        setIsNavVisible(true);
+      } else if (currentScrollY > lastScrollY.current + 8) {
+        setIsNavVisible(false);
+        setOpen(false);
+      } else if (currentScrollY < lastScrollY.current - 8) {
+        setIsNavVisible(true);
+      }
+      lastScrollY.current = currentScrollY;
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   const resolveImageUrl = (url) => {
     if (!url) return null;
@@ -110,7 +129,11 @@ export function SiteNavbar() {
 
   return (
     <>
-      <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/80 backdrop-blur-xl">
+      <header
+        className={`fixed top-0 z-50 w-full border-b border-border/40 bg-background/80 backdrop-blur-xl transition-transform duration-300 ease-in-out ${
+          isNavVisible ? "translate-y-0" : "-translate-y-full"
+        }`}
+      >
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           
           {/* Logo */}

@@ -65,6 +65,8 @@ function Layout() {
   return (
     <div className="flex min-h-screen flex-col">
       <SiteNavbar />
+      {/* Spacer for fixed navbar */}
+      <div className="h-16 shrink-0" />
 
       <main className={`flex-1 ${isMessagesPage ? "flex flex-col" : ""}`}>
         <Routes>
