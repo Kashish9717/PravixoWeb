@@ -11,6 +11,29 @@ export const submitVerification = async (req, res) => {
       });
     }
 
+    const creatorProfile = await Profile.findById(profileId);
+    if (!creatorProfile) {
+      return res.status(404).json({
+        success: false,
+        message: "Profile not found.",
+      });
+    }
+
+    const missingFields = [];
+    if (!creatorProfile.handle) missingFields.push("Handle / Username");
+    if (!creatorProfile.category) missingFields.push("Category");
+    if (!creatorProfile.phone) missingFields.push("Phone");
+    if (!creatorProfile.location) missingFields.push("Location");
+    if (!creatorProfile.bio) missingFields.push("Bio");
+    if (!creatorProfile.startingPrice) missingFields.push("Starting Price");
+
+    if (missingFields.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Missing required information for verification: ${missingFields.join(", ")}`,
+      });
+    }
+
     const profile = await Profile.findByIdAndUpdate(
       profileId,
       {
@@ -61,6 +84,28 @@ export const submitBrandVerification = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: "Required GST verification fields are missing.",
+      });
+    }
+
+    const brandProfile = await Profile.findById(profileId);
+    if (!brandProfile) {
+      return res.status(404).json({
+        success: false,
+        message: "Profile not found.",
+      });
+    }
+
+    const missingFields = [];
+    if (!brandProfile.handle) missingFields.push("Handle / Username");
+    if (!brandProfile.category) missingFields.push("Category");
+    if (!brandProfile.website) missingFields.push("Website");
+    if (!brandProfile.location) missingFields.push("Location");
+    if (!brandProfile.companySize) missingFields.push("Company Size");
+
+    if (missingFields.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Missing required information for verification: ${missingFields.join(", ")}`,
       });
     }
 

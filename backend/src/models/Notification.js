@@ -36,6 +36,7 @@ const notificationSchema = new mongoose.Schema(
         "account_suspended",
         "account_deleted",
         "account_restored",
+        "admin_message",
       ],
       required: true,
     },

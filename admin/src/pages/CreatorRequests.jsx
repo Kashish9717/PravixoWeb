@@ -49,12 +49,18 @@ function ReviewModal({ creator, onClose, onApprove, onSendMessage }) {
   const hasCategory = !!creator.category;
   const hasLocation = !!creator.location;
   const hasBio = !!creator.bio;
+  const hasPhone = !!creator.phone;
+  const hasStartingPrice = !!creator.startingPrice;
 
   const missing = [];
   if (!hasAadhar) missing.push("Aadhar Card");
   if (!hasPan) missing.push("PAN Card");
   if (!hasHandle) missing.push("Handle / Username");
   if (!hasCategory) missing.push("Category");
+  if (!hasPhone) missing.push("Phone");
+  if (!hasLocation) missing.push("Location");
+  if (!hasBio) missing.push("Bio");
+  if (!hasStartingPrice) missing.push("Starting Price");
 
   const allComplete = missing.length === 0;
 

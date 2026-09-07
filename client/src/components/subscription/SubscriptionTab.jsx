@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import axios from "axios";
+import api from "../../lib/api";
 import Button from "../ui/Button"
 import { toast } from "sonner";
 import {
@@ -38,17 +38,9 @@ export function SubscriptionTab({ role, profile }) {
         packagesResponse,
         offersResponse,
       ] = await Promise.all([
-        axios.get(
-          `${API_URL}/api/subscriptions/user/${profile._id}`
-        ),
-
-        axios.get(
-          `${API_URL}/api/subscriptions/packages`
-        ),
-
-        axios.get(
-          `${API_URL}/api/subscriptions/offers`
-        ),
+        api.get(`/subscriptions/user/${profile._id}`),
+        api.get(`/subscriptions/packages`),
+        api.get(`/subscriptions/offers`),
       ]);
 
       setCurrentSub(
@@ -116,8 +108,8 @@ export function SubscriptionTab({ role, profile }) {
     try {
       setUpgradingId(packageId);
 
-      const response = await axios.post(
-        `${API_URL}/api/subscriptions`,
+      const response = await api.post(
+        `/subscriptions`,
         {
           profileId: profile._id,
           packageId,

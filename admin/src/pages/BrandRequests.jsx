@@ -46,12 +46,17 @@ function BrandReviewModal({ brand, onClose, onApprove, onSendMessage }) {
   const hasHandle = !!brand.handle;
   const hasWebsite = !!brand.website;
   const hasCategory = !!brand.category;
+  const hasLocation = !!brand.location;
+  const hasCompanySize = !!brand.companySize;
 
   const missing = [];
   if (!hasGst) missing.push("GST Number");
   if (!hasGstCert) missing.push("GST Certificate");
   if (!hasHandle) missing.push("Handle / Username");
   if (!hasCategory) missing.push("Category");
+  if (!hasWebsite) missing.push("Website");
+  if (!hasLocation) missing.push("Location");
+  if (!hasCompanySize) missing.push("Company Size");
 
   const allComplete = missing.length === 0;
 

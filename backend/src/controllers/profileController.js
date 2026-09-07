@@ -654,6 +654,31 @@ export const uploadKycDocuments = async (req, res) => {
       return `/uploads/${file.filename}`;
     };
 
+    const profile = await Profile.findById(id);
+    if (!profile) {
+      return res.status(404).json({
+        success: false,
+        message: "Profile not found.",
+      });
+    }
+
+    const missingFields = [];
+    if (!req.files?.aadhar && !profile.aadharStorageId) missingFields.push("Aadhar Card");
+    if (!req.files?.pan && !profile.panStorageId) missingFields.push("PAN Card");
+    if (!profile.handle) missingFields.push("Handle / Username");
+    if (!profile.category) missingFields.push("Category");
+    if (!profile.phone) missingFields.push("Phone");
+    if (!profile.location) missingFields.push("Location");
+    if (!profile.bio) missingFields.push("Bio");
+    if (!profile.startingPrice) missingFields.push("Starting Price");
+
+    if (missingFields.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Missing required information for verification: ${missingFields.join(", ")}`,
+      });
+    }
+
     const updates = {
       verificationStatus: "pending",
     };
@@ -677,13 +702,13 @@ export const uploadKycDocuments = async (req, res) => {
       updates.gstNumber = req.body.gstNumber;
     }
 
-    const profile = await Profile.findByIdAndUpdate(
+    const updatedProfile = await Profile.findByIdAndUpdate(
       id,
       updates,
       { new: true }
     );
 
-    if (!profile) {
+    if (!updatedProfile) {
       return res.status(404).json({
         success: false,
         message: "Profile not found.",
@@ -693,7 +718,7 @@ export const uploadKycDocuments = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "KYC documents uploaded successfully for verification.",
-      data: profile,
+      data: updatedProfile,
     });
 
   } catch (error) {
