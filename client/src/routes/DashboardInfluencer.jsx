@@ -713,7 +713,7 @@ const [showPostSaveDialog, setShowPostSaveDialog] = useState(false);
 
   useEffect(() => {
     if (profile) {
-      setFullName(profile.displayName || "");
+      setFullName(profile.fullName || profile.displayName || "");
       setHandle(profile.handle?.replace("@", "") || "");
       setPhone(profile.phone || "");
       setCategory(profile.category || "");
@@ -761,26 +761,13 @@ const [showPostSaveDialog, setShowPostSaveDialog] = useState(false);
     try {
       const res = await updateProfile({
         id: mongoProfileId,
-        displayName: fullName,
+        fullName: fullName,
         handle: handle ? `@${handle.replace("@", "")}` : "",
         phone: phone,
-        category: category || undefined,
-        location: location || undefined,
-        bio: bio || undefined,
+        category: category,
+        location: location,
+        bio: bio,
         startingPrice,
-        // Socials
-        instagramHandle: instaHandle || undefined,
-        instagramFollowers: instaFollowers,
-        facebookHandle: fbHandle || undefined,
-        facebookFollowers: fbFollowers,
-        linkedinHandle: liHandle || undefined,
-        linkedinFollowers: liFollowers,
-        youtubeHandle: ytHandle || undefined,
-        youtubeFollowers: ytFollowers,
-        quoraHandle: quoraHandle || undefined,
-        quoraFollowers: quoraFollowers,
-        twitterHandle: twHandle || undefined,
-        twitterFollowers: twFollowers,
       });
       const updated = res?.data || res?.profile || res;
       if (updated && updateLocalProfile) {
@@ -799,6 +786,35 @@ const [showPostSaveDialog, setShowPostSaveDialog] = useState(false);
       toast.error(err?.response?.data?.message || err?.message || "Failed to save profile");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const saveSocialPresence = async () => {
+    if (!profile) return;
+    try {
+      const res = await updateProfile({
+        id: mongoProfileId,
+        instagramHandle: instaHandle,
+        instagramFollowers: instaFollowers,
+        facebookHandle: fbHandle,
+        facebookFollowers: fbFollowers,
+        linkedinHandle: liHandle,
+        linkedinFollowers: liFollowers,
+        youtubeHandle: ytHandle,
+        youtubeFollowers: ytFollowers,
+        quoraHandle: quoraHandle,
+        quoraFollowers: quoraFollowers,
+        twitterHandle: twHandle,
+        twitterFollowers: twFollowers,
+      });
+      const updated = res?.data || res?.profile || res;
+      if (updated && updateLocalProfile) {
+        updateLocalProfile(updated);
+      }
+      toast.success("Social presence saved successfully!");
+    } catch (err) {
+      console.error(err);
+      toast.error(err?.response?.data?.message || err?.message || "Failed to save social presence");
     }
   };
 
@@ -1820,12 +1836,12 @@ console.log("Verification Status:", profile?.verificationStatus);
             
             <div className="mt-4 flex justify-end">
               <Button
-                onClick={() => saveProfile(false)}
+                onClick={() => saveSocialPresence()}
                 disabled={saving}
                 size="sm"
                 className="rounded-full gradient-sunset border-0 text-white shadow-glow"
               >
-                {saving ? "Saving…" : "Save changes"}
+                {saving ? "Saving…" : "Save Social Presence"}
               </Button>
             </div>
 
@@ -1940,7 +1956,7 @@ console.log("Verification Status:", profile?.verificationStatus);
 
             <div className="mt-6 flex justify-end">
               <Button
-                onClick={() => saveProfile(true)}
+                onClick={() => saveProfile(false)}
                 disabled={saving}
                 className="rounded-full gradient-sunset border-0 text-white shadow-glow"
               >

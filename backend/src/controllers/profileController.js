@@ -416,6 +416,7 @@ export const updateProfile = async (req, res) => {
     const allowedFields = [
       "fullName",
       "handle",
+      "phone",
       "category",
       "location",
       "bio",

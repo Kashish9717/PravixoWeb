@@ -44,6 +44,11 @@ const profileSchema = new mongoose.Schema(
       default: "",
     },
 
+    phone: {
+      type: String,
+      default: "",
+    },
+
     location: {
       type: String,
       default: "",
