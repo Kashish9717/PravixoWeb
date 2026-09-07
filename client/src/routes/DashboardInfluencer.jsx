@@ -751,7 +751,7 @@ const [verificationUploading, setVerificationUploading] =
     }
   }, [pricingTiers]);
 
-  const saveProfile = async () => {
+  const saveProfile = async (shouldRedirect = false) => {
     if (!profile) return;
     setSaving(true);
     try {
@@ -782,6 +782,9 @@ const [verificationUploading, setVerificationUploading] =
         updateLocalProfile(updated);
       }
       toast.success("Profile saved successfully!");
+      if (shouldRedirect) {
+        navigate("/");
+      }
     } catch (err) {
       console.error(err);
       toast.error(err?.response?.data?.message || err?.message || "Failed to save profile");
@@ -873,23 +876,18 @@ const [verificationUploading, setVerificationUploading] =
     if (!profile || !e.target.files?.length) return;
     const file = e.target.files[0];
 
-    // Validate image dimensions (1361x450 max)
     const isImageValid = await new Promise((resolve) => {
       const img = new Image();
       img.onload = () => {
         URL.revokeObjectURL(img.src);
-        if (img.width > 1361 || img.height > 450) {
-          resolve(false);
-        } else {
-          resolve(true);
-        }
+        resolve(true); // removed size restriction to allow auto compression/fixing
       };
       img.onerror = () => resolve(false);
       img.src = URL.createObjectURL(file);
     });
 
     if (!isImageValid) {
-      toast.error("Banner size must be 1361x450 pixels or smaller.");
+      toast.error("Invalid image file.");
       if (coverFileRef.current) coverFileRef.current.value = "";
       return;
     }
@@ -1550,9 +1548,12 @@ console.log("Verification Status:", profile?.verificationStatus);
               <div>
                 <Label>Starting price (₹)</Label>
                 <Input
-                  type="number"
+                  type="text"
                   value={startingPrice}
-                  onChange={(e) => setStartingPrice(Number(e.target.value))}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, "");
+                    setStartingPrice(val === "" ? "" : Number(val));
+                  }}
                   className="mt-1.5"
                 />
               </div>
@@ -1656,7 +1657,18 @@ console.log("Verification Status:", profile?.verificationStatus);
                   >
                     <div className="flex items-center justify-between gap-1">
                       <div className="flex items-center gap-1.5 min-w-0">
-                        <Icon className={cn("h-4 w-4 shrink-0", plat.iconClass)} />
+                          <a
+                            href={
+                              plat.handle 
+                                ? (plat.id === "linkedin" ? `https://linkedin.com/${plat.handle}` : plat.id === "quora" ? `https://quora.com/profile/${plat.handle}` : `https://${plat.id}.com/${plat.handle.replace('@', '')}`)
+                                : `https://${plat.id}.com`
+                            }
+                            target="_blank"
+                            rel="noreferrer"
+                            className="hover:opacity-80 transition-opacity cursor-pointer"
+                          >
+                            <Icon className={cn("h-4 w-4 shrink-0", plat.iconClass)} />
+                          </a>
                         <span className="text-sm font-semibold truncate">
                           {plat.name}
                         </span>
@@ -1668,7 +1680,7 @@ console.log("Verification Status:", profile?.verificationStatus);
                       </div>
                       {plat.oauth && (
                         <div className="flex items-center gap-1.5">
-                          {isVerified ? (
+                          {isVerified && (
                             <>
                               <button
                                 type="button"
@@ -1687,14 +1699,6 @@ console.log("Verification Status:", profile?.verificationStatus);
                                 Disconnect
                               </button>
                             </>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => handleConnectPlatform(plat.id)}
-                              className="text-[10px] font-bold uppercase tracking-wider text-primary hover:underline cursor-pointer"
-                            >
-                              Verify OAuth
-                            </button>
                           )}
                         </div>
                       )}
@@ -1752,8 +1756,17 @@ console.log("Verification Status:", profile?.verificationStatus);
                           </Label>
                           <Input
                             type="number"
+                            min="0"
                             value={plat.followers}
-                            onChange={(e) => plat.setFollowers(Number(e.target.value))}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val === "") {
+                                plat.setFollowers("");
+                              } else {
+                                const num = Number(val);
+                                if (num >= 0) plat.setFollowers(num);
+                              }
+                            }}
                             className="h-8 text-xs mt-0.5"
                           />
                         </div>
@@ -1762,6 +1775,17 @@ console.log("Verification Status:", profile?.verificationStatus);
                   </div>
                 );
               })}
+            </div>
+            
+            <div className="mt-4 flex justify-end">
+              <Button
+                onClick={() => saveProfile(false)}
+                disabled={saving}
+                size="sm"
+                className="rounded-full gradient-sunset border-0 text-white shadow-glow"
+              >
+                {saving ? "Saving…" : "Save changes"}
+              </Button>
             </div>
 
             {/* Growth trends charts if verified accounts exist */}
@@ -1875,7 +1899,7 @@ console.log("Verification Status:", profile?.verificationStatus);
 
             <div className="mt-6 flex justify-end">
               <Button
-                onClick={saveProfile}
+                onClick={() => saveProfile(true)}
                 disabled={saving}
                 className="rounded-full gradient-sunset border-0 text-white shadow-glow"
               >

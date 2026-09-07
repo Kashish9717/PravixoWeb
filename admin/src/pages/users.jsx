@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { resolveImageUrl } from "@/lib/utils";
-import { Search, Trash2, MoreHorizontal, ArrowUpDown, UserX, UserMinus, Clock, Calendar, Users, ChevronDown } from "lucide-react";
+import { Search, Trash2, MoreHorizontal, ArrowUpDown, UserX, UserMinus, Clock, Calendar, Users, ChevronDown, RotateCcw } from "lucide-react";
 import api from "@/lib/axios";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -210,6 +210,16 @@ export function UsersPage() {
     }
   };
 
+  const handleRestore = async (id, name) => {
+    try {
+      await api.post(`/admin/profiles/${id}/restore`);
+      toast.success(`${name}'s account has been restored to active.`);
+      fetchProfiles();
+    } catch (err) {
+      toast.error(err.response?.data?.message || err.message || "Failed to restore user");
+    }
+  };
+
   const tabs = [
     { key: "active", label: "Active", count: active.length, icon: Users, color: "text-emerald-500" },
     { key: "suspended", label: "Suspended", count: suspended.length, icon: UserMinus, color: "text-amber-500" },
@@ -385,9 +395,7 @@ export function UsersPage() {
                   <ArrowUpDown className="h-3 w-3" />
                 </div>
               </TableHead>
-              {activeTab !== "deleted" && (
-                <TableHead className="text-right pr-6">Actions</TableHead>
-              )}
+              <TableHead className="text-right pr-6">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -536,7 +544,18 @@ export function UsersPage() {
                     <TableCell className="text-sm font-medium">
                       {formatNumber(totalFollowers)}
                     </TableCell>
-                    {activeTab !== "deleted" && (
+                    {/* Actions column */}
+                    {activeTab === "deleted" ? (
+                      <TableCell className="text-right pr-6">
+                        <button
+                          onClick={() => handleRestore(u._id, u.fullName)}
+                          className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 border border-emerald-500/20 transition-colors"
+                        >
+                          <RotateCcw className="h-3 w-3" />
+                          Restore to Active
+                        </button>
+                      </TableCell>
+                    ) : (
                       <TableCell className="text-right pr-6">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>

@@ -16,6 +16,7 @@ import { Badge } from "../ui/Badge";
 import { toast } from "sonner";
 import api from "@/lib/api";
 import logoImg from "@/assets/log.png";
+import { NotificationBell } from "./NotificationBell";
 
 
 const baseLinks = [
@@ -117,9 +118,9 @@ export function SiteNavbar() {
             <img
               src={logoImg}
               alt="Pravixo"
-              className="h-8 w-auto object-contain"
+              className="h-8 w-auto object-contain dark:bg-white/90 dark:p-0.5 dark:rounded-md"
             />
-            <span className="font-display text-lg font-bold tracking-tight">
+            <span className="font-display text-lg font-bold tracking-tight text-foreground dark:text-white">
               Pravixo
             </span>
           </Link>
@@ -162,6 +163,7 @@ export function SiteNavbar() {
             {/* Authenticated Icons */}
             {user && (
               <>
+                <NotificationBell profileId={profile?._id} />
                 <Link
                   to="/connections"
                   className="relative flex h-9 w-9 items-center justify-center rounded-full border border-border bg-card transition-colors hover:bg-secondary"

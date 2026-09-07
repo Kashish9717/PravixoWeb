@@ -253,7 +253,7 @@ export const updateProfileRole = async (req, res) => {
 export const updateVerificationStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status } = req.body;
+    const { status, rejectReason } = req.body;
 
     if (!["unverified", "pending", "verified", "rejected"].includes(status)) {
       return res.status(400).json({
@@ -267,6 +267,15 @@ export const updateVerificationStatus = async (req, res) => {
       { verificationStatus: status },
       { new: true }
     );
+
+    if (status === "rejected") {
+      await Notification.create({
+        recipientId: profile._id,
+        senderId: req.user.profileId,
+        type: "verification_rejected",
+        text: `Your verification request was rejected. Reason: ${rejectReason || "Does not meet guidelines."}`,
+      });
+    }
 
     return res.status(200).json({
       success: true,
@@ -735,7 +744,8 @@ export const getWebhookLogs = async (req, res) => {
 // =====================================================
 export const listAllProfiles = async (req, res) => {
   try {
-    const profiles = await Profile.find({ isDeleted: { $ne: true } }).lean();
+    // Exclude admin accounts from user management
+    const profiles = await Profile.find({ role: { $in: ["creator", "brand"] } }).lean();
     return res.status(200).json({
       success: true,
       data: profiles,
@@ -747,6 +757,80 @@ export const listAllProfiles = async (req, res) => {
       message: "Failed to list profiles.",
       error: error.message,
     });
+  }
+};
+
+// =====================================================
+// RESTORE PROFILE (UNDO SOFT DELETE)
+// POST /api/admin/profiles/:id/restore
+// =====================================================
+export const restoreProfile = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const profile = await Profile.findByIdAndUpdate(
+      id,
+      {
+        isDeleted: false,
+        deleteReason: "",
+      },
+      { new: true }
+    );
+
+    if (!profile) {
+      return res.status(404).json({ success: false, message: "Profile not found." });
+    }
+
+    await Notification.create({
+      recipientId: id,
+      senderId: req.user?.profileId || id,
+      type: "account_restored",
+      text: "Your account has been restored by admin. You can now access the platform again.",
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Profile restored successfully.",
+    });
+  } catch (error) {
+    console.error("Admin restoreProfile error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to restore profile.",
+      error: error.message,
+    });
+  }
+};
+
+// =====================================================
+// SEND ADMIN MESSAGE (notification) TO A USER
+// POST /api/admin/profiles/:id/message
+// =====================================================
+export const sendAdminMessage = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { message } = req.body;
+
+    if (!message || !message.trim()) {
+      return res.status(400).json({ success: false, message: "Message cannot be empty." });
+    }
+
+    const profile = await Profile.findById(id);
+    if (!profile) {
+      return res.status(404).json({ success: false, message: "Profile not found." });
+    }
+
+    await Notification.create({
+      recipientId: id,
+      senderId: req.user?.profileId || id,
+      type: "admin_message",
+      text: `Message from Admin: ${message.trim()}`,
+    });
+
+    return res.status(200).json({ success: true, message: "Message sent successfully." });
+  } catch (error) {
+    console.error("Admin sendAdminMessage error:", error);
+    return res.status(500).json({ success: false, message: "Failed to send message.", error: error.message });
   }
 };
 

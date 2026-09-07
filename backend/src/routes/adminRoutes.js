@@ -50,6 +50,8 @@ import {
   updateAdminCredentials,
   bulkDeleteMessages,
   getAdminActivityFeed,
+  restoreProfile,
+  sendAdminMessage,
 } from "../controllers/adminController.js";
 
 const router = express.Router();
@@ -110,6 +112,8 @@ router.post("/messages/bulk-delete", bulkDeleteMessages);
 
 // User & Profile management
 router.delete("/profiles/:id", deleteProfile);
+router.post("/profiles/:id/restore", restoreProfile);
+router.post("/profiles/:id/message", sendAdminMessage);
 router.patch("/profiles/:id/role", updateProfileRole);
 router.patch("/profiles/:id/verification", updateVerificationStatus);
 router.post("/profiles/:id/suspend", suspendProfile);
