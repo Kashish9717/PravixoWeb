@@ -782,6 +782,9 @@ const [showPostSaveDialog, setShowPostSaveDialog] = useState(false);
         handle: `@${handle.trim().replace(/^@+/, "")}`,
         phone: phone.trim(),
         bio: bio.trim(),
+        category: category,
+        location: location,
+        startingPrice: startingPrice,
       });
       const updated = res?.data || res?.profile || res;
       if (updated && updateLocalProfile) {
