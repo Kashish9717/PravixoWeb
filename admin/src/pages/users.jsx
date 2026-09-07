@@ -469,7 +469,7 @@ export function UsersPage() {
                     className={`group cursor-pointer hover:bg-secondary/20 transition-colors ${u.isDeleted ? "opacity-60" : ""}`}
                     onClick={() =>
                       window.open(
-                        `${import.meta.env.VITE_FRONTEND_URL || "https://pravixoweb.vercel.app"}/${u.role === "creator" ? "influencer" : "brand"}/${u._id}`,
+                        `${import.meta.env.VITE_FRONTEND_URL || "https://pravixo-web.vercel.app"}/${u.role === "creator" ? "influencer" : "brand"}/${u._id}`,
                         "_blank"
                       )
                     }

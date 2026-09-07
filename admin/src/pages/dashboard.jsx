@@ -378,7 +378,7 @@ export function Dashboard() {
                   key={u._id}
                   onClick={() =>
                     window.open(
-                      `${import.meta.env.VITE_FRONTEND_URL || "https://pravixoweb.vercel.app"}/${u.role === "creator" ? "influencer" : "brand"}/${u._id}`,
+                      `${import.meta.env.VITE_FRONTEND_URL || "https://pravixo-web.vercel.app"}/${u.role === "creator" ? "influencer" : "brand"}/${u._id}`,
                       "_blank"
                     )
                   }
