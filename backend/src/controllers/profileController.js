@@ -662,26 +662,7 @@ export const uploadKycDocuments = async (req, res) => {
       });
     }
 
-    const missingFields = [];
-    if (!req.files?.aadhar && !profile.aadharStorageId) missingFields.push("Aadhar Card");
-    if (!req.files?.pan && !profile.panStorageId) missingFields.push("PAN Card");
-    if (!profile.handle) missingFields.push("Handle / Username");
-    if (!profile.category) missingFields.push("Category");
-    if (!profile.phone) missingFields.push("Phone");
-    if (!profile.location) missingFields.push("Location");
-    if (!profile.bio) missingFields.push("Bio");
-    if (!profile.startingPrice) missingFields.push("Starting Price");
-
-    if (missingFields.length > 0) {
-      return res.status(400).json({
-        success: false,
-        message: `Missing required information for verification: ${missingFields.join(", ")}`,
-      });
-    }
-
-    const updates = {
-      verificationStatus: "pending",
-    };
+    const updates = {};
 
     if (req.files) {
       if (req.files.aadhar && req.files.aadhar[0]) {
