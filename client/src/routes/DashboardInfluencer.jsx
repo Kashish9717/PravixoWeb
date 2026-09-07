@@ -1170,9 +1170,9 @@ console.log("Verification Status:", profile?.verificationStatus);
   {(() => {
     if (status === "verified") {
       return (
-        <Button className="rounded-full bg-emerald-600 hover:bg-emerald-600 text-white px-6 cursor-default flex items-center gap-1.5 font-semibold">
-          <Check className="h-4 w-4" /> Verified
-        </Button>
+        <div className="flex items-center gap-1.5 px-4 py-2 bg-emerald-500/10 text-emerald-600 rounded-full border border-emerald-500/20 font-semibold text-sm cursor-default">
+          <ShieldCheck className="h-4 w-4" /> Verified Creator
+        </div>
       );
     }
     if (status === "pending") {

@@ -466,7 +466,13 @@ export function UsersPage() {
                 return (
                   <TableRow
                     key={u._id}
-                    className={`group ${u.isDeleted ? "opacity-60" : ""}`}
+                    className={`group cursor-pointer hover:bg-secondary/20 transition-colors ${u.isDeleted ? "opacity-60" : ""}`}
+                    onClick={() =>
+                      window.open(
+                        `${import.meta.env.VITE_FRONTEND_URL || "https://pravixoweb.vercel.app"}/${u.role === "creator" ? "influencer" : "brand"}/${u._id}`,
+                        "_blank"
+                      )
+                    }
                   >
                     <TableCell className="pl-6 min-w-[200px]">
                       <div className="flex items-center gap-3">
@@ -548,7 +554,10 @@ export function UsersPage() {
                     {activeTab === "deleted" ? (
                       <TableCell className="text-right pr-6">
                         <button
-                          onClick={() => handleRestore(u._id, u.fullName)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRestore(u._id, u.fullName);
+                          }}
                           className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 border border-emerald-500/20 transition-colors"
                         >
                           <RotateCcw className="h-3 w-3" />
@@ -562,21 +571,23 @@ export function UsersPage() {
                             <Button
                               variant="ghost"
                               size="icon"
+                              onClick={(e) => e.stopPropagation()}
                               className="h-8 w-8 rounded-lg cursor-pointer"
                             >
                               <MoreHorizontal className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-48 rounded-xl">
+                          <DropdownMenuContent align="end" className="w-48 rounded-xl" onClick={(e) => e.stopPropagation()}>
                             <DropdownMenuItem
                               className="cursor-pointer"
-                              onClick={() =>
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 handleRoleSwitch(
                                   u._id,
                                   u.role === "creator" ? "brand" : "creator",
                                   u.fullName
-                                )
-                              }
+                                );
+                              }}
                             >
                               Switch to {u.role === "creator" ? "brand" : "creator"}
                             </DropdownMenuItem>
@@ -584,14 +595,18 @@ export function UsersPage() {
                             {isSuspendedNow ? (
                               <DropdownMenuItem
                                 className="text-emerald-600 focus:text-emerald-600 cursor-pointer"
-                                onClick={() => handleUnsuspend(u._id, u.fullName)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleUnsuspend(u._id, u.fullName);
+                                }}
                               >
                                 Unsuspend user
                               </DropdownMenuItem>
                             ) : (
                               <DropdownMenuItem
                                 className="text-amber-600 focus:text-amber-600 cursor-pointer"
-                                onClick={() => {
+                                onClick={(e) => {
+                                  e.stopPropagation();
                                   setSuspendTarget(u._id);
                                   setSuspendName(u.fullName);
                                   setSuspendReason("");
@@ -606,7 +621,8 @@ export function UsersPage() {
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
                               className="text-destructive focus:text-destructive cursor-pointer"
-                              onClick={() => {
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 setDeleteTarget(u._id);
                                 setDeleteName(u.fullName);
                               }}
