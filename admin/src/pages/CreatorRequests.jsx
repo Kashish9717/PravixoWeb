@@ -43,24 +43,20 @@ function ReviewModal({ creator, onClose, onApprove, onSendMessage }) {
 
   if (!creator) return null;
 
-  const hasAadhar = !!creator.aadharUrl;
-  const hasPan = !!creator.panUrl;
+  const hasAadhar = !!(creator.aadharUrl || creator.aadharStorageId);
+  const hasPan = !!(creator.panUrl || creator.panStorageId);
+  const hasVerificationDocument = hasAadhar || hasPan;
+  const hasName = !!creator.fullName;
   const hasHandle = !!creator.handle;
-  const hasCategory = !!creator.category;
-  const hasLocation = !!creator.location;
   const hasBio = !!creator.bio;
   const hasPhone = !!creator.phone;
-  const hasStartingPrice = !!creator.startingPrice;
 
   const missing = [];
-  if (!hasAadhar) missing.push("Aadhar Card");
-  if (!hasPan) missing.push("PAN Card");
+  if (!hasVerificationDocument) missing.push("Aadhaar or PAN Card");
+  if (!hasName) missing.push("Full Name");
   if (!hasHandle) missing.push("Handle / Username");
-  if (!hasCategory) missing.push("Category");
   if (!hasPhone) missing.push("Phone");
-  if (!hasLocation) missing.push("Location");
   if (!hasBio) missing.push("Bio");
-  if (!hasStartingPrice) missing.push("Starting Price");
 
   const allComplete = missing.length === 0;
 
@@ -450,8 +446,8 @@ export default function CreatorRequests() {
 
   const handleReset = async (id, name) => {
     try {
-      await api.patch(`/admin/profiles/${id}/verification`, { status: "unverified" });
-      toast.success(`Reset status for ${name} back to Unverified.`);
+      await api.patch(`/admin/profiles/${id}/verification`, { status: "pending" });
+      toast.success(`Moved ${name} back to Pending Applications.`);
       fetchData();
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to reset status");
