@@ -567,6 +567,7 @@ const [panFile, setPanFile] =
 
 const [verificationUploading, setVerificationUploading] =
   useState(false);
+const [showPostSaveDialog, setShowPostSaveDialog] = useState(false);
 
   // Social Verification States & Methods
   const [syncingPlatform, setSyncingPlatform] = useState(null);
@@ -788,6 +789,10 @@ const [verificationUploading, setVerificationUploading] =
       toast.success("Profile saved successfully!");
       if (shouldRedirect) {
         navigate("/");
+      } else {
+        if (!profile?.verificationStatus || profile.verificationStatus === "unverified" || profile.verificationStatus === "rejected") {
+          setShowPostSaveDialog(true);
+        }
       }
     } catch (err) {
       console.error(err);
@@ -955,10 +960,8 @@ const [verificationUploading, setVerificationUploading] =
       }
       toast.success("Documents saved successfully.");
       setAadharFile(null);
-      setAadharFileName("");
       setAadharStorageId("");
       setPanFile(null);
-      setPanFileName("");
       setPanStorageId("");
     } catch (err) {
       console.error("KYC submit error:", err);
@@ -1154,6 +1157,51 @@ console.log("Verification Status:", profile?.verificationStatus);
     );
   })()}
 
+  <Dialog open={showPostSaveDialog} onOpenChange={setShowPostSaveDialog}>
+    <DialogContent className="sm:max-w-md rounded-3xl">
+      <DialogHeader>
+        <DialogTitle className="font-display text-xl font-bold">Request Verification?</DialogTitle>
+        <DialogDescription className="text-sm text-muted-foreground">
+          Your profile changes have been saved successfully. Would you like to submit a request for verification now?
+        </DialogDescription>
+      </DialogHeader>
+      <DialogFooter className="flex sm:justify-end gap-2 mt-4">
+        <Button
+          variant="outline"
+          onClick={() => {
+            setShowPostSaveDialog(false);
+            navigate("/");
+          }}
+          className="rounded-full"
+        >
+          Cancel & Go Home
+        </Button>
+        <Button
+          onClick={async () => {
+            setShowPostSaveDialog(false);
+            try {
+              const res = await submitVerification({
+                profileId: mongoProfileId,
+                aadharStorageId: profile?.aadharStorageId,
+                panStorageId: profile?.panStorageId
+              });
+              const updatedProfile = res?.data || res?.profile || res;
+              if (updatedProfile && updateLocalProfile) {
+                updateLocalProfile(updatedProfile);
+              }
+              toast.success("Verification request submitted successfully!");
+            } catch (err) {
+              console.error("Verification submit error:", err);
+              toast.error(err?.response?.data?.message || err?.message || "Failed to submit verification request");
+            }
+          }}
+          className="rounded-full bg-blue-600 hover:bg-blue-700 text-white shadow-glow px-5"
+        >
+          Get Verified
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
 </div>
 
         <div className="mt-8 grid gap-4 grid-cols-2 md:grid-cols-3">
