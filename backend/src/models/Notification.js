@@ -35,6 +35,7 @@ const notificationSchema = new mongoose.Schema(
         "subscription_expired",
         "account_suspended",
         "account_deleted",
+        "account_restored",
       ],
       required: true,
     },
