@@ -37,6 +37,8 @@ const notificationSchema = new mongoose.Schema(
         "account_deleted",
         "account_restored",
         "admin_message",
+        "verification_rejected",
+        "verification_approved",
       ],
       required: true,
     },
