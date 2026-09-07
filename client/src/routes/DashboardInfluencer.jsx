@@ -395,6 +395,7 @@ export function DashboardInfluencer() {
   const [showOfferPopup, setShowOfferPopup] = useState(false);
   const [activeOffer, setActiveOffer] = useState(null);
   const [dismissedBanner, setDismissedBanner] = useState(false);
+  const [localReadNotifs, setLocalReadNotifs] = useState(new Set());
 
 
   const [upgradingId, setUpgradingId] = useState(null);
@@ -1066,9 +1067,9 @@ console.log("Verification Status:", profile?.verificationStatus);
   </div>
 
   {/* Real-time Notifications Banner */}
-  {notifications && notifications.filter(n => !n.read).length > 0 && (
+  {notifications && notifications.filter(n => !n.read && !localReadNotifs.has(n._id)).length > 0 && (
     <div className="mt-4 space-y-2 col-span-full">
-      {notifications.filter(n => !n.read).map((notif) => (
+      {notifications.filter(n => !n.read && !localReadNotifs.has(n._id)).map((notif) => (
         <div
           key={notif._id}
           className="flex items-center justify-between gap-4 p-4 rounded-2xl border border-primary/20 bg-primary/5 text-primary shadow-sm"
@@ -1084,6 +1085,7 @@ console.log("Verification Status:", profile?.verificationStatus);
             onClick={async () => {
               try {
                 await markRead({ notificationId: notif._id });
+                setLocalReadNotifs(prev => new Set([...prev, notif._id]));
               } catch (e) {
                 console.error(e);
               }
