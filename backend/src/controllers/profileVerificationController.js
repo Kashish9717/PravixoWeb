@@ -1,4 +1,5 @@
 import Profile from "../models/Profile.js";
+import Notification from "../models/Notification.js";
 
 export const submitVerification = async (req, res) => {
   try {
@@ -64,6 +65,17 @@ export const submitVerification = async (req, res) => {
       });
     }
 
+    const admins = await Profile.find({ role: "admin" });
+    if (admins.length > 0) {
+      const notifications = admins.map((admin) => ({
+        recipientId: admin._id,
+        senderId: profile._id,
+        type: "verification_requested",
+        text: `${profile.fullName} has submitted their profile for verification.`,
+      }));
+      await Notification.insertMany(notifications);
+    }
+
     res.status(200).json({
       success: true,
       data: profile,
@@ -99,6 +111,17 @@ export const submitBrandVerification = async (req, res) => {
         success: false,
         message: "Profile not found.",
       });
+    }
+
+    const admins = await Profile.find({ role: "admin" });
+    if (admins.length > 0) {
+      const notifications = admins.map((admin) => ({
+        recipientId: admin._id,
+        senderId: brandProfile._id,
+        type: "verification_requested",
+        text: `${brandProfile.fullName} has submitted their brand profile for verification.`,
+      }));
+      await Notification.insertMany(notifications);
     }
 
     const missingFields = [];

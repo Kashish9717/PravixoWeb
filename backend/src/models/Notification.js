@@ -39,6 +39,7 @@ const notificationSchema = new mongoose.Schema(
         "admin_message",
         "verification_rejected",
         "verification_approved",
+        "verification_requested",
       ],
       required: true,
     },

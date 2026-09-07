@@ -275,6 +275,13 @@ export const updateVerificationStatus = async (req, res) => {
         type: "verification_rejected",
         text: `Your verification request was rejected. Reason: ${rejectReason || "Does not meet guidelines."}`,
       });
+    } else if (status === "verified") {
+      await Notification.create({
+        recipientId: profile._id,
+        senderId: req.user.profileId,
+        type: "verification_approved",
+        text: `Congratulations! Your profile has been verified.`,
+      });
     }
 
     return res.status(200).json({
