@@ -36,11 +36,8 @@ export const submitVerification = async (req, res) => {
     const missingFields = [];
     if (!creatorProfile.fullName) missingFields.push("Name");
     if (!creatorProfile.handle) missingFields.push("Handle / Username");
-    if (!creatorProfile.category) missingFields.push("Category");
     if (!creatorProfile.phone) missingFields.push("Phone");
-    if (!creatorProfile.location) missingFields.push("Location");
     if (!creatorProfile.bio) missingFields.push("Bio");
-    if (!creatorProfile.startingPrice) missingFields.push("Starting Price");
 
     if (missingFields.length > 0) {
       return res.status(400).json({

@@ -284,6 +284,7 @@ export function DashboardInfluencer() {
     /^[a-fA-F0-9]{24}$/.test(mongoProfileId);
 
   const profileKey = mongoProfileId || "none";
+  const [portfolioRefreshKey, setPortfolioRefreshKey] = useState(0);
 
   console.log("DASHBOARD PROFILE:", profile);
   console.log("DASHBOARD MONGO PROFILE ID:", mongoProfileId);
@@ -298,7 +299,7 @@ export function DashboardInfluencer() {
   );
 
   const portfolioImages = useRestQuery(
-    `portfolio-${profileKey}`,
+    `portfolio-${profileKey}-${portfolioRefreshKey}`,
     () => apiGet(`/portfolio/profile/${mongoProfileId}`),
     hasValidMongoProfileId
   );
@@ -906,6 +907,7 @@ const [showPostSaveDialog, setShowPostSaveDialog] = useState(false);
         sortOrder: portfolioImages?.length || 0,
       });
 
+      setPortfolioRefreshKey((current) => current + 1);
       toast.success("Image uploaded");
     } catch (err) {
       const e = err ;
@@ -1064,6 +1066,7 @@ const [showPostSaveDialog, setShowPostSaveDialog] = useState(false);
   const removeImage = async (id) => {
     try {
       await removePortfolioImage({ id });
+      setPortfolioRefreshKey((current) => current + 1);
       toast.success("Image removed");
     } catch (err) {
       const e = err ;
