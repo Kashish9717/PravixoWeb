@@ -147,6 +147,7 @@ export const registerController = async (req, res) => {
         location: profile.location,
         bio: profile.bio,
         startingPrice: profile.startingPrice,
+        phone: profile.phone,
 
         avatarUrl: profile.avatarUrl,
         coverUrl: profile.coverUrl,
@@ -299,6 +300,7 @@ export const loginController = async (req, res) => {
         location: profile.location,
         bio: profile.bio,
         startingPrice: profile.startingPrice,
+        phone: profile.phone,
 
         avatarUrl: profile.avatarUrl,
         coverUrl: profile.coverUrl,
@@ -426,6 +428,7 @@ export const getMeController = async (req, res) => {
         location: profile.location,
         bio: profile.bio,
         startingPrice: profile.startingPrice,
+        phone: profile.phone,
 
         avatarUrl: profile.avatarUrl,
         coverUrl: profile.coverUrl,

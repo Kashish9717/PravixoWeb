@@ -1158,8 +1158,12 @@ console.log("Verification Status:", profile?.verificationStatus);
       Creator dashboard
     </p>
 
-    <h1 className="font-display text-3xl font-bold sm:text-4xl">
-      Hello, {displayName} 👋
+    <h1 className="font-display text-3xl font-bold sm:text-4xl flex items-center gap-2">
+      Hello, {displayName} 
+      {status === "verified" && (
+        <ShieldCheck className="h-8 w-8 text-blue-500" fill="currentColor" stroke="white" title="Verified Creator" />
+      )}
+      👋
     </h1>
   </div>
 
