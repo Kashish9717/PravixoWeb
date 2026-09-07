@@ -1567,6 +1567,7 @@ console.log("Verification Status:", profile?.verificationStatus);
                   className="mt-1.5"
                   rows={3}
                 />
+              </div>
             </div>
 
             <h3 className="mt-8 font-display text-base font-semibold">
