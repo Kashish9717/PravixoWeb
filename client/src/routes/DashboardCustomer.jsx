@@ -1674,6 +1674,50 @@ const [submittingVerification, setSubmittingVerification] =
 
                 <div className="pt-4 border-t border-border/40">
                   <h3 className="font-display text-base font-semibold">
+                    KYC Documents
+                  </h3>
+                  <p className="text-xs text-muted-foreground mb-4">
+                    Update your GST Number and Certificate for verification.
+                  </p>
+                  <div className="grid gap-6 sm:grid-cols-2 bg-muted/10 p-4 rounded-2xl border border-border">
+                    <div className="space-y-2">
+                      <Label htmlFor="gstNumberInline" className="text-sm font-semibold">GST Number</Label>
+                      <Input
+                        id="gstNumberInline"
+                        value={gstNumber}
+                        onChange={(e) => setGstNumber(e.target.value)}
+                        placeholder="Enter GST Number"
+                        className="h-12 rounded-xl"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">GST Certificate (PDF, JPG, PNG)</Label>
+                      <div className="flex items-center gap-3">
+                        <label className="flex-1 inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-muted/20 hover:bg-secondary/40 px-4 py-3 text-sm font-medium transition-colors">
+                          <Upload className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-muted-foreground truncate">
+                            {gstFileName || (profile?.gstCertificateUrl ? "Certificate Uploaded ✓" : "Upload File")}
+                          </span>
+                          <input type="file" className="hidden" accept=".pdf,image/*" onChange={(e) => { if (e.target.files?.length) uploadVerificationFile(e.target.files[0]); }} />
+                        </label>
+                        {(profile?.gstCertificateUrl || gstFile) && (
+                          <Button type="button" variant="outline" size="icon" className="shrink-0 h-12 w-12 rounded-xl"
+                            onClick={() => profile?.gstCertificateUrl ? window.open(resolveImageUrl(profile.gstCertificateUrl), "_blank") : toast.info("File selected but not yet uploaded")}>
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                    <div className="sm:col-span-2 flex justify-end">
+                      <Button onClick={handleVerificationSubmit} disabled={submittingVerification || (!gstNumber && !gstFile)} className="rounded-full bg-primary text-primary-foreground px-6 font-semibold">
+                        {submittingVerification ? "Uploading..." : "Save Documents & Request Verification"}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-border/40">
+                  <h3 className="font-display text-base font-semibold">
                     Social Presence
                   </h3>
                   <p className="text-xs text-muted-foreground mb-4">

@@ -1565,6 +1565,59 @@ console.log("Verification Status:", profile?.verificationStatus);
                   className="mt-1.5"
                   rows={3}
                 />
+            </div>
+
+            <h3 className="mt-8 font-display text-base font-semibold">
+              KYC Documents
+            </h3>
+            <p className="mb-4 text-xs text-muted-foreground">
+              Upload your Aadhar Card and PAN Card for verification. These are required to get your profile approved.
+            </p>
+            <div className="grid gap-6 grid-cols-1 md:grid-cols-2 bg-muted/10 p-4 rounded-2xl border border-border">
+              {/* Aadhar Upload */}
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold">Aadhar Card (PDF, JPG, PNG)</Label>
+                <div className="flex items-center gap-3">
+                  <label className="flex-1 inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-muted/20 hover:bg-secondary/40 px-4 py-4 text-sm font-medium transition-colors">
+                    <Upload className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-muted-foreground truncate">
+                      {aadharFileName || (profile?.aadharUrl ? "Aadhar Uploaded ✓" : "Upload Aadhar")}
+                    </span>
+                    <input type="file" className="hidden" accept=".pdf,image/*" onChange={onAadharUpload} />
+                  </label>
+                  {(profile?.aadharUrl || aadharFile) && (
+                    <Button type="button" variant="outline" size="icon" className="shrink-0 h-12 w-12 rounded-xl"
+                      onClick={() => profile?.aadharUrl ? window.open(resolveImageUrl(profile.aadharUrl), "_blank") : toast.info("File selected but not yet uploaded")}>
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              {/* PAN Upload */}
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold">PAN Card (PDF, JPG, PNG)</Label>
+                <div className="flex items-center gap-3">
+                  <label className="flex-1 inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-muted/20 hover:bg-secondary/40 px-4 py-4 text-sm font-medium transition-colors">
+                    <Upload className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-muted-foreground truncate">
+                      {panFileName || (profile?.panUrl ? "PAN Uploaded ✓" : "Upload PAN")}
+                    </span>
+                    <input type="file" className="hidden" accept=".pdf,image/*" onChange={onPanUpload} />
+                  </label>
+                  {(profile?.panUrl || panFile) && (
+                    <Button type="button" variant="outline" size="icon" className="shrink-0 h-12 w-12 rounded-xl"
+                      onClick={() => profile?.panUrl ? window.open(resolveImageUrl(profile.panUrl), "_blank") : toast.info("File selected but not yet uploaded")}>
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              <div className="md:col-span-2 flex justify-end">
+                <Button onClick={handleVerificationSubmit} disabled={submittingVerification || (!aadharFile && !panFile)} className="rounded-full bg-primary text-primary-foreground px-6 font-semibold">
+                  {submittingVerification ? "Uploading..." : "Save Documents & Request Verification"}
+                </Button>
               </div>
             </div>
 
