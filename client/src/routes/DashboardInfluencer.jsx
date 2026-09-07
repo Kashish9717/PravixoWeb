@@ -149,6 +149,12 @@ const LOCATION_OPTIONS = [
   "Other Location",
 ];
 
+const DEFAULT_BANNER_IMAGES = [
+  "https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=1800&q=85",
+  "https://images.unsplash.com/photo-1497215728101-856f4ea42174?auto=format&fit=crop&w=1800&q=85",
+  "https://images.unsplash.com/photo-1542744173-8e7e53415bb0?auto=format&fit=crop&w=1800&q=85",
+];
+
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Textarea } from "@/components/ui/TextArea";
@@ -370,15 +376,9 @@ export function DashboardInfluencer() {
     () => apiGet(`/payments/creator/${mongoProfileId}`),
     hasValidMongoProfileId
   );
-  const notifications = useRestQuery(
-    `notifications-${profileKey}`,
-    () => apiGet(`/tasks/notifications/${mongoProfileId}`),
-    hasValidMongoProfileId
-  );
   const startTask = ({ taskId }) => apiPatch(`/tasks/${taskId}/start`, {});
   const submitTask = ({ taskId, submissionLink, notes, attachmentLink }) =>
     apiPatch(`/tasks/${taskId}/submit`, { submissionLink, notes, attachmentLink });
-  const markRead = ({ notificationId }) => apiPatch(`/tasks/notifications/${notificationId}/read`, {});
   const saveBankDetails = (data) =>
     apiPost(`/payments/bank-details`, { ...data, creatorId: mongoProfileId });
   const bankDetails = useRestQuery(
@@ -395,9 +395,6 @@ export function DashboardInfluencer() {
   const [showOfferPopup, setShowOfferPopup] = useState(false);
   const [activeOffer, setActiveOffer] = useState(null);
   const [dismissedBanner, setDismissedBanner] = useState(false);
-  const [localReadNotifs, setLocalReadNotifs] = useState(new Set());
-
-
   const [upgradingId, setUpgradingId] = useState(null);
 
   const handleUpgradeFromPopup = async (packageId, offerId) => {
@@ -755,8 +752,58 @@ const [showPostSaveDialog, setShowPostSaveDialog] = useState(false);
     }
   }, [pricingTiers]);
 
-  const saveProfile = async (shouldRedirect = false) => {
+  const getMissingProfileDetails = () => {
+    const missing = [];
+    if (!fullName.trim()) missing.push("name");
+    if (!phone.trim()) missing.push("phone number");
+    if (!handle.trim()) missing.push("social handle / username");
+    if (!bio.trim()) missing.push("bio");
+    return missing;
+  };
+
+  const saveProfileDetails = async () => {
+    if (!profile || !hasValidMongoProfileId) return;
+
+    const missing = getMissingProfileDetails();
+    if (!category.trim()) missing.push("category");
+    if (!location.trim()) missing.push("location");
+    if (!Number(startingPrice)) missing.push("starting price");
+    if (missing.length) {
+      toast.error(`Please complete your ${missing.join(", ")}.`);
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const res = await updateProfile({
+        id: mongoProfileId,
+        fullName: fullName.trim(),
+        handle: `@${handle.trim().replace(/^@+/, "")}`,
+        phone: phone.trim(),
+        bio: bio.trim(),
+      });
+      const updated = res?.data || res?.profile || res;
+      if (updated && updateLocalProfile) {
+        updateLocalProfile(updated);
+      }
+      toast.success("Profile details saved successfully!");
+    } catch (err) {
+      console.error(err);
+      toast.error(err?.response?.data?.message || err?.message || "Failed to save profile details");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveProfile = async () => {
     if (!profile) return;
+
+    const missing = getMissingProfileDetails();
+    if (missing.length) {
+      toast.error(`Please complete your ${missing.join(", ")}.`);
+      return;
+    }
+
     setSaving(true);
     try {
       const res = await updateProfile({
@@ -774,12 +821,8 @@ const [showPostSaveDialog, setShowPostSaveDialog] = useState(false);
         updateLocalProfile(updated);
       }
       toast.success("Profile saved successfully!");
-      if (shouldRedirect) {
-        navigate("/");
-      } else {
-        if (!profile?.verificationStatus || profile.verificationStatus === "unverified" || profile.verificationStatus === "rejected") {
-          setShowPostSaveDialog(true);
-        }
+      if (!profile?.verificationStatus || profile.verificationStatus === "unverified" || profile.verificationStatus === "rejected") {
+        setShowPostSaveDialog(true);
       }
     } catch (err) {
       console.error(err);
@@ -987,6 +1030,36 @@ const [showPostSaveDialog, setShowPostSaveDialog] = useState(false);
     }
   };
 
+  const submitVerificationRequest = async () => {
+    if (!profile || !hasValidMongoProfileId) return;
+
+    const missing = getMissingProfileDetails();
+    if (missing.length) {
+      toast.error(`Please save your ${missing.join(", ")} before requesting verification.`);
+      return;
+    }
+
+    const hasVerificationDocument = Boolean(
+      profile.aadharUrl || profile.aadharStorageId || profile.panUrl || profile.panStorageId,
+    );
+    if (!hasVerificationDocument) {
+      toast.error("Please save an Aadhaar or PAN document before requesting verification.");
+      return;
+    }
+
+    try {
+      const res = await submitVerification({ profileId: mongoProfileId });
+      const updatedProfile = res?.data || res?.profile || res;
+      if (updatedProfile && updateLocalProfile) {
+        updateLocalProfile(updatedProfile);
+      }
+      toast.success("Verification request submitted successfully!");
+    } catch (err) {
+      console.error("Verification submit error:", err);
+      toast.error(err?.response?.data?.message || err?.message || "Failed to submit verification request");
+    }
+  };
+
 
   const removeImage = async (id) => {
     try {
@@ -1021,6 +1094,9 @@ const [showPostSaveDialog, setShowPostSaveDialog] = useState(false);
     profile?.fullName?.split(" ")[0] ||
     user?.email?.split("@")[0] ||
     "there";
+  const defaultBannerIndex = [...(profile?._id || profile?.userId || "creator")]
+    .reduce((total, character) => total + character.charCodeAt(0), 0) % DEFAULT_BANNER_IMAGES.length;
+  const bannerUrl = resolveImageUrl(profile?.coverUrl) || DEFAULT_BANNER_IMAGES[defaultBannerIndex];
    console.log("PROFILE FROM API:", profile);
 console.log("Verification Status:", profile?.verificationStatus);
 
@@ -1061,17 +1137,11 @@ console.log("Verification Status:", profile?.verificationStatus);
       {/* COVER BANNER PREVIEW */}
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <section className="relative aspect-[1361/450] overflow-hidden bg-muted w-full rounded-b-2xl sm:rounded-b-3xl rounded-t-none shadow-sm border border-border/50">
-          {resolveImageUrl(profile?.coverUrl) ? (
-            <img
-              src={resolveImageUrl(profile.coverUrl)}
-              alt="Cover"
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center text-sm text-muted-foreground">
-              Banner preview
-            </div>
-          )}
+          <img
+            src={bannerUrl}
+            alt="Creator profile banner"
+            className="h-full w-full object-cover"
+          />
         </section>
       </div>
 
@@ -1087,57 +1157,7 @@ console.log("Verification Status:", profile?.verificationStatus);
     </h1>
   </div>
 
-  {/* Real-time Notifications Banner */}
-  {notifications && notifications.filter(n => !n.read && !localReadNotifs.has(n._id)).length > 0 && (
-    <div className="mt-4 space-y-2 col-span-full">
-      {notifications.filter(n => !n.read && !localReadNotifs.has(n._id)).map((notif) => (
-        <div
-          key={notif._id}
-          className="flex items-center justify-between gap-4 p-4 rounded-2xl border border-primary/20 bg-primary/5 text-primary shadow-sm"
-        >
-          <div className="flex items-center gap-2.5">
-            <Activity className="h-5 w-5 text-primary animate-pulse" />
-            <span className="text-sm font-medium">{notif.text}</span>
-          </div>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="rounded-full h-8 text-xs hover:bg-primary/10 text-primary font-semibold"
-            onClick={async () => {
-              try {
-                await markRead({ notificationId: notif._id });
-                setLocalReadNotifs(prev => new Set([...prev, notif._id]));
-              } catch (e) {
-                console.error(e);
-              }
-            }}
-          >
-            Mark as Read
-          </Button>
-        </div>
-      ))}
-    </div>
-  )}
-
   {(() => {
-    const requestVerification = async () => {
-      try {
-        const res = await submitVerification({
-          profileId: mongoProfileId,
-          aadharStorageId: profile.aadharStorageId,
-          panStorageId: profile.panStorageId
-        });
-        const updatedProfile = res?.data || res?.profile || res;
-        if (updatedProfile && updateLocalProfile) {
-          updateLocalProfile(updatedProfile);
-        }
-        toast.success("Verification request submitted successfully!");
-      } catch (err) {
-        console.error("Verification submit error:", err);
-        toast.error(err?.response?.data?.message || err?.message || "Failed to submit verification request");
-      }
-    };
-
     if (status === "verified") {
       return (
         <Button className="rounded-full bg-emerald-600 hover:bg-emerald-600 text-white px-6 cursor-default flex items-center gap-1.5 font-semibold">
@@ -1155,7 +1175,7 @@ console.log("Verification Status:", profile?.verificationStatus);
     if (status === "rejected") {
       return (
         <Button
-          onClick={requestVerification}
+          onClick={submitVerificationRequest}
           className="rounded-full bg-red-600 hover:bg-red-700 text-white px-6 font-semibold shadow-sm"
         >
           Verification Failed (Try Again)
@@ -1165,7 +1185,7 @@ console.log("Verification Status:", profile?.verificationStatus);
     // Default: unverified
     return (
       <Button
-        onClick={requestVerification}
+        onClick={submitVerificationRequest}
         className="rounded-full bg-blue-600 hover:bg-blue-700 text-white px-6 font-semibold"
       >
         Get Verified
@@ -1186,30 +1206,15 @@ console.log("Verification Status:", profile?.verificationStatus);
           variant="outline"
           onClick={() => {
             setShowPostSaveDialog(false);
-            navigate("/");
           }}
           className="rounded-full"
         >
-          Cancel & Go Home
+          Cancel
         </Button>
         <Button
           onClick={async () => {
             setShowPostSaveDialog(false);
-            try {
-              const res = await submitVerification({
-                profileId: mongoProfileId,
-                aadharStorageId: profile?.aadharStorageId,
-                panStorageId: profile?.panStorageId
-              });
-              const updatedProfile = res?.data || res?.profile || res;
-              if (updatedProfile && updateLocalProfile) {
-                updateLocalProfile(updatedProfile);
-              }
-              toast.success("Verification request submitted successfully!");
-            } catch (err) {
-              console.error("Verification submit error:", err);
-              toast.error(err?.response?.data?.message || err?.message || "Failed to submit verification request");
-            }
+            await submitVerificationRequest();
           }}
           className="rounded-full bg-blue-600 hover:bg-blue-700 text-white shadow-glow px-5"
         >
@@ -1571,11 +1576,21 @@ console.log("Verification Status:", profile?.verificationStatus);
               </div>
             </div>
 
+            <div className="mt-4 flex justify-end">
+              <Button
+                onClick={saveProfileDetails}
+                disabled={saving}
+                className="rounded-full gradient-sunset border-0 text-white shadow-glow"
+              >
+                {saving ? "Saving..." : "Save"}
+              </Button>
+            </div>
+
             <h3 className="mt-8 font-display text-base font-semibold">
               KYC Documents
             </h3>
             <p className="mb-4 text-xs text-muted-foreground">
-              Upload your Aadhar Card and PAN Card for verification. These are required to get your profile approved.
+              Upload and save your Aadhaar card, PAN card, or both. At least one document is required for verification.
             </p>
             <div className="grid gap-6 grid-cols-1 md:grid-cols-2 bg-muted/10 p-4 rounded-2xl border border-border">
               {/* Aadhar Upload */}
@@ -1956,11 +1971,11 @@ console.log("Verification Status:", profile?.verificationStatus);
 
             <div className="mt-6 flex justify-end">
               <Button
-                onClick={() => saveProfile(false)}
+                onClick={saveProfile}
                 disabled={saving}
                 className="rounded-full gradient-sunset border-0 text-white shadow-glow"
               >
-                {saving ? "Saving…" : "Save changes"}
+                {saving ? "Saving..." : "Save Profile"}
               </Button>
             </div>
           </div>
