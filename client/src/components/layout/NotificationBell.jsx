@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import {
   Bell,
   CheckCircle,
@@ -14,8 +14,12 @@ import {
   Wallet,
   Sparkles,
   AlertCircle,
+  RefreshCw,
+  ExternalLink,
 } from "lucide-react";
 import api from "@/lib/api";
+import { useAuth } from "@/components/auth/AuthProvider";
+import { toast } from "sonner";
 
 function getNotificationIcon(type) {
   switch (type) {
@@ -67,41 +71,82 @@ function timeAgo(timestamp) {
   return `${days}d ago`;
 }
 
-export function NotificationBell({ profileId }) {
+export function NotificationBell({ profileId: propProfileId }) {
   const navigate = useNavigate();
+  const { profile, user } = useAuth();
   const [open, setOpen] = useState(false);
   const [allEvents, setAllEvents] = useState([]);
+
+  const effectiveProfileId =
+    propProfileId || profile?._id || user?.profile?._id || user?._id || user?.id;
+  const isAdmin = profile?.role === "admin" || user?.role === "admin";
+
   const [deletedIds, setDeletedIds] = useState(() => {
     try {
-      return new Set(JSON.parse(localStorage.getItem(`notif_deleted_${profileId}`) || "[]"));
+      return new Set(
+        JSON.parse(
+          localStorage.getItem(`notif_deleted_${effectiveProfileId}`) || "[]"
+        )
+      );
     } catch {
       return new Set();
     }
   });
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const panelRef = useRef(null);
 
   const saveDeletedIds = (ids) => {
     setDeletedIds(ids);
-    localStorage.setItem(`notif_deleted_${profileId}`, JSON.stringify([...ids]));
+    if (effectiveProfileId) {
+      localStorage.setItem(
+        `notif_deleted_${effectiveProfileId}`,
+        JSON.stringify([...ids])
+      );
+    }
   };
 
-  const fetchActivity = useCallback(async () => {
-    if (!profileId) return;
-    try {
-      setLoading(true);
-      const res = await api.get(`/tasks/notifications/${profileId}`);
-      setAllEvents(res.data?.data || res.data || []);
-    } catch {
-      // silent fail
-    } finally {
-      setLoading(false);
-    }
-  }, [profileId]);
+  const fetchActivity = useCallback(
+    async (isManual = false) => {
+      if (!effectiveProfileId && !isAdmin) return;
+      try {
+        if (isManual) setRefreshing(true);
+        else setLoading(true);
+
+        let data = [];
+        if (isAdmin) {
+          try {
+            const adminRes = await api.get("/admin/activity");
+            data = adminRes.data?.data || [];
+          } catch {
+            const fallbackRes = await api.get(
+              `/tasks/notifications/${effectiveProfileId}`
+            );
+            data = fallbackRes.data?.data || fallbackRes.data || [];
+          }
+        } else {
+          const res = await api.get(
+            `/tasks/notifications/${effectiveProfileId}`
+          );
+          data = res.data?.data || res.data || [];
+        }
+
+        setAllEvents(Array.isArray(data) ? data : []);
+        if (isManual) toast.success("Notifications refreshed");
+      } catch (err) {
+        console.error("Fetch notifications error:", err);
+        if (isManual) toast.error("Failed to refresh notifications");
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [effectiveProfileId, isAdmin]
+  );
 
   useEffect(() => {
     fetchActivity();
-    const interval = setInterval(fetchActivity, 30000);
+    const interval = setInterval(() => fetchActivity(false), 20000);
     return () => clearInterval(interval);
   }, [fetchActivity]);
 
@@ -124,7 +169,9 @@ export function NotificationBell({ profileId }) {
     if (e) e.stopPropagation();
     try {
       await api.patch(`/tasks/notifications/${id}/read`);
-      setAllEvents((prev) => prev.map((ev) => (ev._id === id ? { ...ev, read: true } : ev)));
+      setAllEvents((prev) =>
+        prev.map((ev) => (ev._id === id ? { ...ev, read: true } : ev))
+      );
     } catch (err) {
       console.error(err);
     }
@@ -138,15 +185,31 @@ export function NotificationBell({ profileId }) {
   };
 
   const handleMarkAllRead = async () => {
-    const unreadEvents = visibleEvents.filter(e => !e.read);
+    if (effectiveProfileId) {
+      try {
+        await api.patch(`/tasks/notifications/${effectiveProfileId}/read-all`);
+        setAllEvents((prev) => prev.map((ev) => ({ ...ev, read: true })));
+        return;
+      } catch {
+        // fallback loop
+      }
+    }
+    const unreadEvents = visibleEvents.filter((e) => !e.read);
     for (const ev of unreadEvents) {
       await handleMarkRead(ev._id, null);
     }
   };
 
-  const handleClearAll = () => {
+  const handleClearAll = async () => {
     const next = new Set([...deletedIds, ...visibleEvents.map((e) => e._id)]);
     saveDeletedIds(next);
+    if (effectiveProfileId) {
+      try {
+        await api.delete(`/tasks/notifications/${effectiveProfileId}/clear-all`);
+      } catch {
+        // local state already cleared
+      }
+    }
   };
 
   return (
@@ -166,11 +229,11 @@ export function NotificationBell({ profileId }) {
 
       {open && (
         <div
-          className="absolute top-full right-0 mt-2 z-50 w-80 sm:w-96 rounded-2xl border border-border bg-card shadow-2xl flex flex-col overflow-hidden"
-          style={{ maxHeight: "520px" }}
+          className="fixed inset-x-3 top-16 sm:absolute sm:top-full sm:right-0 sm:left-auto sm:inset-x-auto sm:mt-2 z-50 sm:w-96 rounded-2xl border border-border bg-card shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+          style={{ maxHeight: "calc(100vh - 80px)" }}
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0 bg-card/80 backdrop-blur-md">
             <div className="flex items-center gap-2">
               <Bell className="h-4 w-4 text-primary" />
               <span className="font-semibold text-sm">Notifications</span>
@@ -182,9 +245,14 @@ export function NotificationBell({ profileId }) {
             </div>
             <div className="flex items-center gap-2">
               <button
-                onClick={fetchActivity}
-                className="text-xs text-muted-foreground hover:text-foreground"
+                onClick={() => fetchActivity(true)}
+                disabled={refreshing}
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                title="Refresh notifications"
               >
+                <RefreshCw
+                  className={`h-3 w-3 ${refreshing ? "animate-spin text-primary" : ""}`}
+                />
                 Refresh
               </button>
               <button
@@ -209,7 +277,7 @@ export function NotificationBell({ profileId }) {
               <span className="text-muted-foreground/40">·</span>
               <button
                 onClick={handleClearAll}
-                className="flex items-center gap-1 text-xs text-red-500 hover:underline"
+                className="flex items-center gap-1 text-xs text-destructive hover:underline"
               >
                 <Trash2 className="h-3 w-3" />
                 Clear all
@@ -221,7 +289,7 @@ export function NotificationBell({ profileId }) {
           )}
 
           {/* Events list */}
-          <div className="overflow-y-auto flex-1">
+          <div className="overflow-y-auto flex-1 divide-y divide-border">
             {loading && visibleEvents.length === 0 ? (
               <div className="flex flex-col gap-3 p-4">
                 {[...Array(4)].map((_, i) => (
@@ -243,104 +311,127 @@ export function NotificationBell({ profileId }) {
                 </p>
               </div>
             ) : (
-              <div className="divide-y divide-border">
-                {visibleEvents.map((event) => {
-                  const Icon = getNotificationIcon(event.type);
-                  const isUnread = !event.read;
-                  
-                  const handleNotificationClick = async () => {
-                    if (isUnread) {
-                      await handleMarkRead(event._id, null);
-                    }
-                    setOpen(false);
+              visibleEvents.map((event) => {
+                const Icon = getNotificationIcon(event.type);
+                const isUnread = !event.read;
 
-                    if (event.targetUrl) {
-                      navigate(event.targetUrl);
-                      return;
-                    }
+                const handleNotificationClick = async () => {
+                  if (isUnread) {
+                    await handleMarkRead(event._id, null);
+                  }
+                  setOpen(false);
 
-                    // Fallback intelligent navigation based on event type
-                    switch (event.type) {
-                      case "withdrawal_requested":
-                      case "withdrawal_completed":
-                      case "withdrawal_failed":
-                      case "payout_processed":
-                        navigate("/dashboard/creator/wallet");
-                        break;
-                      case "agreement_signed_brand":
-                      case "agreement_signed_creator":
-                      case "agreement_fully_signed":
-                      case "agreement_pdf_sent":
-                      case "admin_message":
-                      case "new_message":
-                        navigate("/messages");
-                        break;
-                      case "deliverable_submitted":
-                      case "deliverable_approved":
-                      case "deliverable_rejected":
-                      case "all_deliverables_approved":
-                      case "campaign_request_received":
-                      case "campaign_request_approved":
-                        navigate("/dashboard/brand/campaigns");
-                        break;
-                      default:
-                        break;
-                    }
-                  };
+                  if (event.targetUrl) {
+                    navigate(event.targetUrl);
+                    return;
+                  }
 
-                  return (
-                    <div
-                      key={event._id}
-                      onClick={handleNotificationClick}
-                      className={`group flex items-start gap-3 px-4 py-3 transition-colors hover:bg-secondary/40 cursor-pointer ${
-                        isUnread ? "bg-primary/5" : ""
-                      }`}
-                    >
-                      <div className="flex h-8 w-8 items-center justify-center rounded-lg shrink-0 text-primary bg-primary/10">
-                        <Icon className="h-3.5 w-3.5" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1 min-w-0">
-                            <p className={`text-xs font-semibold truncate ${isUnread ? "text-foreground" : "text-muted-foreground"}`}>
-                              {event.text || "Notification"}
-                              {isUnread && (
-                                <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-primary align-middle" />
-                              )}
-                            </p>
-                            <p className="text-[10px] text-muted-foreground/50 mt-1">
-                              {timeAgo(event.createdAt || event.timestamp || Date.now())}
-                            </p>
-                          </div>
-                          {/* Per-item actions — show on hover */}
-                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                  // Fallback intelligent navigation based on event type
+                  switch (event.type) {
+                    case "withdrawal_requested":
+                    case "withdrawal_completed":
+                    case "withdrawal_failed":
+                    case "payout_processed":
+                      navigate("/dashboard/creator/wallet");
+                      break;
+                    case "agreement_signed_brand":
+                    case "agreement_signed_creator":
+                    case "agreement_fully_signed":
+                    case "agreement_pdf_sent":
+                    case "admin_message":
+                    case "new_message":
+                      navigate("/messages");
+                      break;
+                    case "deliverable_submitted":
+                    case "deliverable_approved":
+                    case "deliverable_rejected":
+                    case "all_deliverables_approved":
+                    case "campaign_request_received":
+                    case "campaign_request_approved":
+                      navigate(
+                        profile?.role === "brand"
+                          ? "/dashboard/customer"
+                          : "/dashboard/influencer"
+                      );
+                      break;
+                    default:
+                      break;
+                  }
+                };
+
+                return (
+                  <div
+                    key={event._id}
+                    onClick={handleNotificationClick}
+                    className={`group flex items-start gap-3 px-4 py-3 transition-colors hover:bg-secondary/40 cursor-pointer ${
+                      isUnread ? "bg-primary/5" : ""
+                    }`}
+                  >
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg shrink-0 text-primary bg-primary/10">
+                      <Icon className="h-3.5 w-3.5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p
+                            className={`text-xs font-semibold truncate ${
+                              isUnread
+                                ? "text-foreground"
+                                : "text-muted-foreground"
+                            }`}
+                          >
+                            {event.text || "Notification"}
                             {isUnread && (
-                              <button
-                                onClick={(e) => handleMarkRead(event._id, e)}
-                                title="Mark as read"
-                                className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
-                              >
-                                <Check className="h-3 w-3" />
-                              </button>
+                              <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-primary align-middle" />
                             )}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground/50 mt-1">
+                            {timeAgo(
+                              event.createdAt || event.timestamp || Date.now()
+                            )}
+                          </p>
+                        </div>
+                        {/* Per-item actions — show on hover */}
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                          {isUnread && (
                             <button
-                              onClick={(e) => handleDelete(event._id, e)}
-                              title="Delete"
-                              className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:text-red-500 hover:bg-red-500/10 transition-colors"
+                              onClick={(e) => handleMarkRead(event._id, e)}
+                              title="Mark as read"
+                              className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
                             >
-                              <Trash2 className="h-3 w-3" />
+                              <Check className="h-3 w-3" />
                             </button>
-                          </div>
+                          )}
+                          <button
+                            onClick={(e) => handleDelete(event._id, e)}
+                            title="Delete"
+                            className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
                         </div>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
+                  </div>
+                );
+              })
             )}
+          </div>
+
+          {/* Footer with link to Full Notifications Page */}
+          <div className="border-t border-border bg-card p-2 text-center shrink-0">
+            <Link
+              to="/notifications"
+              onClick={() => setOpen(false)}
+              className="inline-flex items-center justify-center gap-1.5 w-full py-1.5 text-xs font-semibold text-primary hover:bg-primary/10 rounded-lg transition-colors"
+            >
+              View all notifications
+              <ExternalLink className="h-3 w-3" />
+            </Link>
           </div>
         </div>
       )}
     </div>
   );
 }
+

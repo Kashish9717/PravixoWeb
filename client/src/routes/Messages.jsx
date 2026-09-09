@@ -600,7 +600,7 @@ export default function Messages() {
       setSubmittingDeliverable(true);
       const formData = new FormData();
       formData.append("deliverableType", deliverableType);
-      formData.append("image", deliverableFile);
+      formData.append("file", deliverableFile);
       if (deliverableCaption) formData.append("caption", deliverableCaption);
 
       const res = await api.post(`/api/submissions/${connId}/submit`, formData, {
@@ -1310,8 +1310,12 @@ export default function Messages() {
                             {camp && (
                               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground pb-2 border-b border-border/40">
                                 <span><strong>Campaign:</strong> {camp.title}</span>
-                                <span>•</span>
-                                <span><strong>Total Budget:</strong> ₹{camp.totalBudget?.toLocaleString() || "0"}</span>
+                                {profile?.role !== "creator" && (
+                                  <>
+                                    <span>•</span>
+                                    <span><strong>Total Budget:</strong> ₹{camp.totalBudget?.toLocaleString() || "0"}</span>
+                                  </>
+                                )}
                                 {camp.maxBudgetPerCreator > 0 && (
                                   <>
                                     <span>•</span>
@@ -1323,32 +1327,43 @@ export default function Messages() {
 
                             {isAgreed ? (
                               <div className="space-y-3">
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-xl bg-secondary/30 p-3 border border-border/60">
-                                  <div>
+                                {profile?.role === "creator" ? (
+                                  <div className="rounded-xl bg-secondary/30 p-3 border border-border/60">
                                     <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium block">
                                       Creator Payout
                                     </span>
-                                    <span className="text-sm font-bold text-emerald-600">
+                                    <span className="text-base font-bold text-emerald-600">
                                       ₹{conn.creatorAmount?.toLocaleString()}
                                     </span>
                                   </div>
-                                  <div>
-                                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium block">
-                                      Pravixo Fee (20%)
-                                    </span>
-                                    <span className="text-sm font-bold text-foreground">
-                                      ₹{conn.pravixoFee?.toLocaleString()}
-                                    </span>
+                                ) : (
+                                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-xl bg-secondary/30 p-3 border border-border/60">
+                                    <div>
+                                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium block">
+                                        Creator Payout
+                                      </span>
+                                      <span className="text-sm font-bold text-emerald-600">
+                                        ₹{conn.creatorAmount?.toLocaleString()}
+                                      </span>
+                                    </div>
+                                    <div>
+                                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium block">
+                                        Pravixo Fee (20%)
+                                      </span>
+                                      <span className="text-sm font-bold text-foreground">
+                                        ₹{conn.pravixoFee?.toLocaleString()}
+                                      </span>
+                                    </div>
+                                    <div>
+                                      <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium block">
+                                        Brand Total
+                                      </span>
+                                      <span className="text-sm font-bold text-primary">
+                                        ₹{conn.brandTotal?.toLocaleString()}
+                                      </span>
+                                    </div>
                                   </div>
-                                  <div>
-                                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium block">
-                                      Brand Total
-                                    </span>
-                                    <span className="text-sm font-bold text-primary">
-                                      ₹{conn.brandTotal?.toLocaleString()}
-                                    </span>
-                                  </div>
-                                </div>
+                                )}
 
                                 {/* Deliverables Progress Grid */}
                                 {conn.deliverablesTracking && conn.deliverablesTracking.length > 0 && (
@@ -1431,13 +1446,19 @@ export default function Messages() {
                                             : `${otherProfile?.fullName || "Partner"} proposed a creator payment of ₹${conn.proposedAmount?.toLocaleString()}`}
                                         </span>
                                       </div>
-                                      <div className="flex flex-wrap gap-x-3 text-[11px] text-muted-foreground">
-                                        <span><strong>Creator receives:</strong> ₹{displayCreatorAmount?.toLocaleString()}</span>
-                                        <span>•</span>
-                                        <span><strong>Fee (20%):</strong> ₹{displayFee?.toLocaleString()}</span>
-                                        <span>•</span>
-                                        <span><strong>Brand pays:</strong> ₹{displayBrandTotal?.toLocaleString()}</span>
-                                      </div>
+                                      {profile?.role === "creator" ? (
+                                        <div className="flex flex-wrap gap-x-3 text-[11px] text-muted-foreground">
+                                          <span><strong>You will receive:</strong> ₹{displayCreatorAmount?.toLocaleString()}</span>
+                                        </div>
+                                      ) : (
+                                        <div className="flex flex-wrap gap-x-3 text-[11px] text-muted-foreground">
+                                          <span><strong>Creator receives:</strong> ₹{displayCreatorAmount?.toLocaleString()}</span>
+                                          <span>•</span>
+                                          <span><strong>Fee (20%):</strong> ₹{displayFee?.toLocaleString()}</span>
+                                          <span>•</span>
+                                          <span><strong>Brand pays:</strong> ₹{displayBrandTotal?.toLocaleString()}</span>
+                                        </div>
+                                      )}
                                     </div>
 
                                     {!isProposedByMe && (

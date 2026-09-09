@@ -499,43 +499,59 @@ export function AgreementModal({ isOpen, onClose, connectionId }) {
               <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground block">
                 Payment Terms & Financial Breakdown
               </span>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-2xl border border-border bg-secondary/30 p-4">
-                <div className="space-y-1">
-                  <span className="text-[11px] font-medium text-muted-foreground uppercase">
-                    Creator Compensation
-                  </span>
-                  <div className="font-display text-xl font-bold text-emerald-600">
-                    ₹{Number(agreement.financialsSnapshot?.creatorAmount || 0).toLocaleString("en-IN")}
+              {profile?.role === "creator" ? (
+                <div className="rounded-2xl border border-border bg-secondary/30 p-4">
+                  <div className="space-y-1">
+                    <span className="text-[11px] font-medium text-muted-foreground uppercase">
+                      Creator Compensation
+                    </span>
+                    <div className="font-display text-xl font-bold text-emerald-600">
+                      ₹{Number(agreement.financialsSnapshot?.creatorAmount || 0).toLocaleString("en-IN")}
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">
+                      Full amount credited to creator wallet upon milestone/campaign release
+                    </p>
                   </div>
-                  <p className="text-[10px] text-muted-foreground">
-                    Full amount credited to creator wallet upon release
-                  </p>
                 </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-2xl border border-border bg-secondary/30 p-4">
+                  <div className="space-y-1">
+                    <span className="text-[11px] font-medium text-muted-foreground uppercase">
+                      Creator Compensation
+                    </span>
+                    <div className="font-display text-xl font-bold text-emerald-600">
+                      ₹{Number(agreement.financialsSnapshot?.creatorAmount || 0).toLocaleString("en-IN")}
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">
+                      Full amount credited to creator wallet upon release
+                    </p>
+                  </div>
 
-                <div className="space-y-1">
-                  <span className="text-[11px] font-medium text-muted-foreground uppercase">
-                    Pravixo Platform Fee (20%)
-                  </span>
-                  <div className="font-display text-xl font-bold text-foreground">
-                    ₹{Number(agreement.financialsSnapshot?.pravixoFee || 0).toLocaleString("en-IN")}
+                  <div className="space-y-1">
+                    <span className="text-[11px] font-medium text-muted-foreground uppercase">
+                      Pravixo Platform Fee (20%)
+                    </span>
+                    <div className="font-display text-xl font-bold text-foreground">
+                      ₹{Number(agreement.financialsSnapshot?.pravixoFee || 0).toLocaleString("en-IN")}
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">
+                      Paid by Brand on top of Creator amount
+                    </p>
                   </div>
-                  <p className="text-[10px] text-muted-foreground">
-                    Paid by Brand on top of Creator amount
-                  </p>
-                </div>
 
-                <div className="space-y-1">
-                  <span className="text-[11px] font-medium text-muted-foreground uppercase">
-                    Total Brand Payment
-                  </span>
-                  <div className="font-display text-xl font-bold text-primary">
-                    ₹{Number(agreement.financialsSnapshot?.brandTotal || 0).toLocaleString("en-IN")}
+                  <div className="space-y-1">
+                    <span className="text-[11px] font-medium text-muted-foreground uppercase">
+                      Total Brand Payment
+                    </span>
+                    <div className="font-display text-xl font-bold text-primary">
+                      ₹{Number(agreement.financialsSnapshot?.brandTotal || 0).toLocaleString("en-IN")}
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">
+                      Total escrow deposit required
+                    </p>
                   </div>
-                  <p className="text-[10px] text-muted-foreground">
-                    Total escrow deposit required
-                  </p>
                 </div>
-              </div>
+              )}
             </div>
 
             <div className="space-y-3 pt-2">

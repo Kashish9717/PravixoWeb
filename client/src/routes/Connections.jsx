@@ -83,6 +83,9 @@ export default function Connections() {
   useEffect(() => {
     if (!loading && user && profile) {
       fetchConnections();
+      if (profile.role === "creator" && profile._id) {
+        api.patch(`/connections/creator/${profile._id}/seen`).catch(() => {});
+      }
     }
   }, [loading, user, profile]);
 

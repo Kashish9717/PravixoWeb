@@ -71,13 +71,13 @@ export function SiteNavbar() {
 
     const fetchCounts = async () => {
       try {
-        const [convRes, connRes] = await Promise.all([
+        const [convRes, notifCountRes] = await Promise.all([
           api.get("/conversations", {
             params: { profileId: profile._id, role: profile.role },
           }).catch(() => ({ data: [] })),
-          api.get("/connections/all", {
+          api.get("/connections/notifications/count", {
             params: { profileId: profile._id, role: profile.role },
-          }).catch(() => ({ data: { data: [] } })),
+          }).catch(() => ({ data: { data: 0 } })),
         ]);
 
         const convs = convRes.data?.data || convRes.data || [];
@@ -86,17 +86,16 @@ export function SiteNavbar() {
           : 0;
         setUnreadCount(totalUnread);
 
-        const conns = connRes.data?.data || [];
-        const pendingConns = Array.isArray(conns)
-          ? conns.filter((c) => c.status === "pending").length
-          : 0;
-        setConnectionCount(pendingConns);
+        const pendingCount = Number(notifCountRes.data?.data ?? notifCountRes.data ?? 0);
+        setConnectionCount(pendingCount);
       } catch (err) {
         // silent fail
       }
     };
 
     fetchCounts();
+    const interval = setInterval(fetchCounts, 6000);
+    return () => clearInterval(interval);
   }, [profile]);
 
   const links = [

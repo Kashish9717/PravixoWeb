@@ -94,7 +94,6 @@ const payoutSchema = new mongoose.Schema(
 );
 
 payoutSchema.index({ creatorId: 1, status: 1 });
-payoutSchema.index({ collaborationId: 1 });
 
 const Payout = mongoose.model("Payout", payoutSchema);
 

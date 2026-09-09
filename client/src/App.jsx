@@ -27,6 +27,7 @@ import Register from "./routes/Register";
 import ResetPassword from "./routes/Reset-Password";
 import Reviews from "./routes/Reviews";
 import Tips from "./routes/Tips";
+import Notifications from "./routes/Notifications";
 import OAuthCallback from "./routes/OAuthCallback";
 
 import DashboardCustomer from "./routes/DashboardCustomer";
@@ -112,7 +113,10 @@ function Layout() {
           <Route path="/reviews" element={<Reviews />} />
           <Route path="/tips" element={<Tips />} />
 
-           <Route
+          <Route path="/notifications" element={<Notifications />} />
+          <Route path="/admin/notifications" element={<Notifications />} />
+
+          <Route
             path="/dashboard/customer"
             element={<DashboardCustomer />}
           /> 

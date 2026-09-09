@@ -38,6 +38,7 @@ router.get("/:connectionId/deliverables", protect, getCollaborationDeliverables)
 router.get("/collaboration-details", protect, getCollaborationDetails);
 
 router.get("/notification-count", getNavbarNotificationCount);
+router.get("/notifications/count", getNavbarNotificationCount);
 
 router.get("/brand/:brandId/requests", getRequestsForBrand);
 
@@ -47,6 +48,10 @@ router.get("/status", getConnectionStatus);
 
 router.patch(
   "/creator/:creatorId/notifications-seen",
+  markCreatorNotificationsSeen
+);
+router.patch(
+  "/creator/:creatorId/seen",
   markCreatorNotificationsSeen
 );
 

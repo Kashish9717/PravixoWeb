@@ -618,6 +618,8 @@ const [panFile, setPanFile] =
 const [verificationUploading, setVerificationUploading] =
   useState(false);
 const [showPostSaveDialog, setShowPostSaveDialog] = useState(false);
+const [discoverPage, setDiscoverPage] = useState(1);
+const CAMPAIGNS_PER_PAGE = 6;
 
   // Social Verification States & Methods
   const [syncingPlatform, setSyncingPlatform] = useState(null);
@@ -1338,45 +1340,45 @@ console.log("Verification Status:", profile?.verificationStatus);
           )}
         </div>
 
-        <div className="mt-8 grid gap-6 lg:grid-cols-[200px_1fr] items-start">
-          {/* Left Navigation Sidebar */}
-          <div className="space-y-1.5 rounded-3xl border border-border bg-card p-4 shadow-sm">
-            <button
-              onClick={() => setActiveTab("dashboard")}
-              className={`flex items-center gap-2.5 w-full rounded-xl px-3 py-2 text-xs font-semibold transition-all duration-200 ${
-                activeTab === "dashboard"
-                  ? "gradient-sunset text-white shadow-glow"
-                  : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
-              }`}
-            >
-              <Building2 className="h-4 w-4" />
-              Dashboard
-            </button>
-            <button
-              onClick={() => setActiveTab("wallet")}
-              className={`flex items-center gap-2.5 w-full rounded-xl px-3 py-2 text-xs font-semibold transition-all duration-200 ${
-                activeTab === "wallet"
-                  ? "gradient-sunset text-white shadow-glow"
-                  : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
-              }`}
-            >
-              <Wallet className="h-4 w-4" />
-              Wallet & Earnings
-            </button>
-            <button
-              onClick={() => setActiveTab("subscription")}
-              className={`flex items-center gap-2.5 w-full rounded-xl px-3 py-2 text-xs font-semibold transition-all duration-200 ${
-                activeTab === "subscription"
-                  ? "gradient-sunset text-white shadow-glow"
-                  : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
-              }`}
-            >
-              <Star className="h-4 w-4" />
-              ⭐ Packages
-            </button>
-          </div>
+        {/* TAB NAVIGATION PILLS */}
+        <div className="mt-8 flex flex-wrap items-center gap-2 border-b border-border/50 pb-4">
+          <button
+            onClick={() => setActiveTab("dashboard")}
+            className={`flex items-center gap-2 rounded-full px-5 py-2 text-xs font-semibold transition-all duration-200 ${
+              activeTab === "dashboard"
+                ? "gradient-sunset text-white shadow-glow"
+                : "bg-secondary/40 text-muted-foreground hover:bg-secondary hover:text-foreground border border-border/40"
+            }`}
+          >
+            <Building2 className="h-4 w-4" />
+            Dashboard
+          </button>
+          <button
+            onClick={() => setActiveTab("wallet")}
+            className={`flex items-center gap-2 rounded-full px-5 py-2 text-xs font-semibold transition-all duration-200 ${
+              activeTab === "wallet"
+                ? "gradient-sunset text-white shadow-glow"
+                : "bg-secondary/40 text-muted-foreground hover:bg-secondary hover:text-foreground border border-border/40"
+            }`}
+          >
+            <Wallet className="h-4 w-4" />
+            Wallet & Earnings
+          </button>
+          <button
+            onClick={() => setActiveTab("subscription")}
+            className={`flex items-center gap-2 rounded-full px-5 py-2 text-xs font-semibold transition-all duration-200 ${
+              activeTab === "subscription"
+                ? "gradient-sunset text-white shadow-glow"
+                : "bg-secondary/40 text-muted-foreground hover:bg-secondary hover:text-foreground border border-border/40"
+            }`}
+          >
+            <Star className="h-4 w-4" />
+            ⭐ Packages
+          </button>
+        </div>
 
-          <div className="flex-1">
+        <div className="mt-6">
+          <div className="w-full">
             {activeTab === "dashboard" ? (
               <>
                 <div className="grid gap-6 lg:grid-cols-3 items-start">
@@ -2547,146 +2549,195 @@ console.log("Verification Status:", profile?.verificationStatus);
               </p>
             </div>
           ) : (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {discoverableCampaigns.map((camp) => (
-                <div
-                  key={camp._id}
-                  className="rounded-2xl border border-border bg-background p-4 flex flex-col justify-between hover:border-primary/50 hover:shadow-sm transition-all group"
-                >
-                  <div className="space-y-3">
-                    {/* Brand Header */}
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={
-                          camp.brand?.avatarUrl ||
-                          `https://api.dicebear.com/9.x/avataaars/svg?seed=${camp.brand?.fullName || "Brand"}`
-                        }
-                        alt=""
-                        className="h-10 w-10 rounded-xl object-cover border border-border shrink-0"
-                        onError={(e) => {
-                          e.target.onerror = null;
-                          e.target.src = "https://api.dicebear.com/9.x/avataaars/svg?seed=Fallback";
-                        }}
-                      />
-                      <div className="min-w-0 flex-1">
-                        <span className="font-semibold text-xs text-foreground truncate block">
-                          {camp.brand?.fullName || "Verified Brand"}
-                        </span>
-                        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                          {camp.brand?.rating > 0 && (
-                            <span className="flex items-center gap-0.5 text-amber font-semibold">
-                              <Star className="h-3 w-3 fill-amber" /> {camp.brand.rating}
-                            </span>
-                          )}
-                          <span>·</span>
-                          <span className="truncate">{camp.location || "Pan India"}</span>
+            <>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {discoverableCampaigns
+                  .slice((discoverPage - 1) * CAMPAIGNS_PER_PAGE, discoverPage * CAMPAIGNS_PER_PAGE)
+                  .map((camp) => (
+                  <div
+                    key={camp._id}
+                    className="rounded-2xl border border-border bg-background p-4 flex flex-col justify-between hover:border-primary/50 hover:shadow-sm transition-all group"
+                  >
+                    <div className="space-y-3">
+                      {/* Brand Header */}
+                      <div className="flex items-center gap-3">
+                        <img
+                          src={
+                            camp.brand?.avatarUrl ||
+                            `https://api.dicebear.com/9.x/avataaars/svg?seed=${camp.brand?.fullName || "Brand"}`
+                          }
+                          alt=""
+                          className="h-10 w-10 rounded-xl object-cover border border-border shrink-0"
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src = "https://api.dicebear.com/9.x/avataaars/svg?seed=Fallback";
+                          }}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <span className="font-semibold text-xs text-foreground truncate block">
+                            {camp.brand?.fullName || "Verified Brand"}
+                          </span>
+                          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                            {camp.brand?.rating > 0 && (
+                              <span className="flex items-center gap-0.5 text-amber font-semibold">
+                                <Star className="h-3 w-3 fill-amber" /> {camp.brand.rating}
+                              </span>
+                            )}
+                            <span>·</span>
+                            <span className="truncate">{camp.location || "Pan India"}</span>
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    {/* Campaign Title & Description */}
-                    <div>
-                      <h4 className="font-display text-sm font-bold text-foreground line-clamp-1 group-hover:text-primary transition-colors">
-                        {camp.title}
-                      </h4>
-                      {camp.description && (
-                        <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
-                          {camp.description}
-                        </p>
+                      {/* Campaign Title & Description */}
+                      <div>
+                        <h4 className="font-display text-sm font-bold text-foreground line-clamp-1 group-hover:text-primary transition-colors">
+                          {camp.title}
+                        </h4>
+                        {camp.description && (
+                          <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
+                            {camp.description}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Budget & Timeline */}
+                      <div className="bg-secondary/15 rounded-xl p-2.5 space-y-1 text-xs border border-border/40">
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground text-[11px]">Creator Budget:</span>
+                          <span className="font-bold text-foreground">
+                            ₹{Number(camp.minBudgetPerCreator || 0).toLocaleString("en-IN")} - ₹{Number(camp.maxBudgetPerCreator || 0).toLocaleString("en-IN")}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-muted-foreground">Total Budget:</span>
+                          <span className="text-muted-foreground font-medium">
+                            ₹{Number(camp.totalBudget || 0).toLocaleString("en-IN")}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-[11px] pt-1 border-t border-border/30">
+                          <span className="text-muted-foreground">Timeline:</span>
+                          <span className="text-muted-foreground font-medium">
+                            {new Date(camp.startDate).toLocaleDateString(undefined, { month: "short", day: "numeric" })} - {new Date(camp.endDate).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Deliverables tags */}
+                      {camp.deliverables && (
+                        <div className="flex flex-wrap gap-1">
+                          {camp.deliverables.reels > 0 && (
+                            <span className="text-[10px] bg-secondary/30 text-foreground px-2 py-0.5 rounded-md font-medium">
+                              🎬 {camp.deliverables.reels} Reels
+                            </span>
+                          )}
+                          {camp.deliverables.posts > 0 && (
+                            <span className="text-[10px] bg-secondary/30 text-foreground px-2 py-0.5 rounded-md font-medium">
+                              📸 {camp.deliverables.posts} Posts
+                            </span>
+                          )}
+                          {camp.deliverables.stories > 0 && (
+                            <span className="text-[10px] bg-secondary/30 text-foreground px-2 py-0.5 rounded-md font-medium">
+                              📱 {camp.deliverables.stories} Stories
+                            </span>
+                          )}
+                          {camp.deliverables.videos > 0 && (
+                            <span className="text-[10px] bg-secondary/30 text-foreground px-2 py-0.5 rounded-md font-medium">
+                              🎥 {camp.deliverables.videos} Videos
+                            </span>
+                          )}
+                        </div>
                       )}
                     </div>
 
-                    {/* Budget & Timeline */}
-                    <div className="bg-secondary/15 rounded-xl p-2.5 space-y-1 text-xs border border-border/40">
-                      <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground text-[11px]">Creator Budget:</span>
-                        <span className="font-bold text-foreground">
-                          ₹{Number(camp.minBudgetPerCreator || 0).toLocaleString("en-IN")} - ₹{Number(camp.maxBudgetPerCreator || 0).toLocaleString("en-IN")}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between text-[11px]">
-                        <span className="text-muted-foreground">Total Budget:</span>
-                        <span className="text-muted-foreground font-medium">
-                          ₹{Number(camp.totalBudget || 0).toLocaleString("en-IN")}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between text-[11px] pt-1 border-t border-border/30">
-                        <span className="text-muted-foreground">Timeline:</span>
-                        <span className="text-muted-foreground font-medium">
-                          {new Date(camp.startDate).toLocaleDateString(undefined, { month: "short", day: "numeric" })} - {new Date(camp.endDate).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Deliverables tags */}
-                    {camp.deliverables && (
-                      <div className="flex flex-wrap gap-1">
-                        {camp.deliverables.reels > 0 && (
-                          <span className="text-[10px] bg-secondary/30 text-foreground px-2 py-0.5 rounded-md font-medium">
-                            🎬 {camp.deliverables.reels} Reels
-                          </span>
-                        )}
-                        {camp.deliverables.posts > 0 && (
-                          <span className="text-[10px] bg-secondary/30 text-foreground px-2 py-0.5 rounded-md font-medium">
-                            📸 {camp.deliverables.posts} Posts
-                          </span>
-                        )}
-                        {camp.deliverables.stories > 0 && (
-                          <span className="text-[10px] bg-secondary/30 text-foreground px-2 py-0.5 rounded-md font-medium">
-                            📱 {camp.deliverables.stories} Stories
-                          </span>
-                        )}
-                        {camp.deliverables.videos > 0 && (
-                          <span className="text-[10px] bg-secondary/30 text-foreground px-2 py-0.5 rounded-md font-medium">
-                            🎥 {camp.deliverables.videos} Videos
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Actions */}
-                  <div className="mt-4 pt-3 border-t border-border/40 flex items-center justify-between gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="rounded-full text-xs h-8 flex-1"
-                      onClick={() => {
-                        setSelectedCampaignForDiscovery(camp);
-                        setJoinPitch(`Hi ${camp.brand?.fullName || "there"}! I'm excited to collaborate on your "${camp.title}" campaign.`);
-                      }}
-                    >
-                      View Details
-                    </Button>
-
-                    {camp.isParticipating ? (
-                      <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 rounded-full text-[10px] h-8 px-3 font-semibold">
-                        Participating
-                      </Badge>
-                    ) : camp.isRequested ? (
-                      <Badge className="bg-amber/10 text-amber border-amber/20 rounded-full text-[10px] h-8 px-3 font-semibold">
-                        Request Pending
-                      </Badge>
-                    ) : camp.requestStatus === "rejected" ? (
-                      <Badge className="bg-red-500/10 text-red-500 border-red-500/20 rounded-full text-[10px] h-8 px-3 font-semibold">
-                        Declined
-                      </Badge>
-                    ) : (
+                    {/* Actions */}
+                    <div className="mt-4 pt-3 border-t border-border/40 flex items-center justify-between gap-2">
                       <Button
                         size="sm"
-                        className="rounded-full gradient-sunset border-0 text-white shadow-glow text-xs h-8 px-4 font-semibold"
+                        variant="outline"
+                        className="rounded-full text-xs h-8 flex-1"
                         onClick={() => {
                           setSelectedCampaignForDiscovery(camp);
                           setJoinPitch(`Hi ${camp.brand?.fullName || "there"}! I'm excited to collaborate on your "${camp.title}" campaign.`);
                         }}
                       >
-                        Request to Join
+                        View Details
                       </Button>
-                    )}
+
+                      {camp.isParticipating ? (
+                        <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 rounded-full text-[10px] h-8 px-3 font-semibold">
+                          Participating
+                        </Badge>
+                      ) : camp.isRequested ? (
+                        <Badge className="bg-amber/10 text-amber border-amber/20 rounded-full text-[10px] h-8 px-3 font-semibold">
+                          Request Pending
+                        </Badge>
+                      ) : camp.requestStatus === "rejected" ? (
+                        <Badge className="bg-red-500/10 text-red-500 border-red-500/20 rounded-full text-[10px] h-8 px-3 font-semibold">
+                          Declined
+                        </Badge>
+                      ) : (
+                        <Button
+                          size="sm"
+                          className="rounded-full gradient-sunset border-0 text-white shadow-glow text-xs h-8 px-4 font-semibold"
+                          onClick={() => {
+                            setSelectedCampaignForDiscovery(camp);
+                            setJoinPitch(`Hi ${camp.brand?.fullName || "there"}! I'm excited to collaborate on your "${camp.title}" campaign.`);
+                          }}
+                        >
+                          Request to Join
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Pagination Controls for smooth & fast responsiveness */}
+              {discoverableCampaigns.length > CAMPAIGNS_PER_PAGE && (
+                <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-border/50 text-xs">
+                  <span className="text-muted-foreground">
+                    Showing {(discoverPage - 1) * CAMPAIGNS_PER_PAGE + 1} to{" "}
+                    {Math.min(discoverPage * CAMPAIGNS_PER_PAGE, discoverableCampaigns.length)} of{" "}
+                    {discoverableCampaigns.length} campaigns
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={discoverPage === 1}
+                      onClick={() => setDiscoverPage((p) => Math.max(1, p - 1))}
+                      className="rounded-full h-8 px-3 text-xs"
+                    >
+                      Previous
+                    </Button>
+                    {Array.from({ length: Math.ceil(discoverableCampaigns.length / CAMPAIGNS_PER_PAGE) }).map((_, i) => (
+                      <Button
+                        key={i}
+                        size="sm"
+                        variant={discoverPage === i + 1 ? "default" : "outline"}
+                        className={cn(
+                          "rounded-full h-8 w-8 p-0 text-xs",
+                          discoverPage === i + 1 && "gradient-sunset text-white border-0"
+                        )}
+                        onClick={() => setDiscoverPage(i + 1)}
+                      >
+                        {i + 1}
+                      </Button>
+                    ))}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={discoverPage >= Math.ceil(discoverableCampaigns.length / CAMPAIGNS_PER_PAGE)}
+                      onClick={() => setDiscoverPage((p) => p + 1)}
+                      className="rounded-full h-8 px-3 text-xs"
+                    >
+                      Next
+                    </Button>
                   </div>
                 </div>
-              ))}
-            </div>
+              )}
+            </>
           )}
         </div>
 

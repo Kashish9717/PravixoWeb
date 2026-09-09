@@ -148,38 +148,39 @@ export function CampaignsPage() {
   };
 
   return (
-    <div className="p-6 lg:p-8">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-full">
       {/* Header */}
       <div>
-        <h1 className="font-display text-2xl font-bold sm:text-3xl flex items-center gap-2">
-          <Megaphone className="h-7 w-7 text-primary" /> Campaign Verification
+        <h1 className="font-display text-xl sm:text-2xl lg:text-3xl font-bold flex items-center gap-2">
+          <Megaphone className="h-6 w-6 sm:h-7 sm:w-7 text-primary shrink-0" /> Campaign Verification
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
           Review campaigns submitted by Brands. Approve them to make them discoverable to Creators or reject if guidelines are not met.
         </p>
       </div>
 
       {/* Filter Tabs & Search */}
-      <div className="mt-6 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-        <div className="flex flex-wrap gap-2">
+      <div className="mt-6 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
           {[
-            { label: "Pending Verification", val: "PENDING_VERIFICATION" },
-            { label: "Approved", val: "APPROVED" },
-            { label: "Rejected", val: "REJECTED" },
-            { label: "All Campaigns", val: "" },
+            { label: "Pending", fullLabel: "Pending Verification", val: "PENDING_VERIFICATION" },
+            { label: "Approved", fullLabel: "Approved", val: "APPROVED" },
+            { label: "Rejected", fullLabel: "Rejected", val: "REJECTED" },
+            { label: "All", fullLabel: "All Campaigns", val: "" },
           ].map((tab) => (
             <Button
               key={tab.val}
               size="sm"
               variant={statusFilter === tab.val ? "default" : "outline"}
-              className={`rounded-full text-xs px-4 h-9 ${
+              className={`rounded-full text-xs px-3 sm:px-4 h-8 sm:h-9 shrink-0 ${
                 statusFilter === tab.val ? "gradient-sunset border-0 text-white shadow-glow" : ""
               }`}
               onClick={() => setStatusFilter(tab.val)}
             >
-              {tab.label}
+              <span className="sm:hidden">{tab.label}</span>
+              <span className="hidden sm:inline">{tab.fullLabel}</span>
               {campaigns && (
-                <span className="ml-1.5 opacity-80">
+                <span className="ml-1 opacity-80">
                   (
                   {tab.val
                     ? campaigns.filter((c) => c.status === tab.val).length
@@ -202,139 +203,226 @@ export function CampaignsPage() {
         </div>
       </div>
 
-      {/* Campaigns Table */}
-      <div className="mt-6 rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-secondary/20">
-              <TableHead className="font-semibold text-xs">Campaign</TableHead>
-              <TableHead className="font-semibold text-xs">Brand</TableHead>
-              <TableHead className="font-semibold text-xs">Category & Location</TableHead>
-              <TableHead className="font-semibold text-xs">Budget</TableHead>
-              <TableHead className="font-semibold text-xs">Per Creator Budget</TableHead>
-              <TableHead className="font-semibold text-xs">Status</TableHead>
-              <TableHead className="font-semibold text-xs text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {!filteredCampaigns ? (
-              [...Array(4)].map((_, i) => (
-                <TableRow key={i}>
-                  <TableCell><Skeleton className="h-5 w-40" /></TableCell>
-                  <TableCell><Skeleton className="h-5 w-28" /></TableCell>
-                  <TableCell><Skeleton className="h-5 w-32" /></TableCell>
-                  <TableCell><Skeleton className="h-5 w-20" /></TableCell>
-                  <TableCell><Skeleton className="h-5 w-24" /></TableCell>
-                  <TableCell><Skeleton className="h-5 w-20" /></TableCell>
-                  <TableCell className="text-right"><Skeleton className="h-8 w-20 ml-auto" /></TableCell>
-                </TableRow>
-              ))
-            ) : filteredCampaigns.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={7} className="text-center py-12 text-sm text-muted-foreground">
-                  No campaigns found in this view.
-                </TableCell>
+      {/* Mobile Campaigns Card List (Visible on < md) */}
+      <div className="mt-4 space-y-3 md:hidden">
+        {!filteredCampaigns ? (
+          [...Array(3)].map((_, i) => (
+            <div key={i} className="p-4 rounded-2xl border border-border bg-card space-y-3">
+              <Skeleton className="h-5 w-3/4" />
+              <Skeleton className="h-4 w-1/2" />
+              <Skeleton className="h-8 w-full" />
+            </div>
+          ))
+        ) : filteredCampaigns.length === 0 ? (
+          <div className="text-center py-10 text-sm text-muted-foreground rounded-2xl border border-border bg-card p-4">
+            No campaigns found in this view.
+          </div>
+        ) : (
+          filteredCampaigns.map((camp) => (
+            <div key={camp._id} className="p-4 rounded-2xl border border-border bg-card space-y-3 shadow-xs">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <h3 className="font-semibold text-sm text-foreground leading-tight">
+                    {camp.title}
+                  </h3>
+                  <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground">
+                    <Building2 className="h-3 w-3 text-primary shrink-0" />
+                    <span className="truncate">{camp.brandId?.fullName || "Unknown Brand"}</span>
+                  </div>
+                </div>
+                <div>{getStatusBadge(camp.status)}</div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 pt-1 border-t border-border/40 text-xs">
+                <div>
+                  <span className="text-[10px] text-muted-foreground block uppercase font-medium">Category</span>
+                  <Badge variant="secondary" className="text-[10px] rounded-md font-medium mt-0.5">
+                    {camp.category}
+                  </Badge>
+                </div>
+                <div>
+                  <span className="text-[10px] text-muted-foreground block uppercase font-medium">Total Budget</span>
+                  <span className="font-bold text-foreground">₹{Number(camp.totalBudget || 0).toLocaleString("en-IN")}</span>
+                </div>
+                <div className="col-span-2">
+                  <span className="text-[10px] text-muted-foreground block uppercase font-medium">Creator Budget</span>
+                  <span className="text-muted-foreground font-medium">
+                    ₹{Number(camp.minBudgetPerCreator || 0).toLocaleString("en-IN")} - ₹{Number(camp.maxBudgetPerCreator || 0).toLocaleString("en-IN")}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border/40">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="flex-1 h-8 rounded-xl text-xs"
+                  onClick={() => setSelectedCampaign(camp)}
+                >
+                  <Eye className="h-3.5 w-3.5 mr-1" /> Details
+                </Button>
+                {camp.status === "PENDING_VERIFICATION" && (
+                  <>
+                    <Button
+                      size="sm"
+                      className="flex-1 h-8 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs"
+                      onClick={() => handleApprove(camp._id)}
+                      disabled={actionLoading}
+                    >
+                      <Check className="h-3.5 w-3.5 mr-1" /> Approve
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      className="h-8 rounded-xl text-xs px-3"
+                      onClick={() => setRejectingCampaign(camp)}
+                      disabled={actionLoading}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Desktop Campaigns Table (Visible on md+) */}
+      <div className="hidden md:block mt-6 rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
+        <div className="w-full overflow-x-auto">
+          <Table className="min-w-[780px]">
+            <TableHeader>
+              <TableRow className="bg-secondary/20">
+                <TableHead className="font-semibold text-xs">Campaign</TableHead>
+                <TableHead className="font-semibold text-xs">Brand</TableHead>
+                <TableHead className="font-semibold text-xs">Category & Location</TableHead>
+                <TableHead className="font-semibold text-xs">Budget</TableHead>
+                <TableHead className="font-semibold text-xs">Per Creator Budget</TableHead>
+                <TableHead className="font-semibold text-xs">Status</TableHead>
+                <TableHead className="font-semibold text-xs text-right">Actions</TableHead>
               </TableRow>
-            ) : (
-              filteredCampaigns.map((camp) => (
-                <TableRow key={camp._id} className="hover:bg-secondary/10">
-                  <TableCell>
-                    <div>
-                      <span className="font-semibold text-sm text-foreground block">
-                        {camp.title}
-                      </span>
-                      <span className="text-[11px] text-muted-foreground line-clamp-1 max-w-[220px]">
-                        {camp.description || "No description provided"}
-                      </span>
-                    </div>
+            </TableHeader>
+            <TableBody>
+              {!filteredCampaigns ? (
+                [...Array(4)].map((_, i) => (
+                  <TableRow key={i}>
+                    <TableCell><Skeleton className="h-5 w-40" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-28" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-20" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-20" /></TableCell>
+                    <TableCell className="text-right"><Skeleton className="h-8 w-20 ml-auto" /></TableCell>
+                  </TableRow>
+                ))
+              ) : filteredCampaigns.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-12 text-sm text-muted-foreground">
+                    No campaigns found in this view.
                   </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <img
-                        src={
-                          camp.brandId?.avatarUrl ||
-                          `https://api.dicebear.com/9.x/avataaars/svg?seed=${camp.brandId?.fullName || "Brand"}`
-                        }
-                        alt=""
-                        className="h-7 w-7 rounded-lg object-cover border border-border shrink-0"
-                        onError={(e) => {
-                          e.target.onerror = null;
-                          e.target.src = "https://api.dicebear.com/9.x/avataaars/svg?seed=Fallback";
-                        }}
-                      />
-                      <div className="min-w-0">
-                        <span className="text-xs font-semibold text-foreground truncate block">
-                          {camp.brandId?.fullName || "Unknown Brand"}
+                </TableRow>
+              ) : (
+                filteredCampaigns.map((camp) => (
+                  <TableRow key={camp._id} className="hover:bg-secondary/10">
+                    <TableCell>
+                      <div>
+                        <span className="font-semibold text-sm text-foreground block">
+                          {camp.title}
                         </span>
-                        {camp.brandId?.email && (
-                          <span className="text-[10px] text-muted-foreground truncate block">
-                            {camp.brandId.email}
+                        <span className="text-[11px] text-muted-foreground line-clamp-1 max-w-[220px]">
+                          {camp.description || "No description provided"}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <img
+                          src={
+                            camp.brandId?.avatarUrl ||
+                            `https://api.dicebear.com/9.x/avataaars/svg?seed=${camp.brandId?.fullName || "Brand"}`
+                          }
+                          alt=""
+                          className="h-7 w-7 rounded-lg object-cover border border-border shrink-0"
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src = "https://api.dicebear.com/9.x/avataaars/svg?seed=Fallback";
+                          }}
+                        />
+                        <div className="min-w-0">
+                          <span className="text-xs font-semibold text-foreground truncate block">
+                            {camp.brandId?.fullName || "Unknown Brand"}
                           </span>
+                          {camp.brandId?.email && (
+                            <span className="text-[10px] text-muted-foreground truncate block">
+                              {camp.brandId.email}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-xs">
+                        <Badge variant="secondary" className="text-[10px] rounded-md font-medium">
+                          {camp.category}
+                        </Badge>
+                        <span className="text-[11px] text-muted-foreground block mt-0.5">
+                          {camp.location || "Pan India"}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-xs font-bold text-foreground">
+                        ₹{Number(camp.totalBudget || 0).toLocaleString("en-IN")}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-xs text-muted-foreground">
+                        ₹{Number(camp.minBudgetPerCreator || 0).toLocaleString("en-IN")} - ₹{Number(camp.maxBudgetPerCreator || 0).toLocaleString("en-IN")}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      {getStatusBadge(camp.status)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 rounded-lg text-xs"
+                          onClick={() => setSelectedCampaign(camp)}
+                        >
+                          <Eye className="h-3.5 w-3.5 mr-1" /> Details
+                        </Button>
+                        {camp.status === "PENDING_VERIFICATION" && (
+                          <>
+                            <Button
+                              size="sm"
+                              className="h-8 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-2.5"
+                              onClick={() => handleApprove(camp._id)}
+                              disabled={actionLoading}
+                            >
+                              <Check className="h-3.5 w-3.5 mr-1" /> Approve
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              className="h-8 rounded-lg text-xs px-2.5"
+                              onClick={() => setRejectingCampaign(camp)}
+                              disabled={actionLoading}
+                            >
+                              <X className="h-3.5 w-3.5 mr-1" /> Reject
+                            </Button>
+                          </>
                         )}
                       </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="text-xs">
-                      <Badge variant="secondary" className="text-[10px] rounded-md font-medium">
-                        {camp.category}
-                      </Badge>
-                      <span className="text-[11px] text-muted-foreground block mt-0.5">
-                        {camp.location || "Pan India"}
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <span className="text-xs font-bold text-foreground">
-                      ₹{Number(camp.totalBudget || 0).toLocaleString("en-IN")}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <span className="text-xs text-muted-foreground">
-                      ₹{Number(camp.minBudgetPerCreator || 0).toLocaleString("en-IN")} - ₹{Number(camp.maxBudgetPerCreator || 0).toLocaleString("en-IN")}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    {getStatusBadge(camp.status)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-1.5">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-8 rounded-lg text-xs"
-                        onClick={() => setSelectedCampaign(camp)}
-                      >
-                        <Eye className="h-3.5 w-3.5 mr-1" /> Details
-                      </Button>
-                      {camp.status === "PENDING_VERIFICATION" && (
-                        <>
-                          <Button
-                            size="sm"
-                            className="h-8 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-2.5"
-                            onClick={() => handleApprove(camp._id)}
-                            disabled={actionLoading}
-                          >
-                            <Check className="h-3.5 w-3.5 mr-1" /> Approve
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            className="h-8 rounded-lg text-xs px-2.5"
-                            onClick={() => setRejectingCampaign(camp)}
-                            disabled={actionLoading}
-                          >
-                            <X className="h-3.5 w-3.5 mr-1" /> Reject
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </div>
 
       {/* Campaign Details Modal */}

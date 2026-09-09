@@ -306,16 +306,20 @@ export const markAsRead = async (req, res) => {
     const { conversationId } = req.params;
     const { profileId } = req.body;
 
-    await Message.updateMany(
-      {
-        conversationId,
-        senderId: { $ne: profileId },
-        read: false,
-      },
-      {
-        $set: { read: true },
-      }
-    );
+    const myId = profileId ? (mongoose.Types.ObjectId.isValid(profileId) ? new mongoose.Types.ObjectId(profileId) : profileId) : null;
+
+    if (myId) {
+      await Message.updateMany(
+        {
+          conversationId,
+          senderId: { $ne: myId },
+          read: false,
+        },
+        {
+          $set: { read: true },
+        }
+      );
+    }
 
     res.status(200).json({
       success: true,

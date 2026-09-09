@@ -164,8 +164,8 @@ export function NotificationBell({ align = "right" }) {
 
       {open && (
         <div
-          className={`absolute top-full mt-2 z-50 w-96 rounded-2xl border border-border bg-card shadow-2xl flex flex-col overflow-hidden ${panelAlign}`}
-          style={{ maxHeight: "520px" }}
+          className={`fixed inset-x-3 top-16 sm:absolute sm:top-full sm:inset-x-auto sm:mt-2 z-50 sm:w-96 rounded-2xl border border-border bg-card shadow-2xl flex flex-col overflow-hidden ${panelAlign}`}
+          style={{ maxHeight: "calc(100vh - 80px)" }}
         >
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">

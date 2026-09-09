@@ -9,6 +9,9 @@ import {
   getTasksForBrand,
   getNotifications,
   markNotificationRead,
+  markAllNotificationsRead,
+  clearNotifications,
+  deleteNotification,
 } from "../controllers/taskController.js";
 
 const router = express.Router();
@@ -42,10 +45,28 @@ router.get("/brand/:brandId", getTasksForBrand);
 // Get notifications
 router.get("/notifications/:recipientId", getNotifications);
 
-// Mark notification as read
+// Mark single notification as read
 router.patch(
   "/notifications/:notificationId/read",
   markNotificationRead
+);
+
+// Mark all notifications as read for a recipient
+router.patch(
+  "/notifications/:recipientId/read-all",
+  markAllNotificationsRead
+);
+
+// Clear all notifications for a recipient
+router.delete(
+  "/notifications/:recipientId/clear-all",
+  clearNotifications
+);
+
+// Delete single notification
+router.delete(
+  "/notifications/:notificationId",
+  deleteNotification
 );
 
 export default router;

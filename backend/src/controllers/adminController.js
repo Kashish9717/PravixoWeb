@@ -1669,7 +1669,8 @@ export const bulkDeleteMessages = async (req, res) => {
 // =====================================================
 export const getAdminActivityFeed = async (req, res) => {
   try {
-    const limit = parseInt(req.query.limit) || 40;
+    const adminId = req.user?._id;
+    const limit = parseInt(req.query.limit) || 50;
     const since = req.query.since ? parseInt(req.query.since) : null;
 
     const sinceDate = since ? new Date(since) : null;
@@ -1680,14 +1681,14 @@ export const getAdminActivityFeed = async (req, res) => {
       .select("fullName avatarUrl role handle createdAt").lean();
 
     const signupEvents = newUsers.map((u) => ({
-      id: "signup_" + u._id,
+      _id: "signup_" + u._id,
       type: "signup",
       role: u.role,
       title: "New " + u.role + " joined",
-      body: u.fullName + (u.handle ? " (@" + u.handle + ")" : "") + " created an account",
+      text: u.fullName + (u.handle ? " (@" + u.handle + ")" : "") + " created an account",
       avatarUrl: u.avatarUrl || null,
       actorName: u.fullName,
-      timestamp: new Date(u.createdAt).getTime(),
+      createdAt: new Date(u.createdAt).getTime(),
     }));
 
     const recentConversations = await Conversation.find(sinceFilter)
@@ -1696,47 +1697,52 @@ export const getAdminActivityFeed = async (req, res) => {
       .populate("brandId", "fullName handle").lean();
 
     const collaborationEvents = recentConversations.map((c) => ({
-      id: "collab_" + c._id,
+      _id: "collab_" + c._id,
       type: "collaboration",
       title: "New collaboration started",
-      body: (c.creatorId && c.creatorId.fullName ? c.creatorId.fullName : "A creator") + " connected with " + (c.brandId && c.brandId.fullName ? c.brandId.fullName : "a brand"),
+      text: (c.creatorId && c.creatorId.fullName ? c.creatorId.fullName : "A creator") + " connected with " + (c.brandId && c.brandId.fullName ? c.brandId.fullName : "a brand"),
       avatarUrl: c.creatorId ? c.creatorId.avatarUrl : null,
       actorName: c.creatorId ? c.creatorId.fullName : "Creator",
-      timestamp: new Date(c.createdAt).getTime(),
+      createdAt: new Date(c.createdAt).getTime(),
     }));
 
     const recentPayments = await Payment.find(sinceFilter)
       .sort({ createdAt: -1 }).limit(10).lean();
 
     const paymentEvents = recentPayments.map((p) => ({
-      id: "payment_" + p._id,
-      type: "payment",
+      _id: "payment_" + p._id,
+      type: "payment_successful",
       title: "Payment processed",
-      body: "A payment of Rs " + ((p.amount || 0) / 100).toLocaleString("en-IN") + " was recorded",
+      text: "A payment of ₹" + ((p.amount || 0) / 100).toLocaleString("en-IN") + " was recorded",
       avatarUrl: null,
       actorName: "Payment System",
-      timestamp: new Date(p.createdAt).getTime(),
+      createdAt: new Date(p.createdAt).getTime(),
     }));
 
-    const campaignNotifications = await Notification.find({
-      type: { $in: ["campaign_pending_verification", "campaign_approved", "campaign_rejected"] },
+    const systemNotifications = await Notification.find({
+      $or: [
+        { recipientId: adminId },
+        { type: { $in: ["campaign_pending_verification", "campaign_approved", "campaign_rejected", "dispute_raised", "withdrawal_requested", "verification_requested", "payment_release_eligible"] } }
+      ],
       ...sinceFilter,
-    }).sort({ createdAt: -1 }).limit(10)
+    }).sort({ createdAt: -1 }).limit(30)
       .populate("senderId", "fullName avatarUrl role")
       .populate("recipientId", "fullName avatarUrl role").lean();
 
-    const campaignEvents = campaignNotifications.map((n) => ({
-      id: "camp_" + n._id,
-      type: "collaboration",
-      title: n.type === "campaign_pending_verification" ? "New Campaign Submitted" : "Campaign Verification Updated",
-      body: n.text,
+    const notifEvents = systemNotifications.map((n) => ({
+      _id: n._id,
+      type: n.type,
+      title: n.type === "campaign_pending_verification" ? "New Campaign Submitted" : "Platform Alert",
+      text: n.text,
+      targetUrl: n.targetUrl || "",
       avatarUrl: n.senderId?.avatarUrl || null,
-      actorName: n.senderId?.fullName || "Brand",
-      timestamp: new Date(n.createdAt).getTime(),
+      actorName: n.senderId?.fullName || "System",
+      createdAt: n.createdAt ? (typeof n.createdAt === "number" ? n.createdAt : new Date(n.createdAt).getTime()) : Date.now(),
+      read: n.read || false,
     }));
 
-    const allEvents = [...signupEvents, ...campaignEvents, ...collaborationEvents, ...paymentEvents]
-      .sort((a, b) => b.timestamp - a.timestamp)
+    const allEvents = [...notifEvents, ...signupEvents, ...collaborationEvents, ...paymentEvents]
+      .sort((a, b) => b.createdAt - a.createdAt)
       .slice(0, limit);
 
     return res.status(200).json({ success: true, data: allEvents, count: allEvents.length });
@@ -2118,5 +2124,7 @@ export const processWithdrawal = async (req, res) => {
     });
   }
 };
+
+
 
 

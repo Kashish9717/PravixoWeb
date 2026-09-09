@@ -588,10 +588,96 @@ export const markNotificationRead = async (req, res) => {
     });
   } catch (error) {
     console.error("Mark notification read error:", error);
-
     return res.status(500).json({
       success: false,
       message: "Failed to mark notification as read.",
+    });
+  }
+};
+
+// ==========================================
+// MARK ALL NOTIFICATIONS READ
+// ==========================================
+export const markAllNotificationsRead = async (req, res) => {
+  try {
+    const { recipientId } = req.params;
+
+    if (!isValidId(recipientId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid recipient ID.",
+      });
+    }
+
+    await Notification.updateMany({ recipientId, read: false }, { $set: { read: true } });
+
+    return res.status(200).json({
+      success: true,
+      message: "All notifications marked as read.",
+    });
+  } catch (error) {
+    console.error("Mark all notifications read error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to mark all notifications as read.",
+    });
+  }
+};
+
+// ==========================================
+// DELETE / CLEAR ALL NOTIFICATIONS
+// ==========================================
+export const clearNotifications = async (req, res) => {
+  try {
+    const { recipientId } = req.params;
+
+    if (!isValidId(recipientId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid recipient ID.",
+      });
+    }
+
+    await Notification.deleteMany({ recipientId });
+
+    return res.status(200).json({
+      success: true,
+      message: "All notifications cleared.",
+    });
+  } catch (error) {
+    console.error("Clear notifications error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to clear notifications.",
+    });
+  }
+};
+
+// ==========================================
+// DELETE SINGLE NOTIFICATION
+// ==========================================
+export const deleteNotification = async (req, res) => {
+  try {
+    const { notificationId } = req.params;
+
+    if (!isValidId(notificationId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid notification ID.",
+      });
+    }
+
+    await Notification.findByIdAndDelete(notificationId);
+
+    return res.status(200).json({
+      success: true,
+      message: "Notification deleted.",
+    });
+  } catch (error) {
+    console.error("Delete notification error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to delete notification.",
     });
   }
 };

@@ -249,7 +249,7 @@ function NotificationBell() {
   );
 }
 
-function SidebarContent() {
+function SidebarContent({ onItemClick }) {
   const [verificationOpen, setVerificationOpen] = useState(false);
   const { pathname } = useLocation();
   const navigate = useNavigate();
@@ -258,6 +258,7 @@ function SidebarContent() {
   const handleSignOut = () => {
     localStorage.removeItem("admin_authed");
     sessionStorage.removeItem("admin_authed");
+    if (onItemClick) onItemClick();
     navigate("/");
   };
 
@@ -282,7 +283,7 @@ function SidebarContent() {
       <Separator />
 
       {/* Navigation */}
-      <nav className="flex-1 space-y-1 px-3 py-4">
+      <nav className="flex-1 space-y-1 px-3 py-4 overflow-y-auto">
         {navLinks.map((link) => {
           const active =
             pathname === link.to ||
@@ -291,6 +292,7 @@ function SidebarContent() {
             <Link
               key={link.to}
               to={link.to}
+              onClick={() => onItemClick && onItemClick()}
               className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 ${
                 active
                   ? "gradient-sunset text-white shadow-glow"
@@ -328,6 +330,7 @@ function SidebarContent() {
             <div className="ml-8 space-y-1">
               <Link
                 to="/verification-requests/creators"
+                onClick={() => onItemClick && onItemClick()}
                 className={`block rounded-lg px-3 py-2 text-sm ${
                   pathname === "/verification-requests/creators"
                     ? "gradient-sunset text-white shadow-glow"
@@ -338,6 +341,7 @@ function SidebarContent() {
               </Link>
               <Link
                 to="/verification-requests/brands"
+                onClick={() => onItemClick && onItemClick()}
                 className={`block rounded-lg px-3 py-2 text-sm ${
                   pathname === "/verification-requests/brands"
                     ? "gradient-sunset text-white shadow-glow"
@@ -395,7 +399,7 @@ function AdminShell() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen w-full overflow-x-hidden bg-background">
       {/* Desktop sidebar */}
       <aside className="hidden w-64 shrink-0 border-r border-border bg-card lg:block">
         <div className="sticky top-0 h-screen overflow-y-auto">
@@ -406,43 +410,45 @@ function AdminShell() {
       {/* Mobile sidebar overlay */}
       {mobileOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/60 lg:hidden"
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-xs lg:hidden"
           onClick={() => setMobileOpen(false)}
         />
       )}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-64 border-r border-border bg-card transition-transform duration-300 lg:hidden ${
-          mobileOpen ? "translate-x-0" : "-translate-x-full"
+        className={`fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] border-r border-border bg-card transition-transform duration-300 ease-in-out lg:hidden ${
+          mobileOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full"
         }`}
       >
-        <SidebarContent />
+        <SidebarContent onItemClick={() => setMobileOpen(false)} />
       </aside>
 
       {/* Main content */}
-      <div className="flex flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {/* Mobile header */}
-        <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border bg-background/80 px-4 backdrop-blur lg:hidden">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-9 w-9 rounded-xl"
-            onClick={() => setMobileOpen(!mobileOpen)}
-          >
-            {mobileOpen ? (
-              <X className="h-5 w-5" />
-            ) : (
-              <Menu className="h-5 w-5" />
-            )}
-          </Button>
-          <div className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg gradient-sunset">
-              <Sparkles className="h-3.5 w-3.5 text-white" />
+        <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between border-b border-border bg-background/80 px-4 backdrop-blur lg:hidden">
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 rounded-xl"
+              onClick={() => setMobileOpen(!mobileOpen)}
+            >
+              {mobileOpen ? (
+                <X className="h-5 w-5" />
+              ) : (
+                <Menu className="h-5 w-5" />
+              )}
+            </Button>
+            <div className="flex items-center gap-2">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg gradient-sunset shadow-glow">
+                <Sparkles className="h-3.5 w-3.5 text-white" />
+              </div>
+              <span className="font-display text-sm font-bold">Pravixo Admin</span>
             </div>
-            <span className="font-display text-sm font-bold">Pravixo Admin</span>
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden">
           <Outlet />
         </main>
       </div>
