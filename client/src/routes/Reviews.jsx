@@ -162,15 +162,13 @@ export default function Reviews() {
             </p>
           </div>
 
-          {isAdmin && (
-            <Button
-              onClick={handleOpenCreate}
-              className="rounded-full gradient-sunset border-0 font-semibold text-white shadow-glow"
-            >
-              <Plus className="mr-2 h-4.5 w-4.5" />
-              Add Video Review
-            </Button>
-          )}
+          <Button
+            onClick={handleOpenCreate}
+            className="rounded-full gradient-sunset border-0 font-semibold text-white shadow-glow"
+          >
+            <Plus className="mr-2 h-4.5 w-4.5" />
+            Submit Video Review
+          </Button>
         </div>
 
         {/* ROLE TOGGLE */}

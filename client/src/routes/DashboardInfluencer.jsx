@@ -50,6 +50,8 @@ import { Button } from "@/components/ui/Button";
 import { CATEGORY_OPTIONS } from "@/data/influencer";
 import { Switch } from "@/components/ui/Switch";
 import { SubscriptionTab } from "../components/subscription/SubscriptionTab";
+import { profileService } from "@/services/profileService";
+const { submitVerification } = profileService;
 
 const QuoraIcon = (props) => (
   <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
