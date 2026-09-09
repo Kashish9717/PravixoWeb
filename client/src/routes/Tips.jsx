@@ -28,6 +28,7 @@ export default function Tips() {
   const [selectedRole, setSelectedRole] = useState("brand");
 
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [selectedTip, setSelectedTip] = useState(null);
 
   const [formTitle, setFormTitle] = useState("");
   const [formDesc, setFormDesc] = useState("");
@@ -217,34 +218,45 @@ export default function Tips() {
               return (
                 <div
                   key={tip._id}
-                  className="flex flex-col justify-between space-y-4 rounded-3xl border border-border bg-card p-6 transition-all duration-200 hover:border-primary/50"
+                  onClick={() => setSelectedTip(tip)}
+                  className="group flex flex-col justify-between space-y-4 rounded-3xl border border-border bg-card p-6 transition-all duration-200 hover:border-primary/50 hover:shadow-glow/10 cursor-pointer"
                 >
                   <div className="space-y-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary group-hover:scale-105 transition-transform">
                       <IconComponent className="h-5 w-5" />
                     </div>
 
-                    <h4 className="font-display text-base font-bold text-foreground">
+                    <h4 className="font-display text-base font-bold text-foreground group-hover:text-primary transition-colors">
                       {tip.title}
                     </h4>
 
-                    <p className="text-xs leading-relaxed text-muted-foreground">
+                    <p className="text-xs leading-relaxed text-muted-foreground line-clamp-3">
                       {tip.content}
                     </p>
                   </div>
 
                   <div className="flex items-center justify-between pt-2">
-                    <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-primary">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedTip(tip);
+                      }}
+                      className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-primary hover:underline"
+                    >
                       Read More
-                      <ArrowRight className="h-3 w-3" />
-                    </span>
+                      <ArrowRight className="h-3 w-3 group-hover:translate-x-1 transition-transform" />
+                    </button>
 
                     {isAdmin && (
                       <Button
                         size="icon"
                         variant="ghost"
                         className="h-8 w-8 rounded-full text-red-500 hover:bg-red-500/10 hover:text-red-500"
-                        onClick={() => handleDelete(tip._id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(tip._id);
+                        }}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
@@ -351,6 +363,54 @@ export default function Tips() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* READ MORE DETAILS MODAL */}
+      <Dialog
+        open={Boolean(selectedTip)}
+        onOpenChange={(open) => {
+          if (!open) setSelectedTip(null);
+        }}
+      >
+        <DialogContent className="rounded-3xl border border-border bg-card p-6 sm:max-w-lg shadow-elevated">
+          {selectedTip && (
+            <>
+              <DialogHeader>
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                    {(() => {
+                      const IconComp = iconsMap[selectedTip.iconName] || Lightbulb;
+                      return <IconComp className="h-6 w-6" />;
+                    })()}
+                  </div>
+                  <div>
+                    <div className="inline-flex rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary">
+                      {selectedTip.category === "brand" ? "Tip for Brands" : "Tip for Creators"}
+                    </div>
+                    <DialogTitle className="font-display text-xl font-bold mt-1 text-foreground">
+                      {selectedTip.title}
+                    </DialogTitle>
+                  </div>
+                </div>
+              </DialogHeader>
+
+              <div className="mt-4 max-h-[60vh] overflow-y-auto pr-1">
+                <p className="text-sm leading-relaxed text-muted-foreground whitespace-pre-wrap">
+                  {selectedTip.content}
+                </p>
+              </div>
+
+              <DialogFooter className="mt-6 flex justify-end">
+                <Button
+                  onClick={() => setSelectedTip(null)}
+                  className="rounded-full gradient-sunset border-0 text-white font-semibold px-6"
+                >
+                  Got It
+                </Button>
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </div>

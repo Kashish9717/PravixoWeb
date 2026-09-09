@@ -16,7 +16,15 @@ import {
   Edit2,
   Search,
   BookOpen,
+  ChevronDown,
+  Check,
 } from "lucide-react";
+
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "../components/ui/Popover";
 
 import api from "../lib/api";
 
@@ -28,6 +36,8 @@ export function Blog() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedRole, setSelectedRole] = useState("all");
+  const [categoryOpen, setCategoryOpen] = useState(false);
+  const [roleOpen, setRoleOpen] = useState(false);
 
   const [showManageModal, setShowManageModal] = useState(false);
   const [editingBlog, setEditingBlog] = useState(null);
@@ -336,7 +346,7 @@ export function Blog() {
 
             <Input
               placeholder="Search blog articles..."
-              className="pl-10 rounded-full border-border bg-card/60"
+              className="pl-10 rounded-full border-border bg-card/60 h-10 text-xs"
               value={searchQuery}
               onChange={(e) =>
                 setSearchQuery(e.target.value)
@@ -346,52 +356,108 @@ export function Blog() {
           </div>
 
           <div>
-
-            <select
-              className="w-full rounded-full border border-border bg-card/60 px-4 h-10 text-xs text-foreground focus:outline-none"
-              value={selectedCategory}
-              onChange={(e) =>
-                setSelectedCategory(e.target.value)
-              }
-            >
-              <option value="all">
-                All Categories
-              </option>
-
-              {categories.map((category) => (
-                <option
-                  key={category}
-                  value={category}
+            <Popover open={categoryOpen} onOpenChange={setCategoryOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={categoryOpen}
+                  className="w-full justify-between rounded-full border-border bg-card/60 px-4 h-10 text-xs font-medium text-foreground hover:bg-card/80"
                 >
-                  {category}
-                </option>
-              ))}
-            </select>
-
+                  <span className="truncate">
+                    {selectedCategory === "all"
+                      ? "All Categories"
+                      : selectedCategory}
+                  </span>
+                  <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[280px] p-2 rounded-2xl border-border bg-card shadow-elevated" align="start">
+                <div className="max-h-60 overflow-y-auto space-y-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedCategory("all");
+                      setCategoryOpen(false);
+                    }}
+                    className={`flex items-center justify-between w-full px-3 py-2 text-xs rounded-xl font-medium transition-colors ${
+                      selectedCategory === "all"
+                        ? "bg-primary/10 text-primary font-bold"
+                        : "hover:bg-secondary/60 text-foreground"
+                    }`}
+                  >
+                    <span>All Categories</span>
+                    {selectedCategory === "all" && <Check className="h-3.5 w-3.5 text-primary" />}
+                  </button>
+                  {categories.map((category) => (
+                    <button
+                      key={category}
+                      type="button"
+                      onClick={() => {
+                        setSelectedCategory(category);
+                        setCategoryOpen(false);
+                      }}
+                      className={`flex items-center justify-between w-full px-3 py-2 text-xs rounded-xl font-medium transition-colors text-left ${
+                        selectedCategory === category
+                          ? "bg-primary/10 text-primary font-bold"
+                          : "hover:bg-secondary/60 text-foreground"
+                      }`}
+                    >
+                      <span className="truncate">{category}</span>
+                      {selectedCategory === category && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
+                    </button>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
 
           <div>
-
-            <select
-              className="w-full rounded-full border border-border bg-card/60 px-4 h-10 text-xs text-foreground focus:outline-none"
-              value={selectedRole}
-              onChange={(e) =>
-                setSelectedRole(e.target.value)
-              }
-            >
-              <option value="all">
-                Target Roles
-              </option>
-
-              <option value="brand">
-                For Brands Only
-              </option>
-
-              <option value="creator">
-                For Creators Only
-              </option>
-            </select>
-
+            <Popover open={roleOpen} onOpenChange={setRoleOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={roleOpen}
+                  className="w-full justify-between rounded-full border-border bg-card/60 px-4 h-10 text-xs font-medium text-foreground hover:bg-card/80"
+                >
+                  <span className="truncate">
+                    {selectedRole === "all"
+                      ? "Target Roles (All)"
+                      : selectedRole === "brand"
+                      ? "For Brands Only"
+                      : "For Creators Only"}
+                  </span>
+                  <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[200px] p-2 rounded-2xl border-border bg-card shadow-elevated" align="start">
+                <div className="space-y-1">
+                  {[
+                    { value: "all", label: "Target Roles (All)" },
+                    { value: "brand", label: "For Brands Only" },
+                    { value: "creator", label: "For Creators Only" },
+                  ].map((item) => (
+                    <button
+                      key={item.value}
+                      type="button"
+                      onClick={() => {
+                        setSelectedRole(item.value);
+                        setRoleOpen(false);
+                      }}
+                      className={`flex items-center justify-between w-full px-3 py-2 text-xs rounded-xl font-medium transition-colors text-left ${
+                        selectedRole === item.value
+                          ? "bg-primary/10 text-primary font-bold"
+                          : "hover:bg-secondary/60 text-foreground"
+                      }`}
+                    >
+                      <span>{item.label}</span>
+                      {selectedRole === item.value && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
+                    </button>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
 
         </div>

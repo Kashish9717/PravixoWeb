@@ -1133,57 +1133,6 @@ const [submittingVerification, setSubmittingVerification] =
 </div>
         </div>
 
-        {/* Real-time Notifications Banner */}
-        {notifications && notifications.filter(n => !n.read).length > 0 && (
-          <div className="mt-8 space-y-2">
-            {notifications.filter(n => !n.read).map((notif) => (
-              <div
-                key={notif._id}
-                className="flex items-center justify-between gap-4 p-4 rounded-2xl border border-primary/20 bg-primary/5 text-primary shadow-sm"
-              >
-                <div className="flex items-center gap-2.5">
-                  <Activity className="h-5 w-5 text-primary animate-pulse" />
-                  <span className="text-sm font-medium">{notif.text}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    className="rounded-full h-8 text-xs gradient-sunset border-0 text-white font-semibold"
-                    onClick={async () => {
-                      try {
-                        // Find the task and open review modal
-                        const t = brandTasks?.find(task => task._id === notif.taskId);
-                        if (t) {
-                          setSelectedTaskForReview(t);
-                        }
-                        await markRead({ notificationId: notif._id });
-                      } catch (e) {
-                        console.error(e);
-                      }
-                    }}
-                  >
-                    View Task
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="rounded-full h-8 text-xs hover:bg-primary/10 text-primary font-semibold"
-                    onClick={async () => {
-                      try {
-                        await markRead({ notificationId: notif._id });
-                      } catch (e) {
-                        console.error(e);
-                      }
-                    }}
-                  >
-                    Mark as Read
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
         {/* CONNECTION REQUESTS AT TOP */}
         {pendingRequests && pendingRequests.length > 0 && (
           <div className="mt-8 rounded-3xl border border-border bg-card p-6 shadow-sm">
@@ -1697,39 +1646,38 @@ const [submittingVerification, setSubmittingVerification] =
           </div>
         )}
 
-        {/* MAIN DUAL COLUMN CONTENT */}
-        <div className="mt-8 grid gap-6 lg:grid-cols-[200px_1fr] items-start">
-          {/* Left Navigation Sidebar */}
-          <div className="space-y-1.5 rounded-3xl border border-border bg-card p-4 shadow-sm">
-            <button
-              onClick={() => setActiveTab("dashboard")}
-              className={`flex items-center gap-2.5 w-full rounded-xl px-3 py-2 text-xs font-semibold transition-all duration-200 ${
-                activeTab === "dashboard"
-                  ? "gradient-sunset text-white shadow-glow"
-                  : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
-              }`}
-            >
-              <Building2 className="h-4 w-4" />
-              Dashboard
-            </button>
-            <button
-              onClick={() => setActiveTab("subscription")}
-              className={`flex items-center gap-2.5 w-full rounded-xl px-3 py-2 text-xs font-semibold transition-all duration-200 ${
-                activeTab === "subscription"
-                  ? "gradient-sunset text-white shadow-glow"
-                  : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
-              }`}
-            >
-              <Star className="h-4 w-4" />
-              ⭐ Packages
-            </button>
-          </div>
+        {/* TAB NAVIGATION PILLS */}
+        <div className="mt-8 flex flex-wrap items-center gap-2 border-b border-border/50 pb-4">
+          <button
+            onClick={() => setActiveTab("dashboard")}
+            className={`flex items-center gap-2 rounded-full px-5 py-2 text-xs font-semibold transition-all duration-200 ${
+              activeTab === "dashboard"
+                ? "gradient-sunset text-white shadow-glow"
+                : "bg-secondary/40 text-muted-foreground hover:bg-secondary hover:text-foreground border border-border/40"
+            }`}
+          >
+            <Building2 className="h-4 w-4" />
+            Dashboard
+          </button>
+          <button
+            onClick={() => setActiveTab("subscription")}
+            className={`flex items-center gap-2 rounded-full px-5 py-2 text-xs font-semibold transition-all duration-200 ${
+              activeTab === "subscription"
+                ? "gradient-sunset text-white shadow-glow"
+                : "bg-secondary/40 text-muted-foreground hover:bg-secondary hover:text-foreground border border-border/40"
+            }`}
+          >
+            <Star className="h-4 w-4" />
+            ⭐ Packages
+          </button>
+        </div>
 
-          <div className="flex-1">
-            {activeTab === "dashboard" ? (
-              <div className="grid gap-6 lg:grid-cols-[1fr_360px] items-start">
-          {/* LEFT COLUMN: EDIT SECTIONS */}
-          <div className="space-y-6">
+        {/* MAIN TAB CONTENT */}
+        <div className="mt-6">
+          {activeTab === "dashboard" ? (
+            <div className="grid gap-6 lg:grid-cols-3 items-start">
+              {/* LEFT COLUMN: EDIT SECTIONS */}
+              <div className="space-y-6 lg:col-span-2">
             {/* STATS PREVIEW CARDS */}
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
               {stats.map((s) => (
@@ -3077,35 +3025,34 @@ const [submittingVerification, setSubmittingVerification] =
               )}
             </div>
 
-            {/* RECENT SEARCHES */}
-            <div className="rounded-3xl border border-border bg-card p-6 shadow-sm">
-              <div className="mb-4 flex items-center gap-2">
-                <Clock className="h-5 w-5 text-primary" />
-                <h2 className="font-display text-base font-semibold">
-                  Recent searches
-                </h2>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {recent.map((q) => (
-                  <Link key={q} to="/browse">
-                    <Badge
-                      variant="secondary"
-                      className="rounded-full px-2.5 py-1 text-[10px] hover:bg-accent flex items-center gap-1"
-                    >
-                      <Search className="h-2.5 w-2.5" /> {q}
-                    </Badge>
-                  </Link>
-                ))}
+              {/* RECENT SEARCHES */}
+              <div className="rounded-3xl border border-border bg-card p-6 shadow-sm">
+                <div className="mb-4 flex items-center gap-2">
+                  <Clock className="h-5 w-5 text-primary" />
+                  <h2 className="font-display text-base font-semibold">
+                    Recent searches
+                  </h2>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {recent.map((q) => (
+                    <Link key={q} to="/browse">
+                      <Badge
+                        variant="secondary"
+                        className="rounded-full px-2.5 py-1 text-[10px] hover:bg-accent flex items-center gap-1"
+                      >
+                        <Search className="h-2.5 w-2.5" /> {q}
+                      </Badge>
+                    </Link>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
-        </div>
-            ) : (
-              <SubscriptionTab role="brand" profile={profile} />
-            )}
-          </div>
-        </div>
+        ) : (
+          <SubscriptionTab role="brand" profile={profile} />
+        )}
       </div>
+    </div>
 
       {/* CAMPAIGN DIALOG (CREATE/EDIT) */}
       <Dialog open={isCampaignModalOpen} onOpenChange={setIsCampaignModalOpen}>
