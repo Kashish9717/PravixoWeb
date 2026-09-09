@@ -16,15 +16,36 @@ import {
   RefreshCw,
   Info,
   FileText,
+  ChevronDown,
+  ChevronUp,
+  Upload,
+  Play,
+  Film,
+  CheckCircle2,
+  XCircle,
+  Plus,
+  Eye,
+  Paperclip,
+  ExternalLink,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/Dialog";
 import { formatINR } from "@/lib/format";
 import { AgreementModal } from "@/components/collaboration/AgreementModal";
 
 import { useAuth } from "@/components/auth/AuthProvider";
 import api from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 const resolveImageUrl = (url) => {
   if (!url || url === "undefined" || url === "null") return null;
@@ -45,12 +66,27 @@ export default function Messages() {
 
   const [activeConversation, setActiveConversation] = useState(null);
 
-  // Negotiation states
+  // Negotiation & Collaboration Header states
   const [negotiationAmount, setNegotiationAmount] = useState("");
   const [isSubmittingOffer, setIsSubmittingOffer] = useState(false);
   const [isAgreeingOffer, setIsAgreeingOffer] = useState(false);
   const [isReopeningNegotiation, setIsReopeningNegotiation] = useState(false);
   const [viewAgreementOpen, setViewAgreementOpen] = useState(false);
+  const [isNegotiationExpanded, setIsNegotiationExpanded] = useState(false);
+
+  // Direct In-Chat Deliverables Sharing States
+  const [shareWorkModalOpen, setShareWorkModalOpen] = useState(false);
+  const [deliverableFile, setDeliverableFile] = useState(null);
+  const [deliverableFilePreview, setDeliverableFilePreview] = useState(null);
+  const [deliverableType, setDeliverableType] = useState("REEL");
+  const [deliverableCaption, setDeliverableCaption] = useState("");
+  const [submittingDeliverable, setSubmittingDeliverable] = useState(false);
+
+  // Deliverable Review & Rework Modal States (Brand & Creator)
+  const [reworkModalOpen, setReworkModalOpen] = useState(false);
+  const [selectedSubmissionForRework, setSelectedSubmissionForRework] = useState(null);
+  const [reworkFeedbackText, setReworkFeedbackText] = useState("");
+  const [actionProcessingId, setActionProcessingId] = useState(null);
 
   const [search, setSearch] = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
@@ -544,6 +580,90 @@ export default function Messages() {
           "Failed to initiate payment."
       );
       setIsPayingCollaboration(false);
+    }
+  };
+
+  /*
+   * ----------------------------------------------------
+   * DELIVERABLES SHARING & REVIEW HANDLERS (IN CHAT)
+   * ----------------------------------------------------
+   */
+  const handleShareDeliverable = async (e) => {
+    e?.preventDefault();
+    const connId = activeConversation?.connection?._id;
+    if (!connId || !deliverableFile) {
+      toast.error("Please select a photo or video to share.");
+      return;
+    }
+
+    try {
+      setSubmittingDeliverable(true);
+      const formData = new FormData();
+      formData.append("deliverableType", deliverableType);
+      formData.append("image", deliverableFile);
+      if (deliverableCaption) formData.append("caption", deliverableCaption);
+
+      const res = await api.post(`/api/submissions/${connId}/submit`, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
+      if (res.data.success) {
+        toast.success("Deliverable submitted and shared to chat!");
+        setShareWorkModalOpen(false);
+        setDeliverableFile(null);
+        setDeliverableFilePreview(null);
+        setDeliverableCaption("");
+        await fetchMessages(activeConversation._id, false);
+      }
+    } catch (err) {
+      console.error("Submit deliverable error:", err);
+      toast.error(err?.response?.data?.message || err?.message || "Failed to submit deliverable.");
+    } finally {
+      setSubmittingDeliverable(false);
+    }
+  };
+
+  const handleApproveSubmission = async (submissionId) => {
+    if (!submissionId) return;
+    try {
+      setActionProcessingId(submissionId);
+      const res = await api.patch(`/api/submissions/${submissionId}/approve`);
+      if (res.data.success) {
+        toast.success("Deliverable approved!");
+        await fetchMessages(activeConversation._id, false);
+      }
+    } catch (err) {
+      console.error("Approve deliverable error:", err);
+      toast.error(err?.response?.data?.message || err?.message || "Failed to approve deliverable.");
+    } finally {
+      setActionProcessingId(null);
+    }
+  };
+
+  const handleRejectSubmission = async (e) => {
+    e?.preventDefault();
+    if (!selectedSubmissionForRework || !reworkFeedbackText.trim()) {
+      toast.error("Please provide feedback notes for the rework request.");
+      return;
+    }
+
+    try {
+      setActionProcessingId(selectedSubmissionForRework);
+      const res = await api.patch(`/api/submissions/${selectedSubmissionForRework}/reject`, {
+        feedbackNotes: reworkFeedbackText.trim(),
+      });
+      if (res.data.success) {
+        toast.success("Rework requested with feedback!");
+        setReworkModalOpen(false);
+        setSelectedSubmissionForRework(null);
+        setReworkFeedbackText("");
+        await fetchMessages(activeConversation._id, false);
+      }
+    } catch (err) {
+      console.error("Reject deliverable error:", err);
+      toast.error(err?.response?.data?.message || err?.message || "Failed to request rework.");
+    } finally {
+      setActionProcessingId(null);
     }
   };
 
@@ -1078,9 +1198,9 @@ export default function Messages() {
 
               </div>
 
-              {/* COLLABORATION & PAYMENT NEGOTIATION BAR */}
+              {/* COLLABORATION & PAYMENT NEGOTIATION BAR (CLEAN & COLLAPSIBLE) */}
               {activeConversation.connection && (
-                <div className="border-b border-border bg-card/60 p-4 backdrop-blur-sm">
+                <div className="border-b border-border bg-card/70 backdrop-blur-md transition-all duration-300">
                   {(() => {
                     const conn = activeConversation.connection;
                     const camp = activeConversation.campaign;
@@ -1094,314 +1214,268 @@ export default function Messages() {
                     const displayBrandTotal = isAgreed ? conn.brandTotal : (displayCreatorAmount + displayFee);
 
                     return (
-                      <div className="rounded-2xl border border-border/80 bg-background/90 p-4 shadow-sm">
-                        {/* Header & Status */}
-                        <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-border/60">
-                          <div className="flex items-center gap-2">
-                            <Sparkles className="h-4 w-4 text-primary" />
-                            <span className="font-display text-sm font-bold text-foreground">
-                              Campaign Collaboration & Payment Negotiation
-                            </span>
+                      <div>
+                        {/* COMPACT TOP BAR */}
+                        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                              <Sparkles className="h-3.5 w-3.5" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="font-display text-xs font-bold text-foreground truncate">
+                                  {camp?.title || "Campaign Collaboration"}
+                                </span>
+                                {isAgreed ? (
+                                  <Badge className="bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 text-[10px] py-0 px-2 font-bold flex items-center gap-1">
+                                    <ShieldCheck className="h-3 w-3" /> ₹{conn.creatorAmount?.toLocaleString()} Agreed
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/20 text-[10px] py-0 px-2 font-semibold">
+                                    Negotiating Rate
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
                           </div>
 
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 shrink-0">
+                            {/* Payment Status / Action */}
+                            {isAgreed && (
+                              <>
+                                {conn.paymentStatus === "PAID" ? (
+                                  <Badge className="bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 text-[10px] py-0 px-2 font-bold flex items-center gap-1">
+                                    ✓ Escrow Funded
+                                  </Badge>
+                                ) : profile.role === "brand" ? (
+                                  <Button
+                                    size="sm"
+                                    onClick={handlePayCollaboration}
+                                    disabled={isPayingCollaboration}
+                                    className="h-7 rounded-full gradient-sunset text-white font-bold text-[11px] px-3 shadow-glow flex items-center gap-1"
+                                  >
+                                    <IndianRupee className="h-3 w-3" />
+                                    {isPayingCollaboration ? "Paying..." : `Pay ₹${conn.brandTotal?.toLocaleString()}`}
+                                  </Button>
+                                ) : (
+                                  <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/20 text-[10px] py-0 px-2 font-medium">
+                                    Payment Pending
+                                  </Badge>
+                                )}
+                              </>
+                            )}
+
                             {isAgreed && (
                               <Button
                                 size="sm"
                                 variant="outline"
                                 onClick={() => setViewAgreementOpen(true)}
-                                className="h-7 rounded-lg border-primary/30 bg-primary/5 text-primary hover:bg-primary/10 text-xs font-semibold px-2.5 flex items-center gap-1 shadow-sm"
+                                className="h-7 rounded-full border-border hover:bg-secondary text-[11px] font-medium px-2.5 flex items-center gap-1"
                               >
-                                <FileText className="h-3.5 w-3.5" /> View Agreement
+                                <FileText className="h-3 w-3 text-primary" /> Agreement
                               </Button>
                             )}
-                            {isAgreed ? (
-                              <Badge className="bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 font-semibold px-2.5 py-0.5 text-xs flex items-center gap-1">
-                                <ShieldCheck className="h-3.5 w-3.5" /> Amount Agreed ✓
-                              </Badge>
-                            ) : (
-                              <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/20 font-semibold px-2.5 py-0.5 text-xs">
-                                Negotiating Payment
-                              </Badge>
+
+                            {/* Creator Share Work Quick Button in Header */}
+                            {profile.role === "creator" && conn.paymentStatus === "PAID" && (
+                              <Button
+                                size="sm"
+                                onClick={() => {
+                                  setDeliverableFile(null);
+                                  setDeliverableFilePreview(null);
+                                  setDeliverableCaption("");
+                                  setShareWorkModalOpen(true);
+                                }}
+                                className="h-7 rounded-full gradient-sunset border-0 text-white text-[11px] font-bold px-3 shadow-glow flex items-center gap-1 cursor-pointer"
+                              >
+                                <Upload className="h-3 w-3" /> Share Work
+                              </Button>
                             )}
+
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => setIsNegotiationExpanded(!isNegotiationExpanded)}
+                              className="h-7 rounded-full text-muted-foreground hover:text-foreground text-[11px] px-2 flex items-center gap-0.5"
+                            >
+                              <span>{isNegotiationExpanded ? "Hide" : "Details"}</span>
+                              {isNegotiationExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                            </Button>
                           </div>
                         </div>
 
-                        {/* Campaign Context Info */}
-                        {camp && (
-                          <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                            <span><strong>Campaign:</strong> {camp.title}</span>
-                            <span>•</span>
-                            <span><strong>Campaign Budget:</strong> ₹{camp.totalBudget?.toLocaleString() || "0"}</span>
-                            {camp.maxBudgetPerCreator > 0 && (
-                              <>
+                        {/* EXPANDABLE DETAILS DRAWER */}
+                        {(isNegotiationExpanded || (!isAgreed && !hasPendingProposal && activeConversation)) && (
+                          <div className="border-t border-border/50 bg-background/95 p-4 space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                            {camp && (
+                              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground pb-2 border-b border-border/40">
+                                <span><strong>Campaign:</strong> {camp.title}</span>
                                 <span>•</span>
-                                <span><strong>Max / Creator:</strong> ₹{camp.maxBudgetPerCreator?.toLocaleString()}</span>
-                              </>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Amount Agreement Display or Negotiation Area */}
-                        {isAgreed ? (
-                          /* AGREED VIEW */
-                          <div className="mt-3.5 space-y-3">
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-xl bg-secondary/30 p-3.5 border border-border/60">
-                              <div className="text-center sm:text-left">
-                                <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium block">
-                                  Creator Payment
-                                </span>
-                                <span className="text-base font-bold text-emerald-600">
-                                  ₹{conn.creatorAmount?.toLocaleString()}
-                                </span>
-                                <span className="block text-[10px] text-muted-foreground">
-                                  Creator receives full amount
-                                </span>
-                              </div>
-
-                              <div className="text-center sm:text-left">
-                                <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium block">
-                                  Pravixo Fee (20%)
-                                </span>
-                                <span className="text-base font-bold text-foreground">
-                                  ₹{conn.pravixoFee?.toLocaleString()}
-                                </span>
-                                <span className="block text-[10px] text-muted-foreground">
-                                  Paid by brand on top
-                                </span>
-                              </div>
-
-                              <div className="text-center sm:text-left">
-                                <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium block">
-                                  Brand Total
-                                </span>
-                                <span className="text-base font-bold text-primary">
-                                  ₹{conn.brandTotal?.toLocaleString()}
-                                </span>
-                                <span className="block text-[10px] text-muted-foreground">
-                                  Total payable by brand
-                                </span>
-                              </div>
-                            </div>
-
-                            {/* Payment Status & Pay Pravixo Button Section */}
-                            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/80 bg-background p-3">
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs font-semibold text-foreground">Payment Status:</span>
-                                {conn.paymentStatus === "PAID" ? (
-                                  <Badge className="bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 font-bold px-2.5 py-0.5 text-xs flex items-center gap-1">
-                                    <ShieldCheck className="h-3.5 w-3.5" /> PAID (Payment Successful)
-                                  </Badge>
-                                ) : conn.paymentStatus === "FAILED" ? (
-                                  <Badge variant="destructive" className="font-bold px-2.5 py-0.5 text-xs">
-                                    Payment Failed (Retry Available)
-                                  </Badge>
-                                ) : (
-                                  <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/20 font-bold px-2.5 py-0.5 text-xs">
-                                    Payment Pending
-                                  </Badge>
+                                <span><strong>Total Budget:</strong> ₹{camp.totalBudget?.toLocaleString() || "0"}</span>
+                                {camp.maxBudgetPerCreator > 0 && (
+                                  <>
+                                    <span>•</span>
+                                    <span><strong>Max/Creator:</strong> ₹{camp.maxBudgetPerCreator?.toLocaleString()}</span>
+                                  </>
                                 )}
                               </div>
+                            )}
 
-                              {/* Brand Payment Action */}
-                              {profile.role === "brand" && conn.paymentStatus !== "PAID" && (
-                                <Button
-                                  size="sm"
-                                  onClick={handlePayCollaboration}
-                                  disabled={isPayingCollaboration}
-                                  className="rounded-xl gradient-sunset text-white font-bold text-xs px-5 h-9 shadow-glow flex items-center gap-1.5"
-                                >
-                                  <IndianRupee className="h-4 w-4" />
-                                  {isPayingCollaboration
-                                    ? "Processing Payment..."
-                                    : `Pay Pravixo ₹${conn.brandTotal?.toLocaleString()}`}
-                                </Button>
-                              )}
-
-                              {conn.paymentStatus === "PAID" && (
-                                <span className="text-xs text-emerald-600 font-semibold flex items-center gap-1">
-                                  ✓ Payment secured with Pravixo
-                                </span>
-                              )}
-                            </div>
-                                        {/* Task 5: Campaign Deliverables Progress Bar & Breakdown */}
-                            {conn.deliverablesTracking && conn.deliverablesTracking.length > 0 && (
-                              <div className="rounded-xl border border-border/80 bg-background/60 p-3 space-y-2">
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="text-xs font-bold text-foreground uppercase tracking-wider">
-                                      Campaign Deliverables
+                            {isAgreed ? (
+                              <div className="space-y-3">
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-xl bg-secondary/30 p-3 border border-border/60">
+                                  <div>
+                                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium block">
+                                      Creator Payout
                                     </span>
-                                    {conn.paymentStatus === "PAID" ? (
-                                      <Badge className="bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 text-[10px] py-0 px-1.5 font-bold">
-                                        Active
-                                      </Badge>
-                                    ) : (
-                                      <Badge variant="outline" className="text-[10px] py-0 px-1.5 font-medium text-muted-foreground">
-                                        Inactive (Requires Payment)
-                                      </Badge>
-                                    )}
+                                    <span className="text-sm font-bold text-emerald-600">
+                                      ₹{conn.creatorAmount?.toLocaleString()}
+                                    </span>
                                   </div>
+                                  <div>
+                                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium block">
+                                      Pravixo Fee (20%)
+                                    </span>
+                                    <span className="text-sm font-bold text-foreground">
+                                      ₹{conn.pravixoFee?.toLocaleString()}
+                                    </span>
+                                  </div>
+                                  <div>
+                                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium block">
+                                      Brand Total
+                                    </span>
+                                    <span className="text-sm font-bold text-primary">
+                                      ₹{conn.brandTotal?.toLocaleString()}
+                                    </span>
+                                  </div>
+                                </div>
 
-                                  {conn.paymentStatus === "PAID" && (() => {
-                                    const totalReq = conn.deliverablesTracking.reduce((acc, d) => acc + (d.requiredQuantity || 0), 0);
-                                    const totalComp = conn.deliverablesTracking.reduce((acc, d) => acc + (d.completedQuantity || 0), 0);
-                                    const pct = totalReq > 0 ? Math.round((totalComp / totalReq) * 100) : 0;
-                                    return (
-                                      <div className="flex items-center gap-2">
-                                        <span className="text-xs font-bold text-primary">
-                                          {totalComp} / {totalReq} Completed ({pct}%)
+                                {/* Deliverables Progress Grid */}
+                                {conn.deliverablesTracking && conn.deliverablesTracking.length > 0 && (
+                                  <div className="rounded-xl border border-border/80 bg-secondary/10 p-3 space-y-2">
+                                    <div className="flex items-center justify-between text-xs font-bold">
+                                      <span className="uppercase tracking-wider text-muted-foreground text-[10px]">
+                                        Campaign Deliverables Status
+                                      </span>
+                                      {conn.paymentStatus === "PAID" && (() => {
+                                        const totalReq = conn.deliverablesTracking.reduce((acc, d) => acc + (d.requiredQuantity || 0), 0);
+                                        const totalComp = conn.deliverablesTracking.reduce((acc, d) => acc + (d.completedQuantity || 0), 0);
+                                        const pct = totalReq > 0 ? Math.round((totalComp / totalReq) * 100) : 0;
+                                        return (
+                                          <span className="text-primary text-xs font-bold">
+                                            {totalComp}/{totalReq} Approved ({pct}%)
+                                          </span>
+                                        );
+                                      })()}
+                                    </div>
+
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                      {conn.deliverablesTracking.map((deliv, dIdx) => {
+                                        const typeLabels = { REEL: "Reels", POST: "Posts", STORY: "Stories", VIDEO: "Videos" };
+                                        const isCompleted = (deliv.completedQuantity || 0) >= (deliv.requiredQuantity || 1);
+                                        return (
+                                          <div
+                                            key={dIdx}
+                                            className={cn(
+                                              "flex flex-col p-2 rounded-lg border text-xs",
+                                              isCompleted
+                                                ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-700"
+                                                : conn.paymentStatus === "PAID"
+                                                ? "bg-secondary/50 border-border"
+                                                : "bg-muted/30 border-border/40 opacity-60"
+                                            )}
+                                          >
+                                            <div className="flex items-center justify-between text-[11px] font-medium">
+                                              <span>{typeLabels[deliv.type] || deliv.type}</span>
+                                              {isCompleted && <CheckCircle2 className="h-3 w-3 text-emerald-600" />}
+                                            </div>
+                                            <div className="mt-1 flex items-baseline justify-between text-xs">
+                                              <span className="font-bold">
+                                                {deliv.completedQuantity || 0} / {deliv.requiredQuantity}
+                                              </span>
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
+
+                                <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
+                                  <span>
+                                    Agreed at: {conn.agreedAt ? new Date(conn.agreedAt).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "Recently"}
+                                  </span>
+                                  {conn.paymentStatus !== "PAID" && (
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="h-7 text-xs text-muted-foreground hover:text-foreground"
+                                      onClick={() => setIsReopeningNegotiation(true)}
+                                    >
+                                      <RefreshCw className="h-3 w-3 mr-1" /> Re-negotiate Amount
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
+                            ) : (
+                              /* NEGOTIATION FORM */
+                              <div className="space-y-3">
+                                {hasPendingProposal && (
+                                  <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                    <div className="space-y-1">
+                                      <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                                        <IndianRupee className="h-3.5 w-3.5 text-primary" />
+                                        <span>
+                                          {isProposedByMe
+                                            ? `You proposed a creator payment of ₹${conn.proposedAmount?.toLocaleString()}`
+                                            : `${otherProfile?.fullName || "Partner"} proposed a creator payment of ₹${conn.proposedAmount?.toLocaleString()}`}
                                         </span>
                                       </div>
-                                    );
-                                  })()}
-                                </div>
-
-                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                                  {conn.deliverablesTracking.map((deliv, dIdx) => {
-                                    const typeLabels = {
-                                      REEL: "Reels",
-                                      POST: "Posts",
-                                      STORY: "Stories",
-                                      VIDEO: "Videos",
-                                    };
-                                    return (
-                                      <div
-                                        key={dIdx}
-                                        className={cn(
-                                          "flex flex-col p-2 rounded-lg border text-xs",
-                                          conn.paymentStatus === "PAID"
-                                            ? "bg-secondary/40 border-border/70"
-                                            : "bg-muted/20 border-border/30 opacity-60"
-                                        )}
-                                      >
-                                        <div className="flex items-center justify-between text-[11px] text-muted-foreground font-medium">
-                                          <span>{typeLabels[deliv.type] || deliv.type}</span>
-                                          <span className="text-[9px] uppercase font-bold text-muted-foreground">
-                                            {deliv.status || "PENDING"}
-                                          </span>
-                                        </div>
-                                        <div className="mt-1 flex items-baseline justify-between">
-                                          <span className="text-sm font-bold text-foreground">
-                                            {deliv.completedQuantity || 0}
-                                            <span className="text-xs font-normal text-muted-foreground"> / {deliv.requiredQuantity}</span>
-                                          </span>
-                                        </div>
+                                      <div className="flex flex-wrap gap-x-3 text-[11px] text-muted-foreground">
+                                        <span><strong>Creator receives:</strong> ₹{displayCreatorAmount?.toLocaleString()}</span>
+                                        <span>•</span>
+                                        <span><strong>Fee (20%):</strong> ₹{displayFee?.toLocaleString()}</span>
+                                        <span>•</span>
+                                        <span><strong>Brand pays:</strong> ₹{displayBrandTotal?.toLocaleString()}</span>
                                       </div>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            )}
+                                    </div>
 
-                            <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
-                              <span>
-                                Agreed at: {conn.agreedAt ? new Date(conn.agreedAt).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "Recently"}
-                              </span>
-                              {conn.paymentStatus !== "PAID" && (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-7 text-xs text-muted-foreground hover:text-foreground"
-                                  onClick={() => setIsReopeningNegotiation(true)}
-                                >
-                                  <RefreshCw className="h-3 w-3 mr-1" /> Re-negotiate Amount
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                        ) : (
-                          /* NEGOTIATING VIEW */
-                          <div className="mt-3.5 space-y-3">
-                            {/* Pending Offer Banner if exists */}
-                            {hasPendingProposal && (
-                              <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                                <div className="space-y-1">
-                                  <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-                                    <IndianRupee className="h-3.5 w-3.5 text-primary" />
-                                    <span>
-                                      {isProposedByMe
-                                        ? `You proposed a creator payment of ₹${conn.proposedAmount?.toLocaleString()}`
-                                        : `${otherProfile?.fullName || "Partner"} proposed a creator payment of ₹${conn.proposedAmount?.toLocaleString()}`}
-                                    </span>
+                                    {!isProposedByMe && (
+                                      <Button
+                                        size="sm"
+                                        onClick={handleAgreeAmount}
+                                        disabled={isAgreeingOffer}
+                                        className="rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-4 h-8 shrink-0 flex items-center gap-1.5"
+                                      >
+                                        <Check className="h-3.5 w-3.5" />
+                                        {isAgreeingOffer ? "Agreeing..." : "Accept & Agree"}
+                                      </Button>
+                                    )}
                                   </div>
-                                  <div className="flex flex-wrap gap-x-3 text-[11px] text-muted-foreground">
-                                    <span><strong>Creator receives:</strong> ₹{displayCreatorAmount?.toLocaleString()}</span>
-                                    <span>•</span>
-                                    <span><strong>Pravixo fee (20%):</strong> ₹{displayFee?.toLocaleString()}</span>
-                                    <span>•</span>
-                                    <span><strong>Brand total:</strong> ₹{displayBrandTotal?.toLocaleString()}</span>
-                                  </div>
-                                </div>
-
-                                {!isProposedByMe && (
-                                  <Button
-                                    size="sm"
-                                    onClick={handleAgreeAmount}
-                                    disabled={isAgreeingOffer}
-                                    className="rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-4 h-8 shrink-0 flex items-center gap-1.5"
-                                  >
-                                    <Check className="h-3.5 w-3.5" />
-                                    {isAgreeingOffer ? "Agreeing..." : "Accept & Agree"}
-                                  </Button>
                                 )}
-                              </div>
-                            )}
 
-                            {/* Propose/Counter Offer Input Form */}
-                            <form onSubmit={handleProposeAmount} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                              <div className="relative flex-1">
-                                <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                <input
-                                  type="number"
-                                  min="1"
-                                  placeholder={
-                                    hasPendingProposal
-                                      ? "Enter counter offer for creator payment..."
-                                      : "Enter proposed creator payment amount (₹)..."
-                                  }
-                                  value={negotiationAmount}
-                                  onChange={(e) => setNegotiationAmount(e.target.value)}
-                                  className="w-full rounded-xl border border-input bg-background py-2 pl-9 pr-4 text-xs font-medium outline-none focus:ring-1 focus:ring-primary"
-                                />
-                              </div>
+                                <form onSubmit={handleProposeAmount} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                                  <div className="relative flex-1">
+                                    <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      placeholder={hasPendingProposal ? "Enter counter offer for creator payment..." : "Enter proposed creator payment amount (₹)..."}
+                                      value={negotiationAmount}
+                                      onChange={(e) => setNegotiationAmount(e.target.value)}
+                                      className="w-full rounded-xl border border-input bg-background py-2 pl-9 pr-4 text-xs font-medium outline-none focus:ring-1 focus:ring-primary"
+                                    />
+                                  </div>
 
-                              <Button
-                                type="submit"
-                                size="sm"
-                                disabled={!negotiationAmount || isSubmittingOffer}
-                                className="rounded-xl gradient-sunset text-white text-xs font-semibold px-4 h-9 shrink-0"
-                              >
-                                {isSubmittingOffer
-                                  ? "Sending Offer..."
-                                  : hasPendingProposal
-                                  ? "Send Counter Offer"
-                                  : "Propose Amount"}
-                              </Button>
-
-                              {isReopeningNegotiation && (
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => setIsReopeningNegotiation(false)}
-                                  className="rounded-xl text-xs h-9"
-                                >
-                                  Cancel
-                                </Button>
-                              )}
-                            </form>
-
-                            {/* Live calculation breakdown preview */}
-                            {negotiationAmount && Number(negotiationAmount) > 0 && (
-                              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg bg-secondary/30 px-3 py-2 text-[11px] text-muted-foreground">
-                                <span><strong>Creator will get:</strong> ₹{Number(negotiationAmount).toLocaleString()}</span>
-                                <span>•</span>
-                                <span><strong>Pravixo Fee (20%):</strong> ₹{Math.round(Number(negotiationAmount) * 0.20).toLocaleString()}</span>
-                                <span>•</span>
-                                <span className="text-foreground font-semibold">
-                                  <strong>Brand will pay:</strong> ₹{(Number(negotiationAmount) + Math.round(Number(negotiationAmount) * 0.20)).toLocaleString()}
-                                </span>
+                                  <Button
+                                    type="submit"
+                                    size="sm"
+                                    disabled={!negotiationAmount || isSubmittingOffer}
+                                    className="rounded-xl gradient-sunset text-white text-xs font-semibold px-4 h-9 shrink-0"
+                                  >
+                                    {isSubmittingOffer ? "Sending..." : hasPendingProposal ? "Send Counter Offer" : "Propose Amount"}
+                                  </Button>
+                                </form>
                               </div>
                             )}
                           </div>
@@ -1412,36 +1486,26 @@ export default function Messages() {
                 </div>
               )}
 
-              {/* MESSAGES */}
-              <div className="flex-1 space-y-3 overflow-y-auto p-5">
-
+              {/* MESSAGES FEED */}
+              <div className="flex-1 space-y-3.5 overflow-y-auto p-4 sm:p-5">
                 {messagesLoading ? (
                   <div className="flex h-full items-center justify-center">
-                    <p className="text-sm text-muted-foreground">
-                      Loading messages...
-                    </p>
+                    <p className="text-sm text-muted-foreground">Loading messages...</p>
                   </div>
                 ) : messages.length === 0 ? (
                   <div className="flex h-full flex-col items-center justify-center text-center">
-                    <MessageSquare className="mb-3 h-10 w-10 text-muted-foreground" />
-
-                    <p className="text-sm text-muted-foreground">
-                      No messages yet.
-                    </p>
+                    <MessageSquare className="mb-3 h-10 w-10 text-muted-foreground/40" />
+                    <p className="text-sm font-semibold text-foreground">No messages yet</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Send a message to start communicating.</p>
                   </div>
                 ) : (
                   messages.map((item) => {
-
-                    const isMine =
-                      item.senderId?.toString() ===
-                      profile._id?.toString();
+                    const isMine = item.senderId?.toString() === profile._id?.toString();
 
                     return (
                       <div
                         key={item._id}
-                        className={`flex ${
-                          isMine ? "justify-end" : "justify-start"
-                        }`}
+                        className={`flex ${isMine ? "justify-end" : "justify-start"}`}
                       >
                         {item.unsent || item.deletedByAdmin || (profile.role === "creator" && item.deletedForCreator) || (profile.role === "brand" && item.deletedForBrand) ? (
                           <div className={`flex max-w-[75%] flex-col ${isMine ? "items-end" : "items-start"}`}>
@@ -1451,136 +1515,149 @@ export default function Messages() {
                             </div>
                           </div>
                         ) : (
-                          <div className="flex items-end gap-2 group relative">
-                            {/* Mobile Unsend Popup */}
-                            {pressedMessageId === item._id && isMine && (
-                              <div className="absolute -top-12 right-0 z-10 flex items-center bg-background rounded-full shadow-lg border border-border p-1">
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleUnsend(item._id);
-                                    setPressedMessageId(null);
-                                  }}
-                                  className="flex items-center gap-1 px-3 py-1.5 text-xs text-red-500 hover:bg-secondary rounded-full"
-                                >
-                                  <Trash2 className="h-3 w-3" />
-                                  Unsend
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setPressedMessageId(null)}
-                                  className="flex items-center gap-1 px-3 py-1.5 text-xs text-muted-foreground hover:bg-secondary rounded-full"
-                                >
-                                  Cancel
-                                </button>
-                              </div>
-                            )}
-
-                            {isMine && (
+                          <div className="flex items-end gap-2 group relative max-w-[85%] sm:max-w-[75%]">
+                            {isMine && !item.messageType && (
                               <button
                                 onClick={() => handleUnsend(item._id)}
                                 className="opacity-0 transition-opacity group-hover:opacity-100 p-1 text-slate-400 hover:text-red-500 hidden md:block"
                                 title="Unsend for everyone"
                               >
-                                <Trash2 className="h-4 w-4" />
+                                <Trash2 className="h-3.5 w-3.5" />
                               </button>
                             )}
+
+                            {/* DELIVERABLE SUBMISSION INTERACTIVE CARD IN CHAT */}
                             {item.messageType === "deliverable_submission" && item.metadata ? (
                               <div
-                                onTouchStart={() => isMine && handleTouchStartMessage(item._id)}
-                                onTouchEnd={handleTouchEnd}
-                                onTouchCancel={handleTouchEnd}
                                 className={cn(
-                                  "max-w-[320px] sm:max-w-[380px] rounded-2xl p-3 text-xs border shadow-sm space-y-2",
+                                  "w-full rounded-2xl p-4 text-xs border shadow-md space-y-3 transition-all",
                                   isMine
-                                    ? "rounded-br-md bg-primary/10 border-primary/30 text-foreground"
-                                    : "rounded-bl-md bg-card border-border/80 text-foreground"
+                                    ? "rounded-br-md bg-card/95 border-primary/30 text-foreground"
+                                    : "rounded-bl-md bg-card/95 border-border text-foreground"
                                 )}
                               >
-                                <div className="flex items-center justify-between gap-1 pb-1.5 border-b border-border/40">
-                                  <span className="font-bold text-[11px] text-primary flex items-center gap-1">
-                                    <Sparkles className="h-3 w-3" /> Campaign Deliverable Submitted
-                                  </span>
-                                  <Badge className="bg-amber-500/10 text-amber-600 border border-amber-500/20 text-[9px] px-1.5 py-0 font-bold">
-                                    {item.metadata.status || "SUBMITTED"}
+                                {/* Card Header */}
+                                <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-border/50">
+                                  <div className="flex items-center gap-1.5">
+                                    <Film className="h-4 w-4 text-primary" />
+                                    <span className="font-bold text-xs text-foreground uppercase tracking-wide">
+                                      {item.metadata.deliverableType || "Deliverable"} Submission
+                                    </span>
+                                  </div>
+                                  <Badge
+                                    className={cn(
+                                      "text-[10px] px-2 py-0.5 font-bold border",
+                                      item.metadata.status === "APPROVED"
+                                        ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30"
+                                        : item.metadata.status === "REJECTED"
+                                        ? "bg-red-500/10 text-red-500 border-red-500/30"
+                                        : "bg-amber-500/10 text-amber-600 border-amber-500/30"
+                                    )}
+                                  >
+                                    {item.metadata.status === "APPROVED" ? "✓ Approved" : item.metadata.status === "REJECTED" ? "Rework Needed" : "⏳ Under Review"}
                                   </Badge>
                                 </div>
 
-                                <div className="space-y-1">
-                                  <div className="flex items-center justify-between text-[11px]">
-                                    <span className="font-semibold text-foreground">
-                                      {item.metadata.deliverableType} #{item.metadata.sequenceNumber || 1}
-                                    </span>
-                                    <span className="text-[10px] text-muted-foreground">
-                                      Req: {item.metadata.requiredQuantity}
-                                    </span>
+                                {/* Video / Image Media Player Preview */}
+                                {item.metadata.contentUrl && (
+                                  <div className="rounded-xl overflow-hidden bg-black/90 border border-border flex items-center justify-center">
+                                    {item.metadata.contentUrl?.match(/\.(mp4|mov|webm|avi|mkv|m4v)$/i) || item.metadata.deliverableType === "REEL" || item.metadata.deliverableType === "VIDEO" ? (
+                                      <video
+                                        src={resolveImageUrl(item.metadata.contentUrl)}
+                                        controls
+                                        playsInline
+                                        preload="metadata"
+                                        className="w-full max-h-[340px] object-contain rounded-xl"
+                                      />
+                                    ) : (
+                                      <img
+                                        src={resolveImageUrl(item.metadata.contentUrl)}
+                                        alt="Deliverable work"
+                                        className="w-full max-h-[340px] object-contain rounded-xl cursor-pointer"
+                                        onClick={() => window.open(resolveImageUrl(item.metadata.contentUrl), "_blank")}
+                                      />
+                                    )}
                                   </div>
+                                )}
 
-                                  {/* Thumbnail / Media Preview */}
-                                  {item.metadata.contentUrl && (
-                                    <div className="rounded-xl overflow-hidden bg-background border border-border/60 max-h-48 flex items-center justify-center mt-1">
-                                      {item.metadata.contentUrl?.match(/\.(mp4|mov|webm|avi|mkv)$/i) || item.metadata.deliverableType === "REEL" || item.metadata.deliverableType === "VIDEO" ? (
-                                        <video
-                                          src={resolveImageUrl(item.metadata.contentUrl)}
-                                          controls
-                                          className="max-h-48 w-full object-contain"
-                                        />
-                                      ) : (
-                                        <img
-                                          src={resolveImageUrl(item.metadata.contentUrl)}
-                                          alt="Submission"
-                                          className="max-h-48 w-full object-contain"
-                                        />
-                                      )}
-                                    </div>
-                                  )}
+                                {/* Caption & Notes */}
+                                {item.metadata.caption && (
+                                  <div className="rounded-xl bg-secondary/30 p-2.5 text-xs text-foreground">
+                                    <span className="text-[10px] font-bold text-muted-foreground uppercase block mb-0.5">Caption / Notes</span>
+                                    <p className="whitespace-pre-wrap">{item.metadata.caption}</p>
+                                  </div>
+                                )}
 
-                                  {item.metadata.caption && (
-                                    <p className="text-[11px] text-muted-foreground italic mt-1 pt-1 border-t border-border/30">
-                                      "{item.metadata.caption}"
-                                    </p>
-                                  )}
-                                </div>
+                                {/* Rejection Feedback if any */}
+                                {item.metadata.status === "REJECTED" && item.metadata.feedbackNotes && (
+                                  <div className="rounded-xl bg-red-500/10 border border-red-500/20 p-2.5 text-xs text-red-600">
+                                    <span className="font-bold block text-[10px] uppercase mb-0.5">Brand Changes Requested:</span>
+                                    <p>{item.metadata.feedbackNotes}</p>
+                                  </div>
+                                )}
 
-                                <div className="flex items-center justify-between text-[9px] text-muted-foreground pt-1 border-t border-border/30">
+                                {/* BRAND DIRECT APPROVAL / REJECT CONTROLS */}
+                                {profile.role === "brand" && (item.metadata.status === "SUBMITTED" || item.metadata.status === "RESUBMITTED" || !item.metadata.status) && (
+                                  <div className="pt-2 border-t border-border/50 flex flex-wrap items-center gap-2 justify-end">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      disabled={actionProcessingId === item.metadata.submissionId}
+                                      onClick={() => {
+                                        setSelectedSubmissionForRework(item.metadata.submissionId);
+                                        setReworkFeedbackText("");
+                                        setReworkModalOpen(true);
+                                      }}
+                                      className="h-8 rounded-full border-red-500/30 text-red-600 hover:bg-red-500/10 text-xs font-semibold px-3"
+                                    >
+                                      <XCircle className="h-3.5 w-3.5 mr-1" /> Request Rework
+                                    </Button>
+
+                                    <Button
+                                      size="sm"
+                                      disabled={actionProcessingId === item.metadata.submissionId}
+                                      onClick={() => handleApproveSubmission(item.metadata.submissionId)}
+                                      className="h-8 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-4 shadow-sm"
+                                    >
+                                      <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                                      {actionProcessingId === item.metadata.submissionId ? "Approving..." : "Approve Deliverable"}
+                                    </Button>
+                                  </div>
+                                )}
+
+                                {/* Card Footer Timestamp & Link */}
+                                <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-1 border-t border-border/30">
                                   <span>
-                                    {item.createdAt
-                                      ? new Date(item.createdAt).toLocaleTimeString([], {
-                                          hour: "2-digit",
-                                          minute: "2-digit",
-                                        })
-                                      : ""}
+                                    {item.createdAt ? new Date(item.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""}
                                   </span>
                                   {item.metadata.contentUrl && (
                                     <a
                                       href={resolveImageUrl(item.metadata.contentUrl)}
                                       target="_blank"
                                       rel="noreferrer"
-                                      className="text-primary hover:underline font-semibold"
+                                      className="text-primary hover:underline font-semibold flex items-center gap-0.5"
                                     >
-                                      View Original ↗
+                                      <span>Open full size</span> <ExternalLink className="h-2.5 w-2.5" />
                                     </a>
                                   )}
                                 </div>
                               </div>
                             ) : (
+                              /* STANDARD TEXT MESSAGE BUBBLE */
                               <div
                                 onTouchStart={() => isMine && handleTouchStartMessage(item._id)}
                                 onTouchEnd={handleTouchEnd}
                                 onTouchCancel={handleTouchEnd}
-                                className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm ${
+                                className={`rounded-2xl px-4 py-2.5 text-sm shadow-sm ${
                                   isMine
                                     ? "rounded-br-md gradient-sunset text-white"
-                                    : "rounded-bl-md bg-muted text-foreground"
+                                    : "rounded-bl-md bg-secondary/80 text-foreground border border-border/50"
                                 }`}
                               >
-                                <p>{item.text}</p>
+                                <p className="whitespace-pre-wrap leading-relaxed">{item.text}</p>
                                 <p
                                   className={`mt-1 text-[10px] ${
-                                    isMine
-                                      ? "text-white/70"
-                                      : "text-muted-foreground"
+                                    isMine ? "text-white/70 text-right" : "text-muted-foreground"
                                   }`}
                                 >
                                   {item.createdAt
@@ -1598,22 +1675,34 @@ export default function Messages() {
                     );
                   })
                 )}
-                
                 <div ref={messagesEndRef} />
               </div>
 
-              {/* MESSAGE INPUT */}
-              <form
-                onSubmit={sendMessage}
-                className="border-t border-border p-3"
-              >
-                <div className="flex items-center gap-2 rounded-2xl border border-input bg-background p-1.5">
+              {/* MESSAGE INPUT BAR WITH ATTACH / SHARE WORK BUTTON */}
+              <form onSubmit={sendMessage} className="border-t border-border p-3 bg-card/60 backdrop-blur-md">
+                <div className="flex items-center gap-2 rounded-2xl border border-input bg-background p-1.5 shadow-sm">
+                  {/* Creator Direct Work Upload Action */}
+                  {profile.role === "creator" && activeConversation.connection && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setDeliverableFile(null);
+                        setDeliverableFilePreview(null);
+                        setDeliverableCaption("");
+                        setShareWorkModalOpen(true);
+                      }}
+                      className="h-8 w-8 p-0 rounded-xl text-muted-foreground hover:text-primary hover:bg-primary/10 shrink-0"
+                      title="Share Deliverable / Work (Photo or Video)"
+                    >
+                      <Film className="h-4 w-4" />
+                    </Button>
+                  )}
 
                   <input
                     value={message}
-                    onChange={(e) =>
-                      setMessage(e.target.value)
-                    }
+                    onChange={(e) => setMessage(e.target.value)}
                     placeholder="Type a message..."
                     disabled={sending}
                     className="min-w-0 flex-1 bg-transparent px-3 py-2 text-sm outline-none placeholder:text-muted-foreground"
@@ -1621,41 +1710,27 @@ export default function Messages() {
 
                   <button
                     type="submit"
-                    disabled={
-                      !message.trim() ||
-                      sending
-                    }
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl gradient-sunset text-white disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={!message.trim() || sending}
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl gradient-sunset text-white disabled:cursor-not-allowed disabled:opacity-50 transition-all hover:scale-105 active:scale-95 shadow-glow"
                     aria-label="Send message"
                   >
                     <Send className="h-4 w-4" />
                   </button>
-
                 </div>
               </form>
-
             </>
           ) : (
             /* EMPTY STATE */
             <div className="flex h-full flex-col items-center justify-center p-12 text-center">
-
               <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-3xl bg-secondary">
                 <MessageSquare className="h-8 w-8 text-muted-foreground" />
               </div>
-
-              <h2 className="font-display text-xl font-semibold">
-                Your Inbox
-              </h2>
-
+              <h2 className="font-display text-xl font-semibold">Your Inbox</h2>
               <p className="mt-2 max-w-xs text-sm text-muted-foreground">
-                Select a conversation from the
-                left to start chatting with your
-                partners.
+                Select a conversation from the left to start communicating.
               </p>
-
             </div>
           )}
-
         </div>
       </div>
 
@@ -1667,6 +1742,180 @@ export default function Messages() {
           connectionId={activeConversation.connection._id}
         />
       )}
+
+      {/* CREATOR IN-CHAT SHARE WORK / DELIVERABLE MODAL */}
+      <Dialog open={shareWorkModalOpen} onOpenChange={setShareWorkModalOpen}>
+        <DialogContent className="max-w-md rounded-3xl border border-border bg-card p-6 shadow-xl">
+          <DialogHeader>
+            <DialogTitle className="font-display text-lg font-bold flex items-center gap-2">
+              <Film className="h-5 w-5 text-primary" /> Share Deliverable Work
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Upload your video or photo deliverable so the brand can review and approve it directly in chat.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleShareDeliverable} className="space-y-4 pt-2">
+            {/* Deliverable Type Selection */}
+            <div>
+              <label className="text-xs font-semibold text-foreground block mb-1.5">Deliverable Type</label>
+              <div className="grid grid-cols-4 gap-2">
+                {[
+                  { id: "REEL", label: "🎬 Reel" },
+                  { id: "POST", label: "📸 Post" },
+                  { id: "STORY", label: "📱 Story" },
+                  { id: "VIDEO", label: "🎥 Video" },
+                ].map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setDeliverableType(item.id)}
+                    className={cn(
+                      "py-2 px-1 text-xs font-semibold rounded-xl border transition-all text-center",
+                      deliverableType === item.id
+                        ? "gradient-sunset text-white border-0 shadow-glow"
+                        : "bg-secondary/40 border-border text-foreground hover:bg-secondary"
+                    )}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* File Upload Zone */}
+            <div>
+              <label className="text-xs font-semibold text-foreground block mb-1.5">Upload Media File (Video / Photo)</label>
+              <div className="relative rounded-2xl border-2 border-dashed border-border hover:border-primary/50 bg-secondary/20 p-4 transition-all text-center">
+                {deliverableFilePreview ? (
+                  <div className="space-y-2">
+                    {deliverableFile?.type?.startsWith("video") || deliverableType === "REEL" || deliverableType === "VIDEO" ? (
+                      <video
+                        src={deliverableFilePreview}
+                        controls
+                        className="max-h-48 w-full object-contain rounded-xl bg-black"
+                      />
+                    ) : (
+                      <img
+                        src={deliverableFilePreview}
+                        alt="Preview"
+                        className="max-h-48 w-full object-contain rounded-xl mx-auto"
+                      />
+                    )}
+                    <p className="text-[11px] font-medium text-foreground truncate">{deliverableFile?.name}</p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setDeliverableFile(null);
+                        setDeliverableFilePreview(null);
+                      }}
+                      className="h-7 text-xs text-destructive hover:bg-destructive/10 rounded-full"
+                    >
+                      <X className="h-3 w-3 mr-1" /> Remove
+                    </Button>
+                  </div>
+                ) : (
+                  <label className="flex flex-col items-center justify-center cursor-pointer py-4">
+                    <Upload className="h-8 w-8 text-muted-foreground/60 mb-2" />
+                    <span className="text-xs font-bold text-foreground">Click to select Video or Photo</span>
+                    <span className="text-[10px] text-muted-foreground mt-0.5">MP4, MOV, WEBM, JPG, PNG up to 100MB</span>
+                    <input
+                      type="file"
+                      accept="video/*,image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          setDeliverableFile(file);
+                          setDeliverableFilePreview(URL.createObjectURL(file));
+                        }
+                      }}
+                    />
+                  </label>
+                )}
+              </div>
+            </div>
+
+            {/* Optional Caption */}
+            <div>
+              <label className="text-xs font-semibold text-foreground block mb-1.5">Caption & Notes (Optional)</label>
+              <textarea
+                rows={2}
+                placeholder="Add any context, links, or notes for the brand..."
+                value={deliverableCaption}
+                onChange={(e) => setDeliverableCaption(e.target.value)}
+                className="w-full rounded-xl border border-input bg-background p-2.5 text-xs outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
+              />
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-0 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShareWorkModalOpen(false)}
+                className="rounded-full text-xs h-9"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={!deliverableFile || submittingDeliverable}
+                className="rounded-full gradient-sunset text-white text-xs font-bold px-5 h-9 shadow-glow"
+              >
+                {submittingDeliverable ? "Uploading..." : "Submit & Send to Chat"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* BRAND REQUEST REWORK MODAL */}
+      <Dialog open={reworkModalOpen} onOpenChange={setReworkModalOpen}>
+        <DialogContent className="max-w-md rounded-3xl border border-border bg-card p-6 shadow-xl">
+          <DialogHeader>
+            <DialogTitle className="font-display text-lg font-bold flex items-center gap-2 text-red-600">
+              <XCircle className="h-5 w-5" /> Request Deliverable Changes
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Provide clear feedback notes for the creator explaining what needs revision.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleRejectSubmission} className="space-y-4 pt-2">
+            <div>
+              <label className="text-xs font-semibold text-foreground block mb-1.5">Feedback Notes</label>
+              <textarea
+                rows={4}
+                required
+                placeholder="Describe what changes you need the creator to make (e.g., sound volume, lighting, product placement)..."
+                value={reworkFeedbackText}
+                onChange={(e) => setReworkFeedbackText(e.target.value)}
+                className="w-full rounded-xl border border-input bg-background p-3 text-xs outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
+              />
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-0 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setReworkModalOpen(false)}
+                className="rounded-full text-xs h-9"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={!reworkFeedbackText.trim() || Boolean(actionProcessingId)}
+                className="rounded-full bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-5 h-9 shadow-sm"
+              >
+                {actionProcessingId ? "Submitting..." : "Send Rework Request"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

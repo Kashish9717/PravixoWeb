@@ -516,9 +516,16 @@ export const listAllTasks = async (req, res) => {
       .sort({ createdAt: -1 })
       .lean();
 
+    const formattedTasks = tasks.map((t) => ({
+      ...t,
+      campaign: t.campaignId || t.campaign || null,
+      creator: t.creatorId || t.creator || null,
+      brand: t.brandId || t.brand || null,
+    }));
+
     return res.status(200).json({
       success: true,
-      data: tasks,
+      data: formattedTasks,
     });
   } catch (error) {
     console.error("Admin listAllTasks error:", error);

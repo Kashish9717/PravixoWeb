@@ -41,9 +41,9 @@ export function TasksPage() {
 
   const filtered = tasks?.filter((t) => {
     const matchesStatus = !statusFilter || t.status === statusFilter;
-    const campaignTitle = t.campaign?.title?.toLowerCase() || "";
-    const brandName = t.brand?.fullName?.toLowerCase() || "";
-    const creatorName = t.creator?.fullName?.toLowerCase() || "";
+    const campaignTitle = (t.campaign?.title || t.campaignId?.title || "").toLowerCase();
+    const brandName = (t.brand?.fullName || t.brand?.handle || t.brandId?.fullName || t.brandId?.handle || "").toLowerCase();
+    const creatorName = (t.creator?.fullName || t.creator?.handle || t.creatorId?.fullName || t.creatorId?.handle || "").toLowerCase();
     const taskTitle = t.title?.toLowerCase() || "";
     const searchLower = search.toLowerCase();
 
@@ -180,13 +180,13 @@ export function TasksPage() {
               filtered.map((t) => (
                 <TableRow key={t._id}>
                   <TableCell className="pl-6 font-semibold max-w-[150px] truncate">
-                    {t.campaign?.title || "General"}
+                    {t.campaign?.title || t.campaignId?.title || "General"}
                   </TableCell>
-                  <TableCell className="max-w-[120px] truncate">
-                    {t.brand?.fullName || "Unknown"}
+                  <TableCell className="max-w-[120px] truncate font-medium">
+                    {t.brand?.fullName || t.brand?.handle || t.brandId?.fullName || t.brandId?.handle || "Unknown"}
                   </TableCell>
-                  <TableCell className="max-w-[120px] truncate">
-                    {t.creator?.fullName || "Unknown"}
+                  <TableCell className="max-w-[120px] truncate font-medium">
+                    {t.creator?.fullName || t.creator?.handle || t.creatorId?.fullName || t.creatorId?.handle || "Unknown"}
                   </TableCell>
                   <TableCell className="max-w-[180px] truncate">
                     {t.title}
