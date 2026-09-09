@@ -1004,20 +1004,15 @@ export default function InfluencerDetails() {
 
   useEffect(() => {
     const loadReviews = async () => {
-      if (isBrand || !inf?.id) {
-        return;
-      }
+      const targetId = inf?.id || profileId;
+      if (!targetId) return;
 
       setLoadingReviews(true);
 
       try {
-        const response =
-          await api(
-            `/api/reviews/creator/${inf.id}`,
-            {
-              method: "GET",
-            }
-          );
+        const response = await api(`/api/reviews/target/${targetId}`, {
+          method: "GET",
+        });
 
         const resData = response?.data;
         const reviews = Array.isArray(resData) 
@@ -1025,11 +1020,7 @@ export default function InfluencerDetails() {
           : (Array.isArray(resData?.data) ? resData.data : []);
         setReviewsList(reviews);
       } catch (error) {
-        console.error(
-          "Failed to load reviews:",
-          error
-        );
-
+        console.error("Failed to load reviews:", error);
         setReviewsList([]);
       } finally {
         setLoadingReviews(false);
@@ -1037,10 +1028,7 @@ export default function InfluencerDetails() {
     };
 
     loadReviews();
-  }, [
-    inf?.id,
-    isBrand,
-  ]);
+  }, [inf?.id, profileId]);
 
   // ===================================================
   // SORT REVIEWS
@@ -1233,46 +1221,39 @@ export default function InfluencerDetails() {
       setSubmittingReview(true);
 
       try {
+        const targetId = inf?.id || profileId;
+        const reviewerId = myProfile._id || myProfile.id;
+
+        // Check if there is an active/past conversation with target
+        const canReviewCheck = await api.get(`/api/reviews/can-review/${targetId}?reviewerId=${reviewerId}`);
+        const activeConversationId = canReviewCheck.data?.data?.conversationId || (inf?.conversationId || undefined);
+
         await api.post(
-          "/reviews",
+          "/api/reviews",
           {
-            creatorId: inf.id,
-
-            brandId:
-              myProfile._id ||
-              myProfile.id,
-
-            rating:
-              submitRating,
-
-            title:
-              reviewTitle,
-
-            text:
-              reviewText,
-
-            campaignRef:
-              campaignRef ||
-              undefined,
+            targetId,
+            reviewerId,
+            conversationId: activeConversationId || targetId,
+            rating: submitRating,
+            title: reviewTitle,
+            text: reviewText,
+            campaignRef: campaignRef || undefined,
           }
         );
 
         toast.success(
-          "Review submitted successfully!"
+          "Review submitted! It will appear on display once approved by Admin."
         );
 
-        setIsReviewModalOpen(
-          false
-        );
-
+        setIsReviewModalOpen(false);
         setSubmitRating(0);
         setReviewTitle("");
         setReviewText("");
         setCampaignRef("");
       } catch (error) {
         console.error(error);
-
         toast.error(
+          error?.response?.data?.message ||
           error?.message ||
           "Failed to submit review"
         );
@@ -2204,7 +2185,21 @@ export default function InfluencerDetails() {
 
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    size="sm"
+                    className="rounded-full gradient-sunset text-white text-xs font-semibold h-8 px-4"
+                    onClick={() => {
+                      if (!user) {
+                        toast.error("Please login to write a review");
+                        navigate("/login");
+                        return;
+                      }
+                      setIsReviewModalOpen(true);
+                    }}
+                  >
+                    ★ Write a Review
+                  </Button>
 
                   <span className="text-xs font-medium text-muted-foreground">
                     Sort by:

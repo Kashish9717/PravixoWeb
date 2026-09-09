@@ -6,62 +6,65 @@ import Review from "../models/Review.js";
 import Profile from "../models/Profile.js";
 import Conversation from "../models/Conversation.js";
 
-// Check karta hai ki brand kisi creator ko review kar sakta hai ya nahi.
+// Check karta hai ki user (brand ya creator) kisi doosre party ko review kar sakta hai ya nahi.
 export const canReview = async (req, res) => {
   try {
-    const { creatorId } = req.params;
-    const { brandId } = req.query;
+    const { targetId } = req.params;
+    const { reviewerId } = req.query;
 
-    if (!brandId) {
+    if (!reviewerId || !targetId) {
       return res.status(200).json({
         success: true,
-        data: {
-          canReview: false,
-        },
+        data: { canReview: false },
       });
     }
 
     if (
-      !mongoose.Types.ObjectId.isValid(creatorId) ||
-      !mongoose.Types.ObjectId.isValid(brandId)
+      !mongoose.Types.ObjectId.isValid(targetId) ||
+      !mongoose.Types.ObjectId.isValid(reviewerId)
     ) {
       return res.status(400).json({
         success: false,
-        message: "Invalid creator or brand ID.",
+        message: "Invalid target or reviewer ID.",
       });
     }
 
-    // Verify brand exists and has brand role.
-    const brand = await Profile.findById(brandId);
+    const reviewer = await Profile.findById(reviewerId);
+    const target = await Profile.findById(targetId);
 
-    if (!brand || brand.role !== "brand") {
+    if (!reviewer || !target) {
       return res.status(200).json({
         success: true,
-        data: {
-          canReview: false,
-        },
+        data: { canReview: false },
       });
     }
 
-    // Find conversations between this brand and creator.
+    // Find conversations where either one is creator/brand
     const conversations = await Conversation.find({
-      brandId,
-      creatorId,
+      $or: [
+        { brandId: reviewer._id, creatorId: target._id },
+        { brandId: target._id, creatorId: reviewer._id },
+      ],
     }).lean();
 
     if (conversations.length === 0) {
       return res.status(200).json({
         success: true,
-        data: {
-          canReview: false,
-        },
+        data: { canReview: false },
       });
     }
 
-    // Check if any collaboration has not been reviewed yet.
+    // Check if reviewer has already reviewed for this conversation
     for (const conversation of conversations) {
       const existingReview = await Review.findOne({
         conversationId: conversation._id,
+        $or: [
+          { reviewerId: reviewer._id },
+          // Backward compatibility check
+          reviewer.role === "brand"
+            ? { brandId: reviewer._id, creatorId: target._id }
+            : { creatorId: reviewer._id, brandId: target._id },
+        ],
       });
 
       if (!existingReview) {
@@ -77,13 +80,10 @@ export const canReview = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      data: {
-        canReview: false,
-      },
+      data: { canReview: false },
     });
   } catch (error) {
     console.error("Can review error:", error);
-
     return res.status(500).json({
       success: false,
       message: "Failed to check review eligibility.",
@@ -91,10 +91,12 @@ export const canReview = async (req, res) => {
   }
 };
 
-// Brand kisi creator ke collaboration ke liye review submit karta hai.
+// Brand ya Creator review submit karta hai (goes into 'pending' status for admin approval)
 export const submitReview = async (req, res) => {
   try {
     const {
+      targetId,
+      reviewerId,
       creatorId,
       brandId,
       conversationId,
@@ -104,15 +106,10 @@ export const submitReview = async (req, res) => {
       campaignRef,
     } = req.body;
 
-    // Basic required field validation.
-    if (
-      !creatorId ||
-      !brandId ||
-      !conversationId ||
-      rating === undefined ||
-      !title ||
-      !text
-    ) {
+    const actualReviewerId = reviewerId || (creatorId && brandId ? brandId : null);
+    const actualTargetId = targetId || (creatorId && brandId ? creatorId : null);
+
+    if (!actualReviewerId || !actualTargetId || !conversationId || rating === undefined || !title || !text) {
       return res.status(400).json({
         success: false,
         message: "Required review fields are missing.",
@@ -120,8 +117,8 @@ export const submitReview = async (req, res) => {
     }
 
     if (
-      !mongoose.Types.ObjectId.isValid(creatorId) ||
-      !mongoose.Types.ObjectId.isValid(brandId) ||
+      !mongoose.Types.ObjectId.isValid(actualReviewerId) ||
+      !mongoose.Types.ObjectId.isValid(actualTargetId) ||
       !mongoose.Types.ObjectId.isValid(conversationId)
     ) {
       return res.status(400).json({
@@ -130,53 +127,43 @@ export const submitReview = async (req, res) => {
       });
     }
 
-    // 1. Verify reviewer is a brand.
-    const brand = await Profile.findById(brandId);
+    const reviewer = await Profile.findById(actualReviewerId);
+    const target = await Profile.findById(actualTargetId);
 
-    if (!brand || brand.role !== "brand") {
-      return res.status(403).json({
+    if (!reviewer || !target) {
+      return res.status(404).json({
         success: false,
-        message: "Only authenticated Brands can submit reviews.",
+        message: "Reviewer or Target profile not found.",
       });
     }
 
-    // 2. Verify target is a creator.
-    const creator = await Profile.findById(creatorId);
-
-    if (!creator || creator.role !== "creator") {
-      return res.status(400).json({
-        success: false,
-        message: "Reviews can only be submitted for Creators.",
-      });
-    }
-
-    // 3. Verify conversation exists and belongs to this brand + creator.
+    // Verify conversation exists
     const conversation = await Conversation.findById(conversationId);
-
-    if (
-      !conversation ||
-      conversation.brandId.toString() !== brandId.toString() ||
-      conversation.creatorId.toString() !== creatorId.toString()
-    ) {
+    if (!conversation) {
       return res.status(400).json({
         success: false,
         message: "Invalid collaboration reference.",
       });
     }
 
-    // 4. Ensure one review per collaboration.
+    // Check duplicate review
     const existingReview = await Review.findOne({
       conversationId,
+      $or: [
+        { reviewerId: reviewer._id },
+        reviewer.role === "brand"
+          ? { brandId: reviewer._id, creatorId: target._id }
+          : { creatorId: reviewer._id, brandId: target._id },
+      ],
     });
 
     if (existingReview) {
       return res.status(409).json({
         success: false,
-        message: "This collaboration has already been reviewed.",
+        message: "You have already submitted a review for this collaboration.",
       });
     }
 
-    // 5. Validate rating.
     if (rating < 1 || rating > 5) {
       return res.status(400).json({
         success: false,
@@ -184,26 +171,30 @@ export const submitReview = async (req, res) => {
       });
     }
 
-    // 6. Create review.
+    // Create review with 'pending' status for Admin moderation
     const review = await Review.create({
-      creatorId,
-      brandId,
+      targetId: target._id,
+      reviewerId: reviewer._id,
+      reviewerRole: reviewer.role || (reviewer._id.toString() === conversation.brandId.toString() ? "brand" : "creator"),
+      creatorId: reviewer.role === "creator" ? reviewer._id : target._id,
+      brandId: reviewer.role === "brand" ? reviewer._id : target._id,
       conversationId,
       rating,
       title,
       text,
       campaignRef,
+      status: "pending", // Waiting for Admin Approval
       visible: true,
       createdAt: Date.now(),
     });
 
     return res.status(201).json({
       success: true,
+      message: "Review submitted successfully! It will be visible once approved by Admin.",
       data: review,
     });
   } catch (error) {
     console.error("Submit review error:", error);
-
     return res.status(500).json({
       success: false,
       message: "Failed to submit review.",
@@ -211,43 +202,54 @@ export const submitReview = async (req, res) => {
   }
 };
 
-// Creator ke saare reviews return karta hai.
-export const listReviewsForCreator = async (req, res) => {
+// Creator ya Brand ke reviews fetch karta hai (Only approved ones for public display)
+export const listReviewsForTarget = async (req, res) => {
   try {
-    const { creatorId } = req.params;
+    const targetId = req.params.targetId || req.params.creatorId;
+    const includePending = req.query.includePending === "true";
 
-    // Query parameter:
-    // /api/reviews/creator/:creatorId?visibleOnly=true
-    const visibleOnly = req.query.visibleOnly === "true";
-
-    if (!mongoose.Types.ObjectId.isValid(creatorId)) {
+    if (!mongoose.Types.ObjectId.isValid(targetId)) {
       return res.status(400).json({
         success: false,
-        message: "Invalid creator ID.",
+        message: "Invalid target profile ID.",
       });
     }
 
     const filter = {
-      creatorId,
+      $or: [
+        { targetId },
+        { creatorId: targetId },
+        { brandId: targetId },
+      ],
+      visible: true,
     };
 
-    if (visibleOnly) {
-      filter.visible = true;
+    if (!includePending) {
+      // Public display only shows approved reviews
+      filter.status = "approved";
     }
 
     const reviews = await Review.find(filter)
       .sort({ createdAt: -1 })
       .lean();
 
-    // Add brand information to each review.
+    // Attach reviewer profile details
     const results = await Promise.all(
       reviews.map(async (review) => {
-        const brandProfile = await Profile.findById(review.brandId).lean();
+        let revProfileId = review.reviewerId;
+        if (!revProfileId) {
+          revProfileId = review.creatorId?.toString() === targetId.toString() ? review.brandId : review.creatorId;
+        }
+
+        const reviewerProfile = revProfileId ? await Profile.findById(revProfileId).lean() : null;
 
         return {
           ...review,
-          brandName: brandProfile?.fullName || "Anonymous Brand",
-          brandAvatar: brandProfile?.avatarUrl,
+          reviewerName: reviewerProfile?.fullName || reviewerProfile?.name || "Verified User",
+          reviewerAvatar: reviewerProfile?.avatarUrl,
+          reviewerRole: review.reviewerRole || (reviewerProfile?.role || "user"),
+          brandName: reviewerProfile?.fullName || review.brandName || "Verified User",
+          brandAvatar: reviewerProfile?.avatarUrl,
         };
       })
     );
@@ -258,7 +260,6 @@ export const listReviewsForCreator = async (req, res) => {
     });
   } catch (error) {
     console.error("List reviews error:", error);
-
     return res.status(500).json({
       success: false,
       message: "Failed to fetch reviews.",
@@ -266,20 +267,21 @@ export const listReviewsForCreator = async (req, res) => {
   }
 };
 
-// Creator ka average rating calculate karta hai.
+// Average rating calculation for target profile
 export const getAverageRating = async (req, res) => {
   try {
-    const { creatorId } = req.params;
+    const targetId = req.params.targetId || req.params.creatorId;
 
-    if (!mongoose.Types.ObjectId.isValid(creatorId)) {
+    if (!mongoose.Types.ObjectId.isValid(targetId)) {
       return res.status(400).json({
         success: false,
-        message: "Invalid creator ID.",
+        message: "Invalid target ID.",
       });
     }
 
     const reviews = await Review.find({
-      creatorId,
+      $or: [{ targetId }, { creatorId: targetId }],
+      status: "approved",
       visible: true,
     }).lean();
 
@@ -293,13 +295,8 @@ export const getAverageRating = async (req, res) => {
       });
     }
 
-    const totalRating = reviews.reduce(
-      (sum, review) => sum + review.rating,
-      0
-    );
-
-    const avgRating =
-      Math.round((totalRating / reviews.length) * 10) / 10;
+    const totalRating = reviews.reduce((sum, review) => sum + review.rating, 0);
+    const avgRating = Math.round((totalRating / reviews.length) * 10) / 10;
 
     return res.status(200).json({
       success: true,
@@ -310,7 +307,6 @@ export const getAverageRating = async (req, res) => {
     });
   } catch (error) {
     console.error("Average rating error:", error);
-
     return res.status(500).json({
       success: false,
       message: "Failed to calculate average rating.",
@@ -318,55 +314,116 @@ export const getAverageRating = async (req, res) => {
   }
 };
 
-// Creator apne review ki visibility on/off kar sakta hai.
+// ADMIN: Get all reviews with status filter
+export const getAdminReviews = async (req, res) => {
+  try {
+    const { status } = req.query;
+    const filter = {};
+    if (status && status !== "all") {
+      filter.status = status;
+    }
+
+    const reviews = await Review.find(filter).sort({ createdAt: -1 }).lean();
+
+    const populated = await Promise.all(
+      reviews.map(async (rev) => {
+        const reviewer = rev.reviewerId ? await Profile.findById(rev.reviewerId).lean() : null;
+        const target = rev.targetId ? await Profile.findById(rev.targetId).lean() : (rev.creatorId ? await Profile.findById(rev.creatorId).lean() : null);
+
+        return {
+          ...rev,
+          reviewerName: reviewer?.fullName || reviewer?.name || "User",
+          reviewerRole: rev.reviewerRole || reviewer?.role || "brand",
+          reviewerAvatar: reviewer?.avatarUrl,
+          targetName: target?.fullName || target?.name || "Target",
+          targetRole: target?.role || "creator",
+          targetAvatar: target?.avatarUrl,
+        };
+      })
+    );
+
+    return res.status(200).json({
+      success: true,
+      data: populated,
+    });
+  } catch (error) {
+    console.error("Admin get reviews error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch admin reviews.",
+    });
+  }
+};
+
+// ADMIN: Approve review
+export const approveReview = async (req, res) => {
+  try {
+    const { reviewId } = req.params;
+    const review = await Review.findByIdAndUpdate(
+      reviewId,
+      { status: "approved", visible: true },
+      { new: true }
+    );
+
+    if (!review) {
+      return res.status(404).json({ success: false, message: "Review not found." });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Review approved successfully and is now visible on display!",
+      data: review,
+    });
+  } catch (error) {
+    console.error("Approve review error:", error);
+    return res.status(500).json({ success: false, message: "Failed to approve review." });
+  }
+};
+
+// ADMIN: Reject review
+export const rejectReview = async (req, res) => {
+  try {
+    const { reviewId } = req.params;
+    const review = await Review.findByIdAndUpdate(
+      reviewId,
+      { status: "rejected" },
+      { new: true }
+    );
+
+    if (!review) {
+      return res.status(404).json({ success: false, message: "Review not found." });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Review rejected.",
+      data: review,
+    });
+  } catch (error) {
+    console.error("Reject review error:", error);
+    return res.status(500).json({ success: false, message: "Failed to reject review." });
+  }
+};
+
+// Toggle visibility
 export const toggleReviewVisibility = async (req, res) => {
   try {
     const { reviewId } = req.params;
-    const { creatorId } = req.body;
-
-    if (
-      !mongoose.Types.ObjectId.isValid(reviewId) ||
-      !mongoose.Types.ObjectId.isValid(creatorId)
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid review or creator ID.",
-      });
-    }
-
     const review = await Review.findById(reviewId);
 
     if (!review) {
-      return res.status(404).json({
-        success: false,
-        message: "Review not found.",
-      });
-    }
-
-    // Verify ownership.
-    if (review.creatorId.toString() !== creatorId.toString()) {
-      return res.status(403).json({
-        success: false,
-        message: "Unauthorized operation.",
-      });
+      return res.status(404).json({ success: false, message: "Review not found." });
     }
 
     review.visible = !review.visible;
-
     await review.save();
 
     return res.status(200).json({
       success: true,
-      data: {
-        visible: review.visible,
-      },
+      data: { visible: review.visible },
     });
   } catch (error) {
-    console.error("Toggle review visibility error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: "Failed to update review visibility.",
-    });
+    console.error("Toggle visibility error:", error);
+    return res.status(500).json({ success: false, message: "Failed to update visibility." });
   }
 };

@@ -4,17 +4,37 @@ import mongoose from "mongoose";
 
 const reviewSchema = new mongoose.Schema(
   {
+    // Who is receiving the review (can be creator or brand)
+    targetId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Profile",
+      index: true,
+    },
+
+    // Who wrote the review
+    reviewerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Profile",
+      index: true,
+    },
+
+    // Role of reviewer ("brand" or "creator")
+    reviewerRole: {
+      type: String,
+      enum: ["brand", "creator"],
+      default: "brand",
+    },
+
+    // Backward compatibility fields
     creatorId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Profile",
-      required: true,
       index: true,
     },
 
     brandId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Profile",
-      required: true,
       index: true,
     },
 
@@ -22,7 +42,6 @@ const reviewSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Conversation",
       required: true,
-      unique: true,
       index: true,
     },
 
@@ -47,6 +66,14 @@ const reviewSchema = new mongoose.Schema(
 
     campaignRef: {
       type: String,
+    },
+
+    // Admin moderation status: reviews must be "approved" to be publicly visible
+    status: {
+      type: String,
+      enum: ["pending", "approved", "rejected"],
+      default: "pending",
+      index: true,
     },
 
     visible: {
