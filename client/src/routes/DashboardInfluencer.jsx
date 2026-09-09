@@ -1157,8 +1157,9 @@ const CAMPAIGNS_PER_PAGE = 6;
   const defaultBannerIndex = [...(profile?._id || profile?.userId || "creator")]
     .reduce((total, character) => total + character.charCodeAt(0), 0) % DEFAULT_BANNER_IMAGES.length;
   const bannerUrl = resolveImageUrl(profile?.coverUrl) || DEFAULT_BANNER_IMAGES[defaultBannerIndex];
-   console.log("PROFILE FROM API:", profile);
-console.log("Verification Status:", profile?.verificationStatus);
+  const status = profile?.verificationStatus || user?.verificationStatus || "unverified";
+  console.log("PROFILE FROM API:", profile);
+  console.log("Verification Status:", status);
 
   return (
     <div>
@@ -1215,7 +1216,7 @@ console.log("Verification Status:", profile?.verificationStatus);
     <h1 className="font-display text-3xl font-bold sm:text-4xl flex items-center gap-2">
       Hello, {displayName} 
       {status === "verified" && (
-        <ShieldCheck className="h-8 w-8 text-blue-500" fill="currentColor" stroke="white" title="Verified Creator" />
+        <ShieldCheck className="h-8 w-8 text-blue-500 inline-block" fill="currentColor" stroke="white" title="Verified Creator" />
       )}
       👋
     </h1>
@@ -1231,7 +1232,7 @@ console.log("Verification Status:", profile?.verificationStatus);
     }
     if (status === "pending") {
       return (
-        <Button disabled className="rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-600 px-6 font-semibold opacity-70">
+        <Button disabled className="rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-600 px-6 font-semibold opacity-70 cursor-not-allowed">
           Verification Pending
         </Button>
       );
@@ -1250,7 +1251,7 @@ console.log("Verification Status:", profile?.verificationStatus);
     return (
       <Button
         onClick={submitVerificationRequest}
-        className="rounded-full bg-blue-600 hover:bg-blue-700 text-white px-6 font-semibold"
+        className="rounded-full bg-blue-600 hover:bg-blue-700 text-white px-6 font-semibold shadow-sm"
       >
         Get Verified
       </Button>
