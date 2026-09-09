@@ -40,6 +40,27 @@ const notificationSchema = new mongoose.Schema(
         "verification_rejected",
         "verification_approved",
         "verification_requested",
+        "campaign_pending_verification",
+        "campaign_approved",
+        "campaign_rejected",
+        "campaign_request_received",
+        "campaign_request_approved",
+        "campaign_request_rejected",
+        "campaign_amount_proposed",
+        "campaign_amount_agreed",
+        "deliverable_submitted",
+        "deliverable_approved",
+        "deliverable_rejected",
+        "deliverable_resubmitted",
+        "all_deliverables_approved",
+        "payment_release_eligible",
+        "agreement_signed_brand",
+        "agreement_signed_creator",
+        "agreement_fully_signed",
+        "agreement_pdf_sent",
+        "withdrawal_requested",
+        "withdrawal_completed",
+        "withdrawal_failed",
       ],
       required: true,
     },
@@ -52,6 +73,16 @@ const notificationSchema = new mongoose.Schema(
     taskId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "CampaignTask",
+    },
+
+    targetUrl: {
+      type: String,
+      default: "",
+    },
+
+    metadata: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
     },
 
     read: {

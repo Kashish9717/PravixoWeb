@@ -1,13 +1,60 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Bell,
   CheckCircle,
   X,
   Trash2,
   Check,
-  Activity
+  Activity,
+  Megaphone,
+  CreditCard,
+  FileCheck,
+  MessageSquare,
+  Wallet,
+  Sparkles,
+  AlertCircle,
 } from "lucide-react";
 import api from "@/lib/api";
+
+function getNotificationIcon(type) {
+  switch (type) {
+    case "campaign_pending_verification":
+    case "campaign_approved":
+    case "campaign_rejected":
+    case "campaign_request_received":
+    case "campaign_request_approved":
+    case "campaign_request_rejected":
+      return Megaphone;
+    case "payment_successful":
+    case "payment_secured":
+    case "new_payment":
+    case "payment_released":
+    case "payment_release_eligible":
+      return CreditCard;
+    case "withdrawal_requested":
+    case "withdrawal_completed":
+    case "withdrawal_failed":
+    case "payout_processed":
+      return Wallet;
+    case "agreement_signed_brand":
+    case "agreement_signed_creator":
+    case "agreement_fully_signed":
+    case "agreement_pdf_sent":
+      return FileCheck;
+    case "admin_message":
+      return MessageSquare;
+    case "deliverable_submitted":
+    case "deliverable_approved":
+    case "all_deliverables_approved":
+      return Sparkles;
+    case "deliverable_rejected":
+    case "dispute_raised":
+      return AlertCircle;
+    default:
+      return Activity;
+  }
+}
 
 function timeAgo(timestamp) {
   const diff = Date.now() - new Date(timestamp).getTime();
@@ -21,6 +68,7 @@ function timeAgo(timestamp) {
 }
 
 export function NotificationBell({ profileId }) {
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [allEvents, setAllEvents] = useState([]);
   const [deletedIds, setDeletedIds] = useState(() => {
@@ -197,16 +245,59 @@ export function NotificationBell({ profileId }) {
             ) : (
               <div className="divide-y divide-border">
                 {visibleEvents.map((event) => {
+                  const Icon = getNotificationIcon(event.type);
                   const isUnread = !event.read;
+                  
+                  const handleNotificationClick = async () => {
+                    if (isUnread) {
+                      await handleMarkRead(event._id, null);
+                    }
+                    setOpen(false);
+
+                    if (event.targetUrl) {
+                      navigate(event.targetUrl);
+                      return;
+                    }
+
+                    // Fallback intelligent navigation based on event type
+                    switch (event.type) {
+                      case "withdrawal_requested":
+                      case "withdrawal_completed":
+                      case "withdrawal_failed":
+                      case "payout_processed":
+                        navigate("/dashboard/creator/wallet");
+                        break;
+                      case "agreement_signed_brand":
+                      case "agreement_signed_creator":
+                      case "agreement_fully_signed":
+                      case "agreement_pdf_sent":
+                      case "admin_message":
+                      case "new_message":
+                        navigate("/messages");
+                        break;
+                      case "deliverable_submitted":
+                      case "deliverable_approved":
+                      case "deliverable_rejected":
+                      case "all_deliverables_approved":
+                      case "campaign_request_received":
+                      case "campaign_request_approved":
+                        navigate("/dashboard/brand/campaigns");
+                        break;
+                      default:
+                        break;
+                    }
+                  };
+
                   return (
                     <div
                       key={event._id}
-                      className={`group flex items-start gap-3 px-4 py-3 transition-colors hover:bg-secondary/40 ${
+                      onClick={handleNotificationClick}
+                      className={`group flex items-start gap-3 px-4 py-3 transition-colors hover:bg-secondary/40 cursor-pointer ${
                         isUnread ? "bg-primary/5" : ""
                       }`}
                     >
                       <div className="flex h-8 w-8 items-center justify-center rounded-lg shrink-0 text-primary bg-primary/10">
-                        <Activity className="h-3.5 w-3.5" />
+                        <Icon className="h-3.5 w-3.5" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-2">

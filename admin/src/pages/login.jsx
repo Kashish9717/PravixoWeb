@@ -4,6 +4,7 @@ import { Sparkles, Shield, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import api from "@/lib/axios";
 
 export function AdminLogin() {
   const navigate = useNavigate();
@@ -30,8 +31,6 @@ export function AdminLogin() {
     setError("");
 
     try {
-      // Use axios instance we created
-      const { default: api } = await import("@/lib/axios");
       const res = await api.post("/auth/login", { email, password });
       
       // We expect the backend to return a JWT token and user info

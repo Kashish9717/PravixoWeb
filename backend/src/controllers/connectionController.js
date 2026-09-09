@@ -5,6 +5,8 @@ import Campaign from "../models/Campaign.js";
 import Conversation from "../models/Conversation.js";
 import Message from "../models/Message.js";
 import SocialConnection from "../models/SocialConnection.js";
+import Notification from "../models/Notification.js";
+import Review from "../models/Review.js";
 
 // 1. Send connection request
 export const sendRequest = async (req, res) => {
@@ -21,6 +23,31 @@ export const sendRequest = async (req, res) => {
     const filter = { creatorId, brandId };
 
     if (campaignId) {
+      if (!mongoose.Types.ObjectId.isValid(campaignId)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid campaign ID.",
+        });
+      }
+      const camp = await Campaign.findById(campaignId);
+      if (!camp) {
+        return res.status(404).json({
+          success: false,
+          message: "Campaign not found.",
+        });
+      }
+      if (camp.status !== "APPROVED") {
+        return res.status(400).json({
+          success: false,
+          message: "Campaign is not approved for collaboration requests.",
+        });
+      }
+      if (!camp.active) {
+        return res.status(400).json({
+          success: false,
+          message: "Campaign is currently inactive.",
+        });
+      }
       filter.campaignId = campaignId;
     } else {
       filter.campaignId = null;
@@ -79,6 +106,13 @@ export const acceptRequest = async (req, res) => {
   try {
     const { connectionId } = req.params;
 
+    if (!mongoose.Types.ObjectId.isValid(connectionId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid connection ID.",
+      });
+    }
+
     const connection = await Connection.findById(connectionId);
 
     if (!connection) {
@@ -88,16 +122,109 @@ export const acceptRequest = async (req, res) => {
       });
     }
 
+    // Security check: Must be authenticated brand and brand must own this request
+    if (req.user) {
+      if (req.user.role !== "brand") {
+        return res.status(403).json({
+          success: false,
+          message: "Only Brands can approve connection/campaign requests.",
+        });
+      }
+
+      if (String(connection.brandId) !== String(req.user._id)) {
+        return res.status(403).json({
+          success: false,
+          message: "Unauthorized: You do not own this campaign/request.",
+        });
+      }
+    }
+
     if (connection.status !== "pending") {
       return res.status(400).json({
         success: false,
-        message: "Connection request is not pending.",
+        message: `Connection request is already ${connection.status}.`,
       });
+    }
+
+    // If request belongs to a campaign, validate budget limits
+    let campaign = null;
+    if (connection.campaignId) {
+      campaign = await Campaign.findById(connection.campaignId);
+      if (campaign) {
+        const totalBudget = Number(campaign.totalBudget) || 0;
+        const minBudget = Number(campaign.minBudgetPerCreator) || 0;
+
+        if (totalBudget > 0 && minBudget > 0) {
+          // Count currently accepted connections
+          const approvedCount = await Connection.countDocuments({
+            campaignId: campaign._id,
+            status: "accepted",
+          });
+
+          const currentApprovedBudget = approvedCount * minBudget;
+          const remainingBudget = totalBudget - currentApprovedBudget;
+
+          if (remainingBudget < minBudget) {
+            return res.status(400).json({
+              success: false,
+              message: "Campaign budget limit reached. Cannot approve more creators.",
+            });
+          }
+        }
+      }
     }
 
     connection.status = "accepted";
     connection.creatorNotificationSeen = false;
     connection.updatedAt = Date.now();
+
+    // Task 5: Derive deliverablesTracking snapshot from Campaign
+    if (campaign && campaign.deliverables && (!connection.deliverablesTracking || connection.deliverablesTracking.length === 0)) {
+      const delivs = [];
+      const now = Date.now();
+      if (campaign.deliverables.reels > 0) {
+        delivs.push({
+          type: "REEL",
+          requiredQuantity: campaign.deliverables.reels,
+          completedQuantity: 0,
+          status: "PENDING",
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+      if (campaign.deliverables.posts > 0) {
+        delivs.push({
+          type: "POST",
+          requiredQuantity: campaign.deliverables.posts,
+          completedQuantity: 0,
+          status: "PENDING",
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+      if (campaign.deliverables.stories > 0) {
+        delivs.push({
+          type: "STORY",
+          requiredQuantity: campaign.deliverables.stories,
+          completedQuantity: 0,
+          status: "PENDING",
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+      if (campaign.deliverables.videos > 0) {
+        delivs.push({
+          type: "VIDEO",
+          requiredQuantity: campaign.deliverables.videos,
+          completedQuantity: 0,
+          status: "PENDING",
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+      connection.deliverablesTracking = delivs;
+    }
+
     await connection.save();
 
     let conversation;
@@ -140,14 +267,33 @@ export const acceptRequest = async (req, res) => {
       });
     }
 
+    // Notify Creator
+    const brandProfile = await Profile.findById(connection.brandId).select("fullName").lean();
+    const brandName = brandProfile?.fullName || "A Brand";
+    const campaignTitle = campaign?.title || "campaign";
+
+    await Notification.create({
+      recipientId: connection.creatorId,
+      senderId: connection.brandId,
+      type: "campaign_request_approved",
+      text: `${brandName} approved your request for "${campaignTitle}".`,
+      createdAt: Date.now(),
+    });
+
     res.status(200).json({
       success: true,
-      data: conversation._id,
+      message: "Request approved successfully.",
+      data: {
+        connection,
+        conversationId: conversation._id,
+      },
     });
   } catch (error) {
+    console.error("Accept request error:", error);
     res.status(500).json({
       success: false,
       message: "Failed to accept connection request.",
+      error: error.message,
     });
   }
 };
@@ -156,6 +302,13 @@ export const acceptRequest = async (req, res) => {
 export const rejectRequest = async (req, res) => {
   try {
     const { connectionId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(connectionId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid connection ID.",
+      });
+    }
 
     const connection = await Connection.findById(connectionId);
 
@@ -166,10 +319,27 @@ export const rejectRequest = async (req, res) => {
       });
     }
 
+    // Security check: Must be authenticated brand and brand must own this request
+    if (req.user) {
+      if (req.user.role !== "brand") {
+        return res.status(403).json({
+          success: false,
+          message: "Only Brands can decline connection/campaign requests.",
+        });
+      }
+
+      if (String(connection.brandId) !== String(req.user._id)) {
+        return res.status(403).json({
+          success: false,
+          message: "Unauthorized: You do not own this campaign/request.",
+        });
+      }
+    }
+
     if (connection.status !== "pending") {
       return res.status(400).json({
         success: false,
-        message: "Connection request is not pending.",
+        message: `Connection request is already ${connection.status}.`,
       });
     }
 
@@ -179,14 +349,34 @@ export const rejectRequest = async (req, res) => {
 
     await connection.save();
 
+    // Notify Creator
+    let campaign = null;
+    if (connection.campaignId) {
+      campaign = await Campaign.findById(connection.campaignId).select("title").lean();
+    }
+    const brandProfile = await Profile.findById(connection.brandId).select("fullName").lean();
+    const brandName = brandProfile?.fullName || "A Brand";
+    const campaignTitle = campaign?.title || "campaign";
+
+    await Notification.create({
+      recipientId: connection.creatorId,
+      senderId: connection.brandId,
+      type: "campaign_request_rejected",
+      text: `${brandName} declined your request for "${campaignTitle}".`,
+      createdAt: Date.now(),
+    });
+
     res.status(200).json({
       success: true,
+      message: "Request declined.",
       data: connection,
     });
   } catch (error) {
+    console.error("Reject request error:", error);
     res.status(500).json({
       success: false,
       message: "Failed to reject connection request.",
+      error: error.message,
     });
   }
 };
@@ -265,6 +455,17 @@ export const getRequestsForBrand = async (req, res) => {
             )
             .join(", ") || "Instagram";
 
+        let creatorRating = 0;
+        let reviewCount = 0;
+        if (request.creatorId) {
+          const reviews = await Review.find({ creatorId: request.creatorId, visible: true }).select("rating").lean();
+          if (reviews.length > 0) {
+            const sum = reviews.reduce((acc, r) => acc + (r.rating || 0), 0);
+            creatorRating = Number((sum / reviews.length).toFixed(1));
+            reviewCount = reviews.length;
+          }
+        }
+
         return {
           ...request,
           creatorProfile: creatorProfile
@@ -272,6 +473,8 @@ export const getRequestsForBrand = async (req, res) => {
                 ...creatorProfile,
                 followersCount,
                 platformStr,
+                rating: creatorRating,
+                reviewCount,
               }
             : null,
           campaign,
@@ -501,6 +704,431 @@ export const getApprovedCollaborationsForBrand = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to fetch approved collaborations.",
+    });
+  }
+};
+
+// 12. Propose collaboration payment amount
+export const proposeCollaborationAmount = async (req, res) => {
+  try {
+    const { connectionId } = req.params;
+    const { amount } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(connectionId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid connection ID.",
+      });
+    }
+
+    const numericAmount = Number(amount);
+    if (isNaN(numericAmount) || numericAmount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Agreed creator amount must be greater than ₹0.",
+      });
+    }
+
+    const connection = await Connection.findById(connectionId);
+    if (!connection) {
+      return res.status(404).json({
+        success: false,
+        message: "Collaboration record not found.",
+      });
+    }
+
+    // Security check: User must be part of this collaboration (brand or creator)
+    if (req.user) {
+      const isBrand = String(connection.brandId) === String(req.user._id);
+      const isCreator = String(connection.creatorId) === String(req.user._id);
+
+      if (!isBrand && !isCreator) {
+        return res.status(403).json({
+          success: false,
+          message: "Unauthorized: You are not a participant in this collaboration.",
+        });
+      }
+    }
+
+    // If campaign linked, check budget constraints
+    if (connection.campaignId) {
+      const campaign = await Campaign.findById(connection.campaignId);
+      if (campaign) {
+        // 1. Check max budget per creator
+        if (campaign.maxBudgetPerCreator && campaign.maxBudgetPerCreator > 0) {
+          if (numericAmount > campaign.maxBudgetPerCreator) {
+            return res.status(400).json({
+              success: false,
+              message: `Amount exceeds campaign maximum allowed budget per creator (₹${campaign.maxBudgetPerCreator.toLocaleString()}).`,
+            });
+          }
+        }
+
+        // 2. Check total committed creator amounts for this campaign (excluding this collaboration)
+        if (campaign.totalBudget && campaign.totalBudget > 0) {
+          const agreedConnections = await Connection.find({
+            campaignId: campaign._id,
+            collaborationStatus: "AMOUNT_AGREED",
+            _id: { $ne: connection._id },
+          }).lean();
+
+          const totalCommitted = agreedConnections.reduce(
+            (acc, curr) => acc + (curr.creatorAmount || 0),
+            0
+          );
+
+          const remainingBudget = campaign.totalBudget - totalCommitted;
+
+          if (numericAmount > remainingBudget) {
+            return res.status(400).json({
+              success: false,
+              message: `Amount exceeds campaign remaining budget (₹${remainingBudget.toLocaleString()} remaining out of ₹${campaign.totalBudget.toLocaleString()}).`,
+            });
+          }
+        }
+      }
+    }
+
+    const senderProfileId = req.user ? req.user._id : (connection.brandId);
+    const recipientId = String(senderProfileId) === String(connection.brandId)
+      ? connection.creatorId
+      : connection.brandId;
+
+    connection.proposedAmount = numericAmount;
+    connection.proposedBy = senderProfileId;
+    connection.collaborationStatus = "NEGOTIATING";
+    connection.updatedAt = Date.now();
+    await connection.save();
+
+    // Send notification to the other party
+    const senderProfile = await Profile.findById(senderProfileId).select("fullName").lean();
+    const senderName = senderProfile?.fullName || "Collaboration partner";
+    let campaign = null;
+    if (connection.campaignId) {
+      campaign = await Campaign.findById(connection.campaignId).select("title").lean();
+    }
+    const campaignTitle = campaign?.title || "campaign";
+
+    await Notification.create({
+      recipientId,
+      senderId: senderProfileId,
+      type: "campaign_amount_proposed",
+      text: `${senderName} proposed a creator payment of ₹${numericAmount.toLocaleString()} for "${campaignTitle}".`,
+      createdAt: Date.now(),
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Offer proposed successfully.",
+      data: connection,
+    });
+  } catch (error) {
+    console.error("Propose amount error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to propose collaboration amount.",
+      error: error.message,
+    });
+  }
+};
+
+// 13. Agree to collaboration payment amount
+export const agreeCollaborationAmount = async (req, res) => {
+  try {
+    const { connectionId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(connectionId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid connection ID.",
+      });
+    }
+
+    const connection = await Connection.findById(connectionId);
+    if (!connection) {
+      return res.status(404).json({
+        success: false,
+        message: "Collaboration record not found.",
+      });
+    }
+
+    // Security check: User must be part of this collaboration
+    if (req.user) {
+      const isBrand = String(connection.brandId) === String(req.user._id);
+      const isCreator = String(connection.creatorId) === String(req.user._id);
+
+      if (!isBrand && !isCreator) {
+        return res.status(403).json({
+          success: false,
+          message: "Unauthorized: You are not a participant in this collaboration.",
+        });
+      }
+    }
+
+    const finalAmount = connection.proposedAmount;
+    if (!finalAmount || finalAmount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "No valid proposed amount to agree upon. Please propose an amount first.",
+      });
+    }
+
+    // If campaign linked, re-validate budget constraints
+    if (connection.campaignId) {
+      const campaign = await Campaign.findById(connection.campaignId);
+      if (campaign) {
+        // 1. Check max budget per creator
+        if (campaign.maxBudgetPerCreator && campaign.maxBudgetPerCreator > 0) {
+          if (finalAmount > campaign.maxBudgetPerCreator) {
+            return res.status(400).json({
+              success: false,
+              message: `Amount exceeds campaign maximum allowed budget per creator (₹${campaign.maxBudgetPerCreator.toLocaleString()}).`,
+            });
+          }
+        }
+
+        // 2. Check total committed creator amounts for this campaign
+        if (campaign.totalBudget && campaign.totalBudget > 0) {
+          const agreedConnections = await Connection.find({
+            campaignId: campaign._id,
+            collaborationStatus: "AMOUNT_AGREED",
+            _id: { $ne: connection._id },
+          }).lean();
+
+          const totalCommitted = agreedConnections.reduce(
+            (acc, curr) => acc + (curr.creatorAmount || 0),
+            0
+          );
+
+          const remainingBudget = campaign.totalBudget - totalCommitted;
+
+          if (finalAmount > remainingBudget) {
+            return res.status(400).json({
+              success: false,
+              message: `Amount exceeds campaign remaining budget (₹${remainingBudget.toLocaleString()} remaining out of ₹${campaign.totalBudget.toLocaleString()}).`,
+            });
+          }
+        }
+      }
+    }
+
+    // Exact calculations:
+    // pravixoFee = 20% of creatorAmount
+    // brandTotal = creatorAmount + pravixoFee
+    const creatorAmount = Math.round(finalAmount);
+    const pravixoFee = Math.round(creatorAmount * 0.20);
+    const brandTotal = creatorAmount + pravixoFee;
+
+    connection.creatorAmount = creatorAmount;
+    connection.pravixoFee = pravixoFee;
+    connection.brandTotal = brandTotal;
+    connection.collaborationStatus = "AMOUNT_AGREED";
+    connection.agreedAt = Date.now();
+    connection.updatedAt = Date.now();
+    await connection.save();
+
+    // Send notification
+    const agreeingUser = req.user ? req.user._id : (connection.brandId);
+    const recipientId = String(agreeingUser) === String(connection.brandId)
+      ? connection.creatorId
+      : connection.brandId;
+
+    const agreeingProfile = await Profile.findById(agreeingUser).select("fullName").lean();
+    const agreeingName = agreeingProfile?.fullName || "Collaboration partner";
+    let campaign = null;
+    if (connection.campaignId) {
+      campaign = await Campaign.findById(connection.campaignId).select("title").lean();
+    }
+    const campaignTitle = campaign?.title || "campaign";
+
+    await Notification.create({
+      recipientId,
+      senderId: agreeingUser,
+      type: "campaign_amount_agreed",
+      text: `${agreeingName} agreed to creator payment ₹${creatorAmount.toLocaleString()} (Total ₹${brandTotal.toLocaleString()}) for "${campaignTitle}".`,
+      createdAt: Date.now(),
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Collaboration payment amount agreed successfully.",
+      data: connection,
+    });
+  } catch (error) {
+    console.error("Agree amount error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to agree on collaboration amount.",
+      error: error.message,
+    });
+  }
+};
+
+// 14. Get collaboration details by connection ID or query (creatorId & brandId & campaignId)
+export const getCollaborationDetails = async (req, res) => {
+  try {
+    const { connectionId } = req.params;
+    const { creatorId, brandId, campaignId } = req.query;
+
+    let connection = null;
+    if (connectionId && mongoose.Types.ObjectId.isValid(connectionId)) {
+      connection = await Connection.findById(connectionId).lean();
+    } else if (creatorId && brandId) {
+      const filter = { creatorId, brandId };
+      if (campaignId) filter.campaignId = campaignId;
+      connection = await Connection.findOne(filter).lean();
+    }
+
+    if (!connection) {
+      return res.status(404).json({
+        success: false,
+        message: "Collaboration not found.",
+      });
+    }
+
+    // Security check: User must be part of this collaboration (or admin)
+    if (req.user && req.user.role !== "admin") {
+      const isBrand = String(connection.brandId) === String(req.user._id);
+      const isCreator = String(connection.creatorId) === String(req.user._id);
+      if (!isBrand && !isCreator) {
+        return res.status(403).json({
+          success: false,
+          message: "Unauthorized: You are not a participant in this collaboration.",
+        });
+      }
+    }
+
+    let campaign = null;
+    if (connection.campaignId) {
+      campaign = await Campaign.findById(connection.campaignId).lean();
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        ...connection,
+        campaign,
+      },
+    });
+  } catch (error) {
+    console.error("Get collaboration details error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch collaboration details.",
+      error: error.message,
+    });
+  }
+};
+
+// 15. Task 5: Get Deliverables Tracking for a Collaboration
+export const getCollaborationDeliverables = async (req, res) => {
+  try {
+    const { connectionId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(connectionId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid connection ID.",
+      });
+    }
+
+    let connection = await Connection.findById(connectionId);
+    if (!connection) {
+      return res.status(404).json({
+        success: false,
+        message: "Collaboration not found.",
+      });
+    }
+
+    // Security check: User must be part of this collaboration (brand or creator) or admin
+    if (req.user && req.user.role !== "admin") {
+      const isBrand = String(connection.brandId) === String(req.user._id);
+      const isCreator = String(connection.creatorId) === String(req.user._id);
+      if (!isBrand && !isCreator) {
+        return res.status(403).json({
+          success: false,
+          message: "Unauthorized: You do not have access to this collaboration's deliverables.",
+        });
+      }
+    }
+
+    // Fallback: If deliverablesTracking is empty but campaign exists, snapshot it now
+    if ((!connection.deliverablesTracking || connection.deliverablesTracking.length === 0) && connection.campaignId) {
+      const camp = await Campaign.findById(connection.campaignId).lean();
+      if (camp && camp.deliverables) {
+        const delivs = [];
+        const now = Date.now();
+        if (camp.deliverables.reels > 0) {
+          delivs.push({
+            type: "REEL",
+            requiredQuantity: camp.deliverables.reels,
+            completedQuantity: 0,
+            status: "PENDING",
+            createdAt: now,
+            updatedAt: now,
+          });
+        }
+        if (camp.deliverables.posts > 0) {
+          delivs.push({
+            type: "POST",
+            requiredQuantity: camp.deliverables.posts,
+            completedQuantity: 0,
+            status: "PENDING",
+            createdAt: now,
+            updatedAt: now,
+          });
+        }
+        if (camp.deliverables.stories > 0) {
+          delivs.push({
+            type: "STORY",
+            requiredQuantity: camp.deliverables.stories,
+            completedQuantity: 0,
+            status: "PENDING",
+            createdAt: now,
+            updatedAt: now,
+          });
+        }
+        if (camp.deliverables.videos > 0) {
+          delivs.push({
+            type: "VIDEO",
+            requiredQuantity: camp.deliverables.videos,
+            completedQuantity: 0,
+            status: "PENDING",
+            createdAt: now,
+            updatedAt: now,
+          });
+        }
+        connection.deliverablesTracking = delivs;
+        await connection.save();
+      }
+    }
+
+    // Calculate progress summary
+    const deliverables = connection.deliverablesTracking || [];
+    const totalRequired = deliverables.reduce((sum, d) => sum + (d.requiredQuantity || 0), 0);
+    const totalCompleted = deliverables.reduce((sum, d) => sum + (d.completedQuantity || 0), 0);
+    const progressPercent = totalRequired > 0 ? Math.round((totalCompleted / totalRequired) * 100) : 0;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        connectionId: connection._id,
+        paymentStatus: connection.paymentStatus,
+        isPaid: connection.paymentStatus === "PAID",
+        deliverables,
+        summary: {
+          totalRequired,
+          totalCompleted,
+          progressPercent,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Get collaboration deliverables error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch deliverables tracking.",
+      error: error.message,
     });
   }
 };

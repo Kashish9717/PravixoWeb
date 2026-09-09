@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import api from "@/lib/axios";
-import { CreditCard, Search, ArrowUpRight, ShieldAlert, Award, RefreshCcw, Landmark, Activity, Terminal } from "lucide-react";
+import { CreditCard, Search, ArrowUpRight, ShieldAlert, Award, RefreshCcw, Landmark, Activity, Terminal, Clock, CheckCircle2, Eye, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -14,8 +14,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { AdminAgreementModal } from "@/components/agreements/AdminAgreementModal";
 
 export function PaymentsPage() {
   useEffect(() => {
@@ -34,19 +42,81 @@ export function PaymentsPage() {
   const [stats, setStats] = useState(null);
   const [payments, setPayments] = useState(null);
   const [webhookLogs, setWebhookLogs] = useState(null);
+  const [collaborations, setCollaborations] = useState(null);
+  const [selectedCollabRelease, setSelectedCollabRelease] = useState(null);
+  const [releasingPayout, setReleasingPayout] = useState(false);
+  const [confirmingPayoutCollab, setConfirmingPayoutCollab] = useState(null);
+  const [selectedCollabAgreement, setSelectedCollabAgreement] = useState(null);
+
+  // Task 14: Withdrawals State
+  const [withdrawals, setWithdrawals] = useState(null);
+  const [selectedWithdrawalAction, setSelectedWithdrawalAction] = useState(null); // { withdrawal, action: 'APPROVE' | 'REJECT' }
+  const [processingWithdrawal, setProcessingWithdrawal] = useState(false);
+  const [withdrawalNotes, setWithdrawalNotes] = useState("");
+  const [withdrawalRejectReason, setWithdrawalRejectReason] = useState("");
 
   const fetchData = async () => {
     try {
-      const [statsRes, paymentsRes, webhookRes] = await Promise.all([
+      const [statsRes, paymentsRes, webhookRes, collabsRes, withdrawalsRes] = await Promise.all([
         api.get("/admin/revenue-stats"),
         api.get("/admin/payments"),
-        api.get("/admin/webhook-logs").catch(() => ({ data: { success: true, data: [] } }))
+        api.get("/admin/webhook-logs").catch(() => ({ data: { success: true, data: [] } })),
+        api.get("/admin/payments/collaborations").catch(() => ({ data: { success: true, data: [] } })),
+        api.get("/admin/withdrawals").catch(() => ({ data: { success: true, data: [] } }))
       ]);
       if (statsRes.data.success) setStats(statsRes.data.data);
       if (paymentsRes.data.success) setPayments(paymentsRes.data.data);
       if (webhookRes.data.success) setWebhookLogs(webhookRes.data.data);
+      if (collabsRes.data.success) setCollaborations(collabsRes.data.data);
+      if (withdrawalsRes.data.success) setWithdrawals(withdrawalsRes.data.data);
     } catch (err) {
       console.error("Failed to fetch payments data", err);
+    }
+  };
+
+  const handleProcessWithdrawal = async (e) => {
+    if (e) e.preventDefault();
+    if (!selectedWithdrawalAction) return;
+
+    setProcessingWithdrawal(true);
+    try {
+      const { withdrawal, action } = selectedWithdrawalAction;
+      const res = await api.post(`/admin/withdrawals/${withdrawal._id}/process`, {
+        action,
+        notes: withdrawalNotes,
+        failureReason: withdrawalRejectReason,
+      });
+
+      if (res.data?.success) {
+        toast.success(res.data.message || `Withdrawal ${action === "APPROVE" ? "completed" : "rejected"}.`);
+        setSelectedWithdrawalAction(null);
+        setWithdrawalNotes("");
+        setWithdrawalRejectReason("");
+        fetchData();
+      }
+    } catch (err) {
+      console.error("Withdrawal processing error:", err);
+      toast.error(err.response?.data?.message || "Failed to process withdrawal.");
+    } finally {
+      setProcessingWithdrawal(false);
+    }
+  };
+
+  const handleReleasePayout = async (collab) => {
+    setReleasingPayout(true);
+    try {
+      const res = await api.post(`/admin/payments/collaborations/${collab._id}/release`);
+      if (res.data?.success) {
+        toast.success(res.data.message || "Payout released successfully!");
+        setConfirmingPayoutCollab(null);
+        setSelectedCollabRelease(null);
+        fetchData();
+      }
+    } catch (err) {
+      console.error("Payout release error:", err);
+      toast.error(err.response?.data?.message || "Failed to release payout.");
+    } finally {
+      setReleasingPayout(false);
     }
   };
 
@@ -136,18 +206,30 @@ export function PaymentsPage() {
       </div>
 
       {/* Tabs Menu */}
-      <div className="flex border-b border-border">
-        {["stats", "holding", "released", "all", "webhooks"].map((tab) => (
+      <div className="flex border-b border-border overflow-x-auto">
+        {["stats", "withdrawals", "72_hour_releases", "holding", "released", "all", "webhooks"].map((tab) => (
           <button
             key={tab}
-            className={`py-3 px-6 text-sm font-semibold capitalize border-b-2 transition-all duration-200 ${
+            className={`py-3 px-6 text-sm font-semibold capitalize border-b-2 transition-all duration-200 shrink-0 ${
               activeTab === tab
                 ? "border-primary text-primary"
                 : "border-transparent text-muted-foreground hover:text-foreground"
             }`}
             onClick={() => setActiveTab(tab)}
           >
-            {tab === "stats" ? "Revenue Stats" : tab === "holding" ? "Holding Escrows" : tab === "released" ? "Payout Queue" : tab === "webhooks" ? "Webhook Simulation" : "All Transactions"}
+            {tab === "stats"
+              ? "Revenue Stats"
+              : tab === "withdrawals"
+              ? "Creator Withdrawals"
+              : tab === "72_hour_releases"
+              ? "72-Hour Release Queue"
+              : tab === "holding"
+              ? "Holding Escrows"
+              : tab === "released"
+              ? "Payout Queue"
+              : tab === "webhooks"
+              ? "Webhook Simulation"
+              : "All Transactions"}
           </button>
         ))}
       </div>
@@ -308,8 +390,345 @@ export function PaymentsPage() {
         </div>
       )}
 
+      {/* 72-HOUR RELEASE QUEUE TAB (TASK 10) */}
+      {activeTab === "72_hour_releases" && (
+        <div className="space-y-4">
+          <div className="flex justify-between items-center flex-wrap gap-3">
+            <div>
+              <h3 className="font-display text-base font-bold flex items-center gap-2">
+                <Clock className="h-5 w-5 text-primary" /> 72-Hour Creator Payment Review & Release Queue
+              </h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Collaborations where all campaign deliverables were approved. Track 72-hour review countdown and release eligibility.
+              </p>
+            </div>
+            <div className="relative w-full sm:w-80">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Search campaign, creator, brand..."
+                className="pl-9 rounded-full bg-secondary/50 border-0 text-xs h-9"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-border bg-card overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="pl-6">Campaign / Collaboration</TableHead>
+                  <TableHead>Brand</TableHead>
+                  <TableHead>Creator</TableHead>
+                  <TableHead>Agreed Payout (80%)</TableHead>
+                  <TableHead>Pravixo Fee (20%)</TableHead>
+                  <TableHead>Total Paid</TableHead>
+                  <TableHead>Deliverables Status</TableHead>
+                  <TableHead>72-Hour Review Status</TableHead>
+                  <TableHead className="text-right pr-6">Admin Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {!collaborations ? (
+                  Array.from({ length: 4 }).map((_, i) => (
+                    <TableRow key={i}>
+                      <TableCell className="pl-6"><Skeleton className="h-4 w-28" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-20 rounded-full" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-24 rounded-full" /></TableCell>
+                      <TableCell className="text-right pr-6"><Skeleton className="h-8 w-24 ml-auto rounded-full" /></TableCell>
+                    </TableRow>
+                  ))
+                ) : collaborations.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={9} className="py-16 text-center">
+                      <Clock className="mx-auto h-8 w-8 text-muted-foreground/40" />
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        No completed collaborations in 72-hour review queue right now
+                      </p>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  collaborations
+                    .filter((collab) => {
+                      if (!search) return true;
+                      const s = search.toLowerCase();
+                      return (
+                        collab.campaign?.title?.toLowerCase().includes(s) ||
+                        collab.brand?.fullName?.toLowerCase().includes(s) ||
+                        collab.creator?.fullName?.toLowerCase().includes(s) ||
+                        collab._id?.includes(s)
+                      );
+                    })
+                    .map((collab) => {
+                      const isEligible = collab.paymentReleaseStatus === "ELIGIBLE_FOR_RELEASE";
+                      return (
+                        <TableRow key={collab._id}>
+                          <TableCell className="pl-6 py-4">
+                            <span className="block font-bold text-foreground text-xs">
+                              {collab.campaign?.title || "Campaign Collaboration"}
+                            </span>
+                            <span className="block font-mono text-[9px] text-muted-foreground">
+                              {collab._id}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-xs font-semibold">{collab.brand?.fullName || "Brand"}</TableCell>
+                          <TableCell className="text-xs font-semibold">{collab.creator?.fullName || "Creator"}</TableCell>
+                          <TableCell className="font-bold text-emerald-600">
+                            ₹{Number(collab.creatorAmount || 0).toLocaleString("en-IN")}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground text-xs">
+                            ₹{Number(collab.pravixoFee || 0).toLocaleString("en-IN")}
+                          </TableCell>
+                          <TableCell className="font-semibold text-xs">
+                            ₹{Number(collab.brandTotal || 0).toLocaleString("en-IN")}
+                          </TableCell>
+                          <TableCell>
+                            <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 rounded-full text-[9px] font-bold">
+                              ✓ 100% Approved
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {collab.paymentReleaseStatus === "RELEASED" ? (
+                              <div className="flex flex-col items-start gap-1">
+                                <Badge className="bg-emerald-500/15 text-emerald-700 border-emerald-500/30 rounded-full text-[10px] font-bold px-2.5 py-0.5">
+                                  ✓ RELEASED
+                                </Badge>
+                                <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-600 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                                  Wallet Credited
+                                </span>
+                              </div>
+                            ) : isEligible ? (
+                              <Badge className="bg-emerald-500/15 text-emerald-700 border-emerald-500/30 rounded-full text-[10px] font-bold px-2.5 py-0.5">
+                                ✓ ELIGIBLE FOR RELEASE
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-amber-500/15 text-amber-700 border-amber-500/30 rounded-full text-[10px] font-bold px-2.5 py-0.5">
+                                ⏳ WAITING 72 HOURS
+                              </Badge>
+                            )}
+                            {collab.paymentReleaseEligibleAt && !isEligible && collab.paymentReleaseStatus !== "RELEASED" && (
+                              <span className="block text-[9px] text-muted-foreground mt-0.5">
+                                Eligible: {format(new Date(collab.paymentReleaseEligibleAt), "MMM d, yyyy h:mm a")}
+                              </span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right pr-6">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {isEligible && collab.paymentReleaseStatus !== "RELEASED" && (
+                                <Button
+                                  size="sm"
+                                  className="rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold h-8 px-3 flex items-center gap-1 shadow-sm"
+                                  onClick={() => setConfirmingPayoutCollab(collab)}
+                                >
+                                  <Landmark className="h-3.5 w-3.5" /> Release
+                                </Button>
+                              )}
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="rounded-full border-border text-foreground hover:bg-secondary text-xs font-bold h-8 px-3 flex items-center gap-1"
+                                onClick={() => setSelectedCollabAgreement(collab)}
+                              >
+                                <FileText className="h-3.5 w-3.5 text-primary" /> Agreement
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="rounded-full border-primary/30 text-primary hover:bg-primary/10 text-xs font-bold h-8 px-3 flex items-center gap-1"
+                                onClick={() => setSelectedCollabRelease(collab)}
+                              >
+                                <Eye className="h-3.5 w-3.5" /> Review
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      )}
+
+      {/* CREATOR WITHDRAWALS TAB (TASK 14) */}
+      {activeTab === "withdrawals" && (
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+            <div>
+              <h3 className="font-display font-semibold text-lg flex items-center gap-2">
+                <Landmark className="h-5 w-5 text-primary" /> Creator Withdrawal Requests
+              </h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Review, disburse, or decline creator withdrawal requests from available wallet balances.
+              </p>
+            </div>
+            <div className="relative w-full sm:w-80">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Search by creator, reference ID..."
+                className="pl-9 rounded-full bg-secondary/50 border-0 text-xs h-9"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-border bg-card overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="pl-6">Reference ID</TableHead>
+                  <TableHead>Creator</TableHead>
+                  <TableHead>Requested Amount</TableHead>
+                  <TableHead>Bank / Payout Details</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Requested Date</TableHead>
+                  <TableHead className="text-right pr-6">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {!withdrawals ? (
+                  Array.from({ length: 4 }).map((_, i) => (
+                    <TableRow key={i}>
+                      <TableCell className="pl-6"><Skeleton className="h-4 w-24" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-28" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-36" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-16 rounded-full" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                      <TableCell className="text-right pr-6"><Skeleton className="h-8 w-24 ml-auto rounded-full" /></TableCell>
+                    </TableRow>
+                  ))
+                ) : withdrawals.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="py-16 text-center">
+                      <Landmark className="mx-auto h-8 w-8 text-muted-foreground/40" />
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        No creator withdrawal requests found
+                      </p>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  withdrawals
+                    .filter((w) => {
+                      const s = search.toLowerCase();
+                      return (
+                        !s ||
+                        w.referenceId?.toLowerCase().includes(s) ||
+                        w.creatorId?.fullName?.toLowerCase().includes(s) ||
+                        w.creatorId?.email?.toLowerCase().includes(s) ||
+                        w.payoutReference?.toLowerCase().includes(s)
+                      );
+                    })
+                    .map((w) => {
+                      const isPending = w.status === "PENDING" || w.status === "PROCESSING";
+                      const bank = w.bankDetails || w.bankDetailsSnapshot || {};
+                      return (
+                        <TableRow key={w._id}>
+                          <TableCell className="pl-6 py-4">
+                            <span className="block font-mono text-xs font-bold text-foreground">
+                              {w.referenceId}
+                            </span>
+                            {w.payoutReference && (
+                              <span className="block font-mono text-[10px] text-emerald-600">
+                                Payout Ref: {w.payoutReference}
+                              </span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <span className="block font-semibold text-xs text-foreground">
+                              {w.creatorId?.fullName || "Creator"}
+                            </span>
+                            <span className="block text-[10px] text-muted-foreground">
+                              {w.creatorId?.email}
+                            </span>
+                          </TableCell>
+                          <TableCell className="font-extrabold text-sm text-foreground">
+                            ₹{Number(w.amount || 0).toLocaleString("en-IN")}
+                          </TableCell>
+                          <TableCell className="text-xs">
+                            <div className="space-y-0.5">
+                              <span className="block font-semibold text-foreground">
+                                {bank.bankName || "Bank Transfer"}
+                              </span>
+                              <span className="block text-[10px] text-muted-foreground">
+                                {bank.accountHolderName} • {bank.accountNumberMasked || (bank.accountNumber ? `••••${bank.accountNumber.slice(-4)}` : "")}
+                              </span>
+                              {bank.ifsc && (
+                                <span className="block font-mono text-[9px] text-muted-foreground">
+                                  IFSC: {bank.ifsc} {bank.upiId ? `• UPI: ${bank.upiId}` : ""}
+                                </span>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              className={`rounded-full text-[10px] font-bold px-2.5 py-0.5 border ${
+                                w.status === "COMPLETED"
+                                  ? "bg-emerald-500/15 text-emerald-700 border-emerald-500/30"
+                                  : w.status === "FAILED" || w.status === "CANCELLED"
+                                  ? "bg-red-500/15 text-red-700 border-red-500/30"
+                                  : "bg-amber-500/15 text-amber-700 border-amber-500/30"
+                              }`}
+                            >
+                              {w.status === "COMPLETED"
+                                ? "✓ COMPLETED"
+                                : w.status === "FAILED"
+                                ? "✕ REJECTED / FAILED"
+                                : "⏳ PENDING"}
+                            </Badge>
+                            {w.failureReason && (
+                              <span className="block text-[9px] text-red-500 mt-0.5 max-w-[140px] truncate" title={w.failureReason}>
+                                {w.failureReason}
+                              </span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                            {format(new Date(w.requestedAt || w.createdAt), "MMM d, yyyy h:mm a")}
+                          </TableCell>
+                          <TableCell className="text-right pr-6">
+                            {isPending ? (
+                              <div className="flex items-center justify-end gap-1.5">
+                                <Button
+                                  size="sm"
+                                  className="rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold h-8 px-3.5 shadow-sm"
+                                  onClick={() => setSelectedWithdrawalAction({ withdrawal: w, action: "APPROVE" })}
+                                >
+                                  Process
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="rounded-full border-red-500/30 text-red-600 hover:bg-red-500/10 text-xs font-bold h-8 px-3"
+                                  onClick={() => setSelectedWithdrawalAction({ withdrawal: w, action: "REJECT" })}
+                                >
+                                  Reject
+                                </Button>
+                              </div>
+                            ) : (
+                              <span className="text-[11px] text-muted-foreground font-semibold">
+                                {w.status === "COMPLETED" ? "Settled" : "Closed"}
+                              </span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      )}
+
       {/* DATA TABLE (HOLDING, RELEASED, ALL) */}
-      {activeTab !== "stats" && activeTab !== "webhooks" && (
+      {activeTab !== "stats" && activeTab !== "webhooks" && activeTab !== "72_hour_releases" && activeTab !== "withdrawals" && (
         <div className="space-y-4">
           <div className="flex justify-end">
             <div className="relative w-full sm:w-80">
@@ -442,6 +861,345 @@ export function PaymentsPage() {
             </Table>
           </div>
         </div>
+      )}
+
+      {/* REVIEW PAYMENT RELEASE DETAILS DIALOG (TASK 10) */}
+      <Dialog
+        open={!!selectedCollabRelease}
+        onOpenChange={(open) => !open && setSelectedCollabRelease(null)}
+      >
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-lg font-bold">
+              <Clock className="h-5 w-5 text-primary" /> Review Payment Release
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Audit the 72-hour review period, deliverables status, and escrow amount breakdown.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedCollabRelease && (
+            <div className="space-y-4 text-xs">
+              {/* Campaign & Participant Overview */}
+              <div className="rounded-2xl border border-border bg-secondary/10 p-4 space-y-2.5">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h4 className="font-bold text-sm text-foreground">
+                      {selectedCollabRelease.campaign?.title || "Campaign Collaboration"}
+                    </h4>
+                    <p className="text-[11px] text-muted-foreground">
+                      Collaboration ID: {selectedCollabRelease._id}
+                    </p>
+                  </div>
+                  {selectedCollabRelease.paymentReleaseStatus === "ELIGIBLE_FOR_RELEASE" ? (
+                    <Badge className="bg-emerald-500/15 text-emerald-700 border-emerald-500/30 rounded-full font-bold text-[10px]">
+                      ✓ ELIGIBLE FOR RELEASE
+                    </Badge>
+                  ) : (
+                    <Badge className="bg-amber-500/15 text-amber-700 border-amber-500/30 rounded-full font-bold text-[10px]">
+                      ⏳ WAITING 72 HOURS
+                    </Badge>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border/40">
+                  <div>
+                    <span className="text-muted-foreground block text-[10px] uppercase font-bold">Brand</span>
+                    <span className="font-semibold text-foreground">{selectedCollabRelease.brand?.fullName}</span>
+                    <span className="block text-[11px] text-muted-foreground">{selectedCollabRelease.brand?.email}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground block text-[10px] uppercase font-bold">Creator</span>
+                    <span className="font-semibold text-foreground">{selectedCollabRelease.creator?.fullName}</span>
+                    <span className="block text-[11px] text-muted-foreground">{selectedCollabRelease.creator?.email}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Financial Breakdown (Agreed, Fee, Total) */}
+              <div className="rounded-2xl border border-border bg-card p-4 space-y-2">
+                <h5 className="font-bold text-foreground text-xs uppercase tracking-wider">
+                  Agreed Escrow Financials
+                </h5>
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Creator Allocation (80%):</span>
+                    <span className="font-bold text-emerald-600 text-sm">
+                      ₹{Number(selectedCollabRelease.creatorAmount || 0).toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Pravixo Platform Fee (20%):</span>
+                    <span className="font-medium text-foreground">
+                      ₹{Number(selectedCollabRelease.pravixoFee || 0).toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                  <div className="flex justify-between pt-1.5 border-t border-border/40">
+                    <span className="font-bold text-foreground">Total Paid by Brand:</span>
+                    <span className="font-bold text-primary">
+                      ₹{Number(selectedCollabRelease.brandTotal || 0).toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 72-Hour Timeline Details */}
+              <div className="rounded-2xl border border-border bg-card p-4 space-y-2.5">
+                <h5 className="font-bold text-foreground text-xs uppercase tracking-wider flex items-center gap-1.5">
+                  <Clock className="h-4 w-4 text-primary" /> Review Period Timeline
+                </h5>
+                <div className="grid grid-cols-2 gap-3 text-[11px]">
+                  <div>
+                    <span className="text-muted-foreground block">Deliverables Approved At:</span>
+                    <span className="font-semibold text-foreground">
+                      {selectedCollabRelease.approvalCompletedAt
+                        ? format(new Date(selectedCollabRelease.approvalCompletedAt), "MMM d, yyyy h:mm a")
+                        : "—"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground block">Release Eligibility Target:</span>
+                    <span className="font-semibold text-foreground">
+                      {selectedCollabRelease.paymentReleaseEligibleAt
+                        ? format(new Date(selectedCollabRelease.paymentReleaseEligibleAt), "MMM d, yyyy h:mm a")
+                        : "—"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-secondary/20 border border-border/40 text-[11px]">
+                  {selectedCollabRelease.paymentReleaseStatus === "ELIGIBLE_FOR_RELEASE" ? (
+                    <div className="text-emerald-700 font-semibold flex items-center gap-1.5">
+                      <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+                      The 72-hour review period is complete. Creator payout of ₹{Number(selectedCollabRelease.creatorAmount || 0).toLocaleString("en-IN")} is eligible for Admin release.
+                    </div>
+                  ) : (
+                    <div className="text-amber-700 font-semibold flex items-center gap-1.5">
+                      <Clock className="h-4 w-4 shrink-0 text-amber-600" />
+                      The 72-hour protection review period is currently active. Funds remain securely held in escrow until the timer completes.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="pt-2 flex items-center justify-between gap-2">
+                <Button
+                  className="rounded-full px-5 text-xs font-semibold h-9"
+                  variant="outline"
+                  onClick={() => setSelectedCollabRelease(null)}
+                >
+                  Close Review
+                </Button>
+
+                {selectedCollabRelease.paymentReleaseStatus === "ELIGIBLE_FOR_RELEASE" ? (
+                  <Button
+                    className="rounded-full px-6 text-xs font-bold h-9 bg-emerald-600 hover:bg-emerald-700 text-white shadow-md flex items-center gap-1.5"
+                    onClick={() => setConfirmingPayoutCollab(selectedCollabRelease)}
+                  >
+                    <Landmark className="h-4 w-4" /> Release Payment (₹{Number(selectedCollabRelease.creatorAmount || 0).toLocaleString("en-IN")})
+                  </Button>
+                ) : selectedCollabRelease.paymentReleaseStatus === "RELEASED" ? (
+                  <Badge className="bg-emerald-500/15 text-emerald-700 border-emerald-500/30 rounded-full font-bold text-[11px] px-3 py-1">
+                    ✓ Payout Already Released
+                  </Badge>
+                ) : null}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* CONFIRMATION DIALOG FOR PAYOUT RELEASE (TASK 11) */}
+      <Dialog
+        open={!!confirmingPayoutCollab}
+        onOpenChange={(open) => !open && !releasingPayout && setConfirmingPayoutCollab(null)}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-bold text-foreground">
+              <Landmark className="h-5 w-5 text-emerald-600" /> Confirm Creator Payment Release
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Are you sure you want to release the agreed payout to the creator?
+            </DialogDescription>
+          </DialogHeader>
+
+          {confirmingPayoutCollab && (
+            <div className="space-y-4 text-xs pt-1">
+              <div className="rounded-xl border border-border bg-secondary/15 p-3.5 space-y-2">
+                <div className="flex justify-between items-center pb-2 border-b border-border/40">
+                  <span className="text-muted-foreground">Creator:</span>
+                  <span className="font-bold text-foreground">{confirmingPayoutCollab.creator?.fullName}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Creator Receives:</span>
+                  <span className="font-bold text-emerald-600 text-sm">
+                    ₹{Number(confirmingPayoutCollab.creatorAmount || 0).toLocaleString("en-IN")}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-[11px]">
+                  <span className="text-muted-foreground">Pravixo Platform Fee:</span>
+                  <span className="font-medium text-foreground">
+                    ₹{Number(confirmingPayoutCollab.pravixoFee || 0).toLocaleString("en-IN")}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-[11px] pt-1.5 border-t border-border/30">
+                  <span className="text-muted-foreground">Brand Paid:</span>
+                  <span className="font-semibold text-foreground">
+                    ₹{Number(confirmingPayoutCollab.brandTotal || 0).toLocaleString("en-IN")}
+                  </span>
+                </div>
+              </div>
+
+              <p className="text-[11px] text-muted-foreground italic">
+                * Note: The Creator receives the full agreed amount (₹{Number(confirmingPayoutCollab.creatorAmount || 0).toLocaleString("en-IN")}). The platform fee is retained by Pravixo.
+              </p>
+
+              <div className="pt-2 flex items-center justify-end gap-2">
+                <Button
+                  variant="outline"
+                  className="rounded-full px-4 text-xs font-semibold h-8"
+                  disabled={releasingPayout}
+                  onClick={() => setConfirmingPayoutCollab(null)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="rounded-full px-5 text-xs font-bold h-8 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex items-center gap-1.5"
+                  disabled={releasingPayout}
+                  onClick={() => handleReleasePayout(confirmingPayoutCollab)}
+                >
+                  {releasingPayout ? (
+                    <>Releasing Payout...</>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="h-3.5 w-3.5" /> Confirm & Release
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* CONFIRMATION / PROCESS DIALOG FOR WITHDRAWALS (TASK 14) */}
+      <Dialog
+        open={!!selectedWithdrawalAction}
+        onOpenChange={(open) => !open && !processingWithdrawal && setSelectedWithdrawalAction(null)}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-bold text-foreground">
+              <Landmark className={`h-5 w-5 ${selectedWithdrawalAction?.action === "APPROVE" ? "text-emerald-600" : "text-red-500"}`} />
+              {selectedWithdrawalAction?.action === "APPROVE" ? "Process & Disburse Withdrawal" : "Decline Withdrawal Request"}
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              {selectedWithdrawalAction?.action === "APPROVE"
+                ? "Confirm bank payout execution and mark the withdrawal as completed."
+                : "Reject withdrawal request and immediately restore reserved funds back to the creator's wallet."}
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedWithdrawalAction && (
+            <form onSubmit={handleProcessWithdrawal} className="space-y-4 text-xs pt-1">
+              <div className="rounded-xl border border-border bg-secondary/15 p-3.5 space-y-2">
+                <div className="flex justify-between items-center pb-2 border-b border-border/40">
+                  <span className="text-muted-foreground">Creator:</span>
+                  <span className="font-bold text-foreground">{selectedWithdrawalAction.withdrawal.creatorId?.fullName}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Withdrawal Amount:</span>
+                  <span className="font-extrabold text-emerald-600 text-sm">
+                    ₹{Number(selectedWithdrawalAction.withdrawal.amount || 0).toLocaleString("en-IN")}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Reference ID:</span>
+                  <span className="font-mono text-muted-foreground">{selectedWithdrawalAction.withdrawal.referenceId}</span>
+                </div>
+                <div className="pt-2 border-t border-border/40 text-[11px] space-y-1">
+                  <span className="font-semibold text-foreground block">Destination Bank:</span>
+                  <p className="text-muted-foreground">
+                    {selectedWithdrawalAction.withdrawal.bankDetails?.bankName || selectedWithdrawalAction.withdrawal.bankDetailsSnapshot?.bankName} (
+                    {selectedWithdrawalAction.withdrawal.bankDetails?.accountHolderName || selectedWithdrawalAction.withdrawal.bankDetailsSnapshot?.accountHolderName})
+                    <br />
+                    Acc: {selectedWithdrawalAction.withdrawal.bankDetailsSnapshot?.accountNumberMasked || "••••"} | IFSC: {selectedWithdrawalAction.withdrawal.bankDetails?.ifsc || selectedWithdrawalAction.withdrawal.bankDetailsSnapshot?.ifsc}
+                  </p>
+                </div>
+              </div>
+
+              {selectedWithdrawalAction.action === "REJECT" ? (
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-foreground">Rejection Reason *</label>
+                  <Textarea
+                    placeholder="e.g. Invalid bank account details, verification pending..."
+                    required
+                    rows={3}
+                    value={withdrawalRejectReason}
+                    onChange={(e) => setWithdrawalRejectReason(e.target.value)}
+                    className="text-xs"
+                  />
+                  <p className="text-[10px] text-muted-foreground">
+                    This reason will be sent to the creator and funds will be returned to their available balance.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-foreground">Admin Notes / Bank Reference (Optional)</label>
+                  <Input
+                    placeholder="e.g. Bank UTR / Transfer Reference Number"
+                    value={withdrawalNotes}
+                    onChange={(e) => setWithdrawalNotes(e.target.value)}
+                    className="text-xs"
+                  />
+                </div>
+              )}
+
+              <div className="pt-2 flex items-center justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="rounded-full px-4 text-xs font-semibold h-8"
+                  disabled={processingWithdrawal}
+                  onClick={() => setSelectedWithdrawalAction(null)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={processingWithdrawal}
+                  className={`rounded-full px-5 text-xs font-bold h-8 text-white shadow-sm flex items-center gap-1.5 ${
+                    selectedWithdrawalAction.action === "APPROVE"
+                      ? "bg-emerald-600 hover:bg-emerald-700"
+                      : "bg-red-600 hover:bg-red-700"
+                  }`}
+                >
+                  {processingWithdrawal ? (
+                    <>Processing...</>
+                  ) : selectedWithdrawalAction.action === "APPROVE" ? (
+                    <>
+                      <CheckCircle2 className="h-3.5 w-3.5" /> Approve & Disburse
+                    </>
+                  ) : (
+                    <>
+                      <ShieldAlert className="h-3.5 w-3.5" /> Decline & Restore Funds
+                    </>
+                  )}
+                </Button>
+              </div>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Admin Agreement Modal */}
+      {selectedCollabAgreement && (
+        <AdminAgreementModal
+          isOpen={Boolean(selectedCollabAgreement)}
+          onClose={() => setSelectedCollabAgreement(null)}
+          connectionId={selectedCollabAgreement._id}
+        />
       )}
     </div>
   );

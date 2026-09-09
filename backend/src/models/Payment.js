@@ -11,13 +11,13 @@ const paymentSchema = new mongoose.Schema(
     taskId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "CampaignTask",
-      required: true,
+      default: null,
     },
 
     conversationId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Conversation",
-      required: true,
+      default: null,
     },
 
     connectionId: {

@@ -35,7 +35,13 @@ import {
   Percent,
   Sparkles,
   Clock,
-
+  Megaphone,
+  Calendar,
+  IndianRupee,
+  Layers,
+  Wallet,
+  ArrowUpRight,
+  History,
 } from "lucide-react";
 
 
@@ -362,8 +368,9 @@ export function DashboardInfluencer() {
     hasValidMongoProfileId
   );
   const toggleVisibility = ({ reviewId }) => apiPatch(`/reviews/${reviewId}/visibility`, {});
+  const [requestsRefreshKey, setRequestsRefreshKey] = useState(0);
   const myRequests = useRestQuery(
-    `requests-${profileKey}`,
+    `requests-${profileKey}-${requestsRefreshKey}`,
     () => apiGet(`/connections/creator/${mongoProfileId}/my-requests`),
     hasValidMongoProfileId
   );
@@ -387,7 +394,50 @@ export function DashboardInfluencer() {
     () => apiGet(`/payments/bank-details/${mongoProfileId}`),
     hasValidMongoProfileId
   );
-  const submitVerification = (data) => apiPost(`/profiles/verification`, data);
+  const [walletRefreshKey, setWalletRefreshKey] = useState(0);
+  const creatorWalletData = useRestQuery(
+    `wallet-${profileKey}-${walletRefreshKey}`,
+    () => apiGet(`/wallet/my-wallet`),
+    hasValidMongoProfileId
+  );
+  const creatorWithdrawalsData = useRestQuery(
+    `withdrawals-${profileKey}-${walletRefreshKey}`,
+    () => apiGet(`/wallet/my-withdrawals`),
+    hasValidMongoProfileId
+  );
+  const [showWithdrawDialog, setShowWithdrawDialog] = useState(false);
+  const [withdrawAmountInput, setWithdrawAmountInput] = useState("");
+  const [requestingWithdrawal, setRequestingWithdrawal] = useState(false);
+
+  const [discoverRefreshKey, setDiscoverRefreshKey] = useState(0);
+  const discoverableCampaigns = useRestQuery(
+    `campaigns-discover-${discoverRefreshKey}`,
+    () => apiGet(`/campaigns/discover`),
+    true
+  );
+
+  // Campaign Discovery Modal & Join Request States
+  const [selectedCampaignForDiscovery, setSelectedCampaignForDiscovery] = useState(null);
+  const [joinPitch, setJoinPitch] = useState("");
+  const [joiningCampaign, setJoiningCampaign] = useState(false);
+
+  // Deliverable Submission Modal States (Task 6 & Task 7)
+  const [selectedCollabForSubmission, setSelectedCollabForSubmission] = useState(null);
+  const [submissionDeliverableType, setSubmissionDeliverableType] = useState("");
+  const [submissionFile, setSubmissionFile] = useState(null);
+  const [submissionFilePreview, setSubmissionFilePreview] = useState(null);
+  const [submissionCaption, setSubmissionCaption] = useState("");
+  const [submittingDeliverable, setSubmittingDeliverable] = useState(false);
+
+  // Submissions History Review Modal for Creator (Task 7) & Rework State (Task 8)
+  const [selectedCollabForHistory, setSelectedCollabForHistory] = useState(null);
+  const [creatorSubmissionsList, setCreatorSubmissionsList] = useState([]);
+  const [loadingCreatorSubmissions, setLoadingCreatorSubmissions] = useState(false);
+  const [reworkingSubmission, setReworkingSubmission] = useState(null);
+  const [reworkFile, setReworkFile] = useState(null);
+  const [reworkFilePreview, setReworkFilePreview] = useState(null);
+  const [reworkCaption, setReworkCaption] = useState("");
+  const [submittingRework, setSubmittingRework] = useState(false);
 
   // Tab State
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -1301,6 +1351,17 @@ console.log("Verification Status:", profile?.verificationStatus);
               Dashboard
             </button>
             <button
+              onClick={() => setActiveTab("wallet")}
+              className={`flex items-center gap-2.5 w-full rounded-xl px-3 py-2 text-xs font-semibold transition-all duration-200 ${
+                activeTab === "wallet"
+                  ? "gradient-sunset text-white shadow-glow"
+                  : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
+              }`}
+            >
+              <Wallet className="h-4 w-4" />
+              Wallet & Earnings
+            </button>
+            <button
               onClick={() => setActiveTab("subscription")}
               className={`flex items-center gap-2.5 w-full rounded-xl px-3 py-2 text-xs font-semibold transition-all duration-200 ${
                 activeTab === "subscription"
@@ -2144,6 +2205,217 @@ console.log("Verification Status:", profile?.verificationStatus);
                         </Badge>
                       </div>
 
+                      {req.status === "accepted" && (
+                        <div className="rounded-xl border border-border/50 bg-background/50 p-2.5 text-[11px] space-y-2">
+                          <div className="flex items-center justify-between text-muted-foreground">
+                            <span>Payment Status:</span>
+                            {req.paymentStatus === "PAID" ? (
+                              <span className="font-bold text-emerald-600 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full text-[10px]">
+                                ✓ Paid to Pravixo (Secured)
+                              </span>
+                            ) : req.collaborationStatus === "AMOUNT_AGREED" ? (
+                              <span className="font-bold text-amber-600 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full text-[10px]">
+                                Awaiting Brand Payment
+                              </span>
+                            ) : (
+                              <span className="font-semibold text-muted-foreground">
+                                Negotiating
+                              </span>
+                            )}
+                          </div>
+                          {req.collaborationStatus === "AMOUNT_AGREED" && (
+                            <div className="flex items-center justify-between pt-1 border-t border-border/30 text-muted-foreground">
+                              <span>Agreed Payout:</span>
+                              <span className="font-bold text-foreground">₹{req.creatorAmount?.toLocaleString()}</span>
+                            </div>
+                          )}
+
+                          {/* Task 5: Campaign Deliverables Tracking */}
+                          {req.deliverablesTracking && req.deliverablesTracking.length > 0 && (
+                            <div className="pt-2 border-t border-border/40 space-y-1.5">
+                              <div className="flex items-center justify-between">
+                                <span className="font-bold text-[10px] text-foreground uppercase tracking-wider">
+                                  Campaign Deliverables
+                                </span>
+                                {req.paymentStatus === "PAID" ? (
+                                  (() => {
+                                    const totalReq = req.deliverablesTracking.reduce((acc, d) => acc + (d.requiredQuantity || 0), 0);
+                                    const totalComp = req.deliverablesTracking.reduce((acc, d) => acc + (d.completedQuantity || 0), 0);
+                                    const pct = totalReq > 0 ? Math.round((totalComp / totalReq) * 100) : 0;
+                                    return (
+                                      <span className="text-[10px] font-bold text-primary">
+                                        {totalComp}/{totalReq} ({pct}%)
+                                      </span>
+                                    );
+                                  })()
+                                ) : (
+                                  <span className="text-[9px] text-muted-foreground italic">
+                                    Activates upon payment
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-1.5">
+                                {req.deliverablesTracking.map((deliv, dIdx) => {
+                                  const typeLabels = {
+                                    REEL: "Reels",
+                                    POST: "Posts",
+                                    STORY: "Stories",
+                                    VIDEO: "Videos",
+                                  };
+                                  const isDelivCompleted = (deliv.completedQuantity || 0) >= (deliv.requiredQuantity || 1);
+                                  return (
+                                    <div
+                                      key={dIdx}
+                                      className={cn(
+                                        "flex items-center justify-between rounded-lg px-2 py-1 text-[10px] border",
+                                        isDelivCompleted
+                                          ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-700"
+                                          : req.paymentStatus === "PAID"
+                                          ? "bg-secondary/40 border-border/60 text-foreground"
+                                          : "bg-muted/20 border-border/30 opacity-70 text-muted-foreground"
+                                      )}
+                                    >
+                                      <span className="font-medium">
+                                        {typeLabels[deliv.type] || deliv.type}
+                                      </span>
+                                      <span className="font-bold flex items-center gap-1">
+                                        {deliv.completedQuantity || 0} / {deliv.requiredQuantity}
+                                        {isDelivCompleted && <Check className="h-3 w-3 text-emerald-600" />}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+
+                              {/* Task 6, 7, 8, 9: Deliverables Actions & Work Completion Status */}
+                              {req.paymentStatus === "PAID" && (
+                                <div className="pt-1 flex flex-col gap-1.5">
+                                  {(() => {
+                                    const allCompleted =
+                                      req.allDeliverablesCompleted ||
+                                      req.deliverablesTracking.every(
+                                        (d) => (d.completedQuantity || 0) >= (d.requiredQuantity || 1)
+                                      );
+
+                                    if (allCompleted) {
+                                      const isReleased = req.paymentReleaseStatus === "RELEASED";
+                                      const nowTime = Date.now();
+                                      const targetEligible = req.paymentReleaseEligibleAt || (req.approvalCompletedAt ? req.approvalCompletedAt + 72 * 60 * 60 * 1000 : null);
+                                      const isEligible = targetEligible ? nowTime >= targetEligible : false;
+                                      const remainingMs = targetEligible ? Math.max(0, targetEligible - nowTime) : 0;
+                                      const remainingHours = Math.floor(remainingMs / (1000 * 60 * 60));
+                                      const remainingMins = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
+
+                                      return (
+                                        <div className="space-y-1.5">
+                                          <div className="text-[10px] text-center font-bold text-emerald-600 bg-emerald-500/15 rounded-xl py-1.5 px-2 border border-emerald-500/30 flex items-center justify-center gap-1.5">
+                                            <CheckCircle2 className="h-3.5 w-3.5" /> Campaign Work: COMPLETED (All Deliverables Approved)
+                                          </div>
+                                          
+                                          {/* Task 10 & 11: 72-Hour Payment Release & Payout Status */}
+                                          <div className="rounded-xl border border-border/60 bg-secondary/20 p-2 text-[10px] space-y-1">
+                                            <div className="flex items-center justify-between font-bold">
+                                              <span className="text-muted-foreground uppercase text-[9px] tracking-wider flex items-center gap-1">
+                                                <Landmark className="h-3 w-3 text-primary" /> Payout Status
+                                              </span>
+                                              {isReleased ? (
+                                                <span className="text-emerald-600 font-bold flex items-center gap-1">
+                                                  ✓ Payout Released
+                                                </span>
+                                              ) : isEligible ? (
+                                                <span className="text-emerald-600 font-bold">
+                                                  ✓ Review Completed · Eligible for Release
+                                                </span>
+                                              ) : (
+                                                <span className="text-amber-600 font-bold">
+                                                  ⏳ Under Review ({remainingHours}h {remainingMins}m remaining)
+                                                </span>
+                                              )}
+                                            </div>
+                                            <p className="text-muted-foreground text-[10px]">
+                                              {isReleased ? (
+                                                <span className="text-emerald-700 font-semibold block">
+                                                  Payment of <strong>₹{req.creatorAmount?.toLocaleString()}</strong> was successfully released to your account.
+                                                </span>
+                                              ) : isEligible ? (
+                                                <span className="text-foreground">
+                                                  Payment of <strong>₹{req.creatorAmount?.toLocaleString()}</strong> is eligible for Admin release.
+                                                </span>
+                                              ) : targetEligible ? (
+                                                <span>
+                                                  Payment release available after: <strong>{new Date(targetEligible).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</strong>
+                                                </span>
+                                              ) : (
+                                                <span>Under 72-hour review period. Funds held securely in escrow.</span>
+                                              )}
+                                            </p>
+                                          </div>
+                                        </div>
+                                      );
+                                    }
+
+                                    const hasPendingDeliverables = req.deliverablesTracking.some(
+                                      (d) => (d.completedQuantity || 0) < d.requiredQuantity
+                                    );
+                                    if (hasPendingDeliverables) {
+                                      return (
+                                        <Button
+                                          size="sm"
+                                          className="w-full h-8 rounded-full gradient-sunset border-0 text-white text-[10px] font-bold shadow-glow flex items-center justify-center gap-1 cursor-pointer"
+                                          onClick={() => {
+                                            setSelectedCollabForSubmission(req);
+                                            // Pre-select first deliverable that needs submission
+                                            const firstIncomplete = req.deliverablesTracking.find(
+                                              (d) => (d.completedQuantity || 0) < d.requiredQuantity
+                                            );
+                                            setSubmissionDeliverableType(firstIncomplete ? firstIncomplete.type : req.deliverablesTracking[0]?.type || "REEL");
+                                            setSubmissionFile(null);
+                                            setSubmissionFilePreview(null);
+                                            setSubmissionCaption("");
+                                          }}
+                                        >
+                                          <Upload className="h-3.5 w-3.5" /> Submit Work
+                                        </Button>
+                                      );
+                                    } else {
+                                      return (
+                                        <div className="text-[10px] text-center font-bold text-amber-600 bg-amber-500/10 rounded-full py-1 border border-amber-500/20">
+                                          ⏳ Submissions Awaiting Brand Review
+                                        </div>
+                                      );
+                                    }
+                                  })()}
+
+                                  {/* View Submissions & Review History Button for Creator */}
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="w-full h-7 rounded-full border-border hover:bg-secondary text-foreground text-[10px] font-medium flex items-center justify-center gap-1 cursor-pointer"
+                                    onClick={async () => {
+                                      setSelectedCollabForHistory(req);
+                                      setLoadingCreatorSubmissions(true);
+                                      try {
+                                        const res = await api.get(`/api/submissions/${req._id}/submissions`);
+                                        const data = res.data?.data || res.data;
+                                        setCreatorSubmissionsList(data.submissions || []);
+                                      } catch (err) {
+                                        console.error("Fetch creator submissions error:", err);
+                                        toast.error(err?.response?.data?.message || "Failed to load submission history.");
+                                      } finally {
+                                        setLoadingCreatorSubmissions(false);
+                                      }
+                                    }}
+                                  >
+                                    <Eye className="h-3 w-3" /> View Submissions & Feedback
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       {req.status === "accepted" && req.conversationId ? (
                         <Link
                           to={`/messages?conversationId=${req.conversationId}`}
@@ -2151,7 +2423,8 @@ console.log("Verification Status:", profile?.verificationStatus);
                         >
                           <Button
                             size="sm"
-                            className="w-full h-8 rounded-full gradient-sunset border-0 text-white text-[10px] font-semibold cursor-pointer"
+                            variant="outline"
+                            className="w-full h-8 rounded-full border-border hover:bg-secondary text-foreground text-[10px] font-semibold cursor-pointer"
                           >
                             Open Chat
                           </Button>
@@ -2234,6 +2507,185 @@ console.log("Verification Status:", profile?.verificationStatus);
               </Button>
             </div>
           </div>
+        </div>
+
+        {/* CAMPAIGN DISCOVERY SECTION FOR CREATORS */}
+        <div className="mt-8 rounded-3xl border border-border bg-card p-6 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6">
+            <div>
+              <h2 className="font-display text-lg font-semibold flex items-center gap-2">
+                <Megaphone className="h-5 w-5 text-primary" /> Discover Campaigns
+              </h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Explore brand-funded, verified campaigns open for creators.
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="rounded-full text-xs self-start sm:self-auto"
+              onClick={() => setDiscoverRefreshKey((k) => k + 1)}
+            >
+              Refresh Listings
+            </Button>
+          </div>
+
+          {!discoverableCampaigns ? (
+            <div className="py-12 text-center text-xs text-muted-foreground">
+              Loading available campaigns...
+            </div>
+          ) : discoverableCampaigns.length === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border py-12 text-center">
+              <Megaphone className="mx-auto h-8 w-8 text-muted-foreground/30 mb-2" />
+              <p className="font-semibold text-sm text-foreground">
+                No active campaigns available right now
+              </p>
+              <p className="text-xs text-muted-foreground mt-1 max-w-[320px]">
+                New verified brand campaigns will appear here once approved by admin. Check back soon!
+              </p>
+            </div>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {discoverableCampaigns.map((camp) => (
+                <div
+                  key={camp._id}
+                  className="rounded-2xl border border-border bg-background p-4 flex flex-col justify-between hover:border-primary/50 hover:shadow-sm transition-all group"
+                >
+                  <div className="space-y-3">
+                    {/* Brand Header */}
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={
+                          camp.brand?.avatarUrl ||
+                          `https://api.dicebear.com/9.x/avataaars/svg?seed=${camp.brand?.fullName || "Brand"}`
+                        }
+                        alt=""
+                        className="h-10 w-10 rounded-xl object-cover border border-border shrink-0"
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src = "https://api.dicebear.com/9.x/avataaars/svg?seed=Fallback";
+                        }}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <span className="font-semibold text-xs text-foreground truncate block">
+                          {camp.brand?.fullName || "Verified Brand"}
+                        </span>
+                        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                          {camp.brand?.rating > 0 && (
+                            <span className="flex items-center gap-0.5 text-amber font-semibold">
+                              <Star className="h-3 w-3 fill-amber" /> {camp.brand.rating}
+                            </span>
+                          )}
+                          <span>·</span>
+                          <span className="truncate">{camp.location || "Pan India"}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Campaign Title & Description */}
+                    <div>
+                      <h4 className="font-display text-sm font-bold text-foreground line-clamp-1 group-hover:text-primary transition-colors">
+                        {camp.title}
+                      </h4>
+                      {camp.description && (
+                        <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
+                          {camp.description}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Budget & Timeline */}
+                    <div className="bg-secondary/15 rounded-xl p-2.5 space-y-1 text-xs border border-border/40">
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground text-[11px]">Creator Budget:</span>
+                        <span className="font-bold text-foreground">
+                          ₹{Number(camp.minBudgetPerCreator || 0).toLocaleString("en-IN")} - ₹{Number(camp.maxBudgetPerCreator || 0).toLocaleString("en-IN")}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-muted-foreground">Total Budget:</span>
+                        <span className="text-muted-foreground font-medium">
+                          ₹{Number(camp.totalBudget || 0).toLocaleString("en-IN")}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-[11px] pt-1 border-t border-border/30">
+                        <span className="text-muted-foreground">Timeline:</span>
+                        <span className="text-muted-foreground font-medium">
+                          {new Date(camp.startDate).toLocaleDateString(undefined, { month: "short", day: "numeric" })} - {new Date(camp.endDate).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Deliverables tags */}
+                    {camp.deliverables && (
+                      <div className="flex flex-wrap gap-1">
+                        {camp.deliverables.reels > 0 && (
+                          <span className="text-[10px] bg-secondary/30 text-foreground px-2 py-0.5 rounded-md font-medium">
+                            🎬 {camp.deliverables.reels} Reels
+                          </span>
+                        )}
+                        {camp.deliverables.posts > 0 && (
+                          <span className="text-[10px] bg-secondary/30 text-foreground px-2 py-0.5 rounded-md font-medium">
+                            📸 {camp.deliverables.posts} Posts
+                          </span>
+                        )}
+                        {camp.deliverables.stories > 0 && (
+                          <span className="text-[10px] bg-secondary/30 text-foreground px-2 py-0.5 rounded-md font-medium">
+                            📱 {camp.deliverables.stories} Stories
+                          </span>
+                        )}
+                        {camp.deliverables.videos > 0 && (
+                          <span className="text-[10px] bg-secondary/30 text-foreground px-2 py-0.5 rounded-md font-medium">
+                            🎥 {camp.deliverables.videos} Videos
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Actions */}
+                  <div className="mt-4 pt-3 border-t border-border/40 flex items-center justify-between gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="rounded-full text-xs h-8 flex-1"
+                      onClick={() => {
+                        setSelectedCampaignForDiscovery(camp);
+                        setJoinPitch(`Hi ${camp.brand?.fullName || "there"}! I'm excited to collaborate on your "${camp.title}" campaign.`);
+                      }}
+                    >
+                      View Details
+                    </Button>
+
+                    {camp.isParticipating ? (
+                      <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 rounded-full text-[10px] h-8 px-3 font-semibold">
+                        Participating
+                      </Badge>
+                    ) : camp.isRequested ? (
+                      <Badge className="bg-amber/10 text-amber border-amber/20 rounded-full text-[10px] h-8 px-3 font-semibold">
+                        Request Pending
+                      </Badge>
+                    ) : camp.requestStatus === "rejected" ? (
+                      <Badge className="bg-red-500/10 text-red-500 border-red-500/20 rounded-full text-[10px] h-8 px-3 font-semibold">
+                        Declined
+                      </Badge>
+                    ) : (
+                      <Button
+                        size="sm"
+                        className="rounded-full gradient-sunset border-0 text-white shadow-glow text-xs h-8 px-4 font-semibold"
+                        onClick={() => {
+                          setSelectedCampaignForDiscovery(camp);
+                          setJoinPitch(`Hi ${camp.brand?.fullName || "there"}! I'm excited to collaborate on your "${camp.title}" campaign.`);
+                        }}
+                      >
+                        Request to Join
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Payments Section */}
@@ -2659,6 +3111,304 @@ console.log("Verification Status:", profile?.verificationStatus);
           )}
         </div>
       </>
+          ) : activeTab === "wallet" ? (
+            <div className="space-y-6">
+              {/* WALLET HEADER / STATS */}
+              <div className="rounded-3xl border border-border bg-card p-6 shadow-sm">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <h2 className="font-display text-xl font-bold flex items-center gap-2">
+                      <Wallet className="h-6 w-6 text-primary" /> Creator Wallet & Earnings
+                    </h2>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Direct, transparent balance from completed and released campaign collaborations.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="rounded-full text-xs flex items-center gap-1.5"
+                      onClick={() => setWalletRefreshKey((k) => k + 1)}
+                    >
+                      <History className="h-3.5 w-3.5" /> Refresh
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="rounded-full text-xs font-bold px-5 gradient-sunset text-white shadow-glow border-0 flex items-center gap-1.5"
+                      onClick={() => {
+                        setWithdrawAmountInput("");
+                        setShowWithdrawDialog(true);
+                      }}
+                    >
+                      <ArrowUpRight className="h-4 w-4" /> Withdraw Funds
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="mt-6 grid grid-cols-1 sm:grid-cols-4 gap-4">
+                  {/* Available Balance Card */}
+                  <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5 shadow-sm relative overflow-hidden">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-primary uppercase tracking-wider">Available Balance</span>
+                      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                        <IndianRupee className="h-4 w-4" />
+                      </div>
+                    </div>
+                    <div className="mt-3 text-3xl font-extrabold text-foreground font-display">
+                      ₹{Number(creatorWalletData?.wallet?.availableBalance || 0).toLocaleString("en-IN")}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mt-1">
+                      Available for immediate withdrawal
+                    </p>
+                  </div>
+
+                  {/* Pending Withdrawals Card */}
+                  <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-5 shadow-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-amber-700 uppercase tracking-wider">Pending Withdrawals</span>
+                      <div className="h-8 w-8 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-600">
+                        <Clock className="h-4 w-4" />
+                      </div>
+                    </div>
+                    <div className="mt-3 text-3xl font-bold text-foreground font-display text-amber-700">
+                      ₹{Number(creatorWalletData?.wallet?.pendingWithdrawalBalance || 0).toLocaleString("en-IN")}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mt-1">
+                      Reserved & awaiting disbursement
+                    </p>
+                  </div>
+
+                  {/* Total Earned Card */}
+                  <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Total Earned</span>
+                      <div className="h-8 w-8 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-600">
+                        <TrendingUp className="h-4 w-4" />
+                      </div>
+                    </div>
+                    <div className="mt-3 text-3xl font-bold text-foreground font-display text-emerald-600">
+                      ₹{Number(creatorWalletData?.wallet?.totalEarned || 0).toLocaleString("en-IN")}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mt-1">
+                      Lifetime collaboration earnings
+                    </p>
+                  </div>
+
+                  {/* Protection Policy Notice */}
+                  <div className="rounded-2xl border border-border bg-secondary/30 p-5 shadow-sm flex flex-col justify-between">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="h-5 w-5 text-primary" />
+                      <span className="text-xs font-bold text-foreground">100% Payout Guaranteed</span>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground mt-1.5 leading-relaxed">
+                      Zero fee deductions from creator earnings. The 20% platform fee is paid by brands and is never deducted from your agreed amount.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* WITHDRAWAL REQUESTS HISTORY (TASK 14) */}
+              <div className="rounded-3xl border border-border bg-card p-6 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="font-display text-base font-bold flex items-center gap-2">
+                      <Landmark className="h-4 w-4 text-primary" /> Withdrawal Requests
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      Track status of all your bank disbursements and processed transfers.
+                    </p>
+                  </div>
+                </div>
+
+                {!creatorWithdrawalsData ? (
+                  <div className="py-8 text-center text-xs text-muted-foreground">
+                    Loading withdrawal history...
+                  </div>
+                ) : creatorWithdrawalsData.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border py-8 text-center">
+                    <Landmark className="mx-auto h-7 w-7 text-muted-foreground/30 mb-2" />
+                    <p className="font-semibold text-xs text-foreground">
+                      No withdrawal requests yet
+                    </p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      Use the "Withdraw Funds" button above to disburse your available balance.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="border-b border-border/50 text-muted-foreground">
+                          <th className="pb-3 pl-2 font-semibold">Requested Date</th>
+                          <th className="pb-3 px-2 font-semibold">Reference ID</th>
+                          <th className="pb-3 px-2 font-semibold">Bank Destination</th>
+                          <th className="pb-3 px-2 font-semibold">Amount</th>
+                          <th className="pb-3 px-2 font-semibold">Status</th>
+                          <th className="pb-3 pr-2 text-right font-semibold">Details</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border/30">
+                        {creatorWithdrawalsData.map((w) => (
+                          <tr key={w._id} className="hover:bg-secondary/10 transition-colors">
+                            <td className="py-3 pl-2 text-muted-foreground whitespace-nowrap">
+                              {new Date(w.requestedAt || w.createdAt).toLocaleDateString(undefined, {
+                                year: "numeric",
+                                month: "short",
+                                day: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </td>
+                            <td className="py-3 px-2 font-mono text-[10px] text-muted-foreground">
+                              {w.referenceId}
+                            </td>
+                            <td className="py-3 px-2 text-foreground font-medium">
+                              {w.bankDetailsSnapshot?.bankName || "Bank Account"} ({w.bankDetailsSnapshot?.accountNumberMasked || "••••"})
+                            </td>
+                            <td className="py-3 px-2 font-bold text-foreground text-sm whitespace-nowrap">
+                              ₹{Number(w.amount || 0).toLocaleString("en-IN")}
+                            </td>
+                            <td className="py-3 px-2">
+                              <Badge
+                                className={`rounded-full text-[9px] font-bold px-2 py-0.5 border ${
+                                  w.status === "COMPLETED"
+                                    ? "bg-emerald-500/15 text-emerald-700 border-emerald-500/30"
+                                    : w.status === "FAILED" || w.status === "CANCELLED"
+                                    ? "bg-red-500/15 text-red-700 border-red-500/30"
+                                    : "bg-amber-500/15 text-amber-700 border-amber-500/30"
+                                }`}
+                              >
+                                {w.status === "COMPLETED"
+                                  ? "✓ Disbursed"
+                                  : w.status === "FAILED"
+                                  ? "✕ Declined"
+                                  : "⏳ Pending Review"}
+                              </Badge>
+                            </td>
+                            <td className="py-3 pr-2 text-right text-[11px] text-muted-foreground">
+                              {w.payoutReference ? (
+                                <span className="text-emerald-600 font-mono text-[10px]">Ref: {w.payoutReference}</span>
+                              ) : w.failureReason ? (
+                                <span className="text-red-500 text-[10px]" title={w.failureReason}>
+                                  {w.failureReason.slice(0, 25)}{w.failureReason.length > 25 ? "..." : ""}
+                                </span>
+                              ) : (
+                                <span>In verification</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* TRANSACTION HISTORY */}
+              <div className="rounded-3xl border border-border bg-card p-6 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="font-display text-base font-bold flex items-center gap-2">
+                      <History className="h-4 w-4 text-primary" /> Transaction Ledger
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      Immutable record of all credits and debits from your wallet.
+                    </p>
+                  </div>
+                </div>
+
+                {!creatorWalletData?.recentTransactions ? (
+                  <div className="py-12 text-center text-xs text-muted-foreground">
+                    Loading transactions...
+                  </div>
+                ) : creatorWalletData.recentTransactions.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border py-12 text-center">
+                    <Wallet className="mx-auto h-8 w-8 text-muted-foreground/30 mb-2" />
+                    <p className="font-semibold text-sm text-foreground">
+                      No wallet transactions yet
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1 max-w-[320px]">
+                      When your campaign deliverables are approved and the admin releases your payment, your wallet credits will appear right here.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="border-b border-border/50 text-muted-foreground">
+                          <th className="pb-3 pl-2 font-semibold">Date & Time</th>
+                          <th className="pb-3 px-2 font-semibold">Type</th>
+                          <th className="pb-3 px-2 font-semibold">Description / Campaign</th>
+                          <th className="pb-3 px-2 font-semibold">Reference ID</th>
+                          <th className="pb-3 px-2 font-semibold">Amount</th>
+                          <th className="pb-3 px-2 font-semibold">Balance After</th>
+                          <th className="pb-3 pr-2 text-right font-semibold">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border/30">
+                        {creatorWalletData.recentTransactions.map((tx) => (
+                          <tr key={tx._id} className="hover:bg-secondary/10 transition-colors">
+                            <td className="py-3.5 pl-2 text-muted-foreground whitespace-nowrap">
+                              {new Date(tx.createdAt).toLocaleDateString(undefined, {
+                                year: "numeric",
+                                month: "short",
+                                day: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </td>
+                            <td className="py-3.5 px-2">
+                              <Badge
+                                className={`rounded-full text-[10px] font-bold px-2 py-0.5 border ${
+                                  tx.type === "DEBIT"
+                                    ? "bg-amber-500/10 text-amber-600 border-amber-500/20"
+                                    : "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                                }`}
+                              >
+                                {tx.type === "DEBIT" ? "- DEBIT" : "+ CREDIT"}
+                              </Badge>
+                            </td>
+                            <td className="py-3.5 px-2 font-medium max-w-[200px] truncate">
+                              <span className="block font-semibold text-foreground">
+                                {tx.campaignId?.title || tx.description || "Collaboration Payout"}
+                              </span>
+                              <span className="block text-[10px] text-muted-foreground truncate">
+                                {tx.description}
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-2 font-mono text-[10px] text-muted-foreground">
+                              {tx.referenceId}
+                            </td>
+                            <td className={`py-3.5 px-2 font-bold text-sm whitespace-nowrap ${
+                              tx.type === "DEBIT" ? "text-amber-600" : "text-emerald-600"
+                            }`}>
+                              {tx.type === "DEBIT" ? "- " : "+ "}₹{Number(tx.amount || 0).toLocaleString("en-IN")}
+                            </td>
+                            <td className="py-3.5 px-2 font-semibold text-foreground text-xs whitespace-nowrap">
+                              ₹{Number(tx.balanceAfter || 0).toLocaleString("en-IN")}
+                            </td>
+                            <td className="py-3.5 pr-2 text-right">
+                              <Badge
+                                className={`rounded-full text-[9px] font-bold px-2 py-0.5 border ${
+                                  tx.status === "COMPLETED"
+                                    ? "bg-emerald-500/15 text-emerald-700 border-emerald-500/30"
+                                    : tx.status === "FAILED"
+                                    ? "bg-red-500/15 text-red-700 border-red-500/30"
+                                    : "bg-amber-500/15 text-amber-700 border-amber-500/30"
+                                }`}
+                              >
+                                {tx.status === "COMPLETED" ? "✓ Completed" : tx.status === "FAILED" ? "✕ Failed" : "⏳ Pending"}
+                              </Badge>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
           ) : (
             <SubscriptionTab role="creator" profile={profile} />
           )}
@@ -2831,6 +3581,203 @@ console.log("Verification Status:", profile?.verificationStatus);
         </DialogContent>
       </Dialog>
 
+      {/* Campaign Details & Join Request Modal for Creators */}
+      <Dialog
+        open={!!selectedCampaignForDiscovery}
+        onOpenChange={(open) => !open && setSelectedCampaignForDiscovery(null)}
+      >
+        <DialogContent className="sm:max-w-2xl rounded-3xl border border-border bg-card p-6">
+          <DialogHeader>
+            <div className="flex items-center justify-between">
+              <DialogTitle className="font-display text-xl font-bold flex items-center gap-2">
+                <Megaphone className="h-5 w-5 text-primary" /> Campaign Details
+              </DialogTitle>
+              {selectedCampaignForDiscovery?.isParticipating ? (
+                <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 rounded-full text-xs font-semibold">
+                  Participating
+                </Badge>
+              ) : selectedCampaignForDiscovery?.isRequested ? (
+                <Badge className="bg-amber/10 text-amber border-amber/20 rounded-full text-xs font-semibold">
+                  Request Pending
+                </Badge>
+              ) : null}
+            </div>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Review campaign specifications and send your pitch to the brand.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedCampaignForDiscovery && (
+            <div className="space-y-4 mt-2 max-h-[70vh] overflow-y-auto pr-1">
+              {/* Brand Profile Banner */}
+              <div className="flex items-center gap-3 p-3 bg-secondary/15 rounded-2xl border border-border/50">
+                <img
+                  src={
+                    selectedCampaignForDiscovery.brand?.avatarUrl ||
+                    `https://api.dicebear.com/9.x/avataaars/svg?seed=${selectedCampaignForDiscovery.brand?.fullName || "Brand"}`
+                  }
+                  alt=""
+                  className="h-12 w-12 rounded-xl object-cover border border-border"
+                />
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-semibold text-sm text-foreground flex items-center gap-1.5">
+                    {selectedCampaignForDiscovery.brand?.fullName}
+                    {selectedCampaignForDiscovery.brand?.rating > 0 && (
+                      <span className="flex items-center gap-0.5 text-amber text-xs font-bold">
+                        <Star className="h-3 w-3 fill-amber" /> {selectedCampaignForDiscovery.brand.rating} ({selectedCampaignForDiscovery.brand.reviewCount || 0})
+                      </span>
+                    )}
+                  </h4>
+                  <p className="text-xs text-muted-foreground">
+                    {selectedCampaignForDiscovery.brand?.category || "Brand"} · {selectedCampaignForDiscovery.location || "Pan India"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Title & Description */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Campaign Title
+                </label>
+                <p className="text-base font-bold text-foreground">
+                  {selectedCampaignForDiscovery.title}
+                </p>
+              </div>
+
+              {selectedCampaignForDiscovery.description && (
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                    Description
+                  </label>
+                  <p className="text-xs text-muted-foreground whitespace-pre-wrap bg-background/50 p-3 rounded-xl border border-border/40">
+                    {selectedCampaignForDiscovery.description}
+                  </p>
+                </div>
+              )}
+
+              {/* Budget & Timeline Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-secondary/10 p-3 rounded-xl border border-border/40 space-y-1">
+                  <span className="text-[10px] text-muted-foreground flex items-center gap-1 font-semibold">
+                    <IndianRupee className="h-3 w-3 text-primary" /> Creator Budget
+                  </span>
+                  <p className="text-xs font-bold text-foreground">
+                    ₹{Number(selectedCampaignForDiscovery.minBudgetPerCreator || 0).toLocaleString("en-IN")} - ₹{Number(selectedCampaignForDiscovery.maxBudgetPerCreator || 0).toLocaleString("en-IN")}
+                  </p>
+                </div>
+                <div className="bg-secondary/10 p-3 rounded-xl border border-border/40 space-y-1">
+                  <span className="text-[10px] text-muted-foreground flex items-center gap-1 font-semibold">
+                    <IndianRupee className="h-3 w-3 text-primary" /> Total Budget
+                  </span>
+                  <p className="text-sm font-bold text-foreground">
+                    ₹{Number(selectedCampaignForDiscovery.totalBudget || 0).toLocaleString("en-IN")}
+                  </p>
+                </div>
+                <div className="bg-secondary/10 p-3 rounded-xl border border-border/40 space-y-1">
+                  <span className="text-[10px] text-muted-foreground flex items-center gap-1 font-semibold">
+                    <Calendar className="h-3 w-3 text-primary" /> Start Date
+                  </span>
+                  <p className="text-xs font-medium text-foreground">
+                    {new Date(selectedCampaignForDiscovery.startDate).toLocaleDateString()}
+                  </p>
+                </div>
+                <div className="bg-secondary/10 p-3 rounded-xl border border-border/40 space-y-1">
+                  <span className="text-[10px] text-muted-foreground flex items-center gap-1 font-semibold">
+                    <Calendar className="h-3 w-3 text-primary" /> End Date
+                  </span>
+                  <p className="text-xs font-medium text-foreground">
+                    {new Date(selectedCampaignForDiscovery.endDate).toLocaleDateString()}
+                  </p>
+                </div>
+              </div>
+
+              {/* Deliverables Breakdown */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                  <Layers className="h-3 w-3 text-primary" /> Required Deliverables
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <div className="p-2.5 bg-background border border-border/50 rounded-xl text-center">
+                    <span className="text-xs text-muted-foreground block">🎬 Reels</span>
+                    <span className="text-sm font-bold text-foreground">{selectedCampaignForDiscovery.deliverables?.reels || 0}</span>
+                  </div>
+                  <div className="p-2.5 bg-background border border-border/50 rounded-xl text-center">
+                    <span className="text-xs text-muted-foreground block">📸 Posts</span>
+                    <span className="text-sm font-bold text-foreground">{selectedCampaignForDiscovery.deliverables?.posts || 0}</span>
+                  </div>
+                  <div className="p-2.5 bg-background border border-border/50 rounded-xl text-center">
+                    <span className="text-xs text-muted-foreground block">📱 Stories</span>
+                    <span className="text-sm font-bold text-foreground">{selectedCampaignForDiscovery.deliverables?.stories || 0}</span>
+                  </div>
+                  <div className="p-2.5 bg-background border border-border/50 rounded-xl text-center">
+                    <span className="text-xs text-muted-foreground block">🎥 Videos</span>
+                    <span className="text-sm font-bold text-foreground">{selectedCampaignForDiscovery.deliverables?.videos || 0}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Pitch Input */}
+              {!selectedCampaignForDiscovery.isParticipating && !selectedCampaignForDiscovery.isRequested && (
+                <div className="space-y-1.5 pt-2 border-t border-border/40">
+                  <label className="text-xs font-semibold text-foreground">
+                    Your Pitch to Brand
+                  </label>
+                  <Textarea
+                    placeholder="Briefly describe why you are a great fit for this campaign..."
+                    value={joinPitch}
+                    onChange={(e) => setJoinPitch(e.target.value)}
+                    className="text-xs rounded-xl resize-none"
+                    rows={3}
+                  />
+                </div>
+              )}
+
+              <DialogFooter className="pt-2 flex gap-2">
+                <Button
+                  variant="outline"
+                  className="rounded-full flex-1 text-xs"
+                  onClick={() => setSelectedCampaignForDiscovery(null)}
+                >
+                  Close
+                </Button>
+
+                {selectedCampaignForDiscovery.isParticipating ? (
+                  <Button disabled className="rounded-full flex-1 bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 text-xs font-semibold">
+                    Already Participating
+                  </Button>
+                ) : selectedCampaignForDiscovery.isRequested ? (
+                  <Button disabled className="rounded-full flex-1 bg-amber/10 text-amber border border-amber/20 text-xs font-semibold">
+                    Request Pending
+                  </Button>
+                ) : (
+                  <Button
+                    className="rounded-full flex-1 gradient-sunset border-0 text-white font-semibold text-xs shadow-glow"
+                    disabled={joiningCampaign}
+                    onClick={async () => {
+                      setJoiningCampaign(true);
+                      try {
+                        const res = await apiPost(`/campaigns/${selectedCampaignForDiscovery._id}/join`, {
+                          pitch: joinPitch.trim(),
+                        });
+                        toast.success("Request to join campaign sent successfully!");
+                        setSelectedCampaignForDiscovery(null);
+                        setDiscoverRefreshKey((k) => k + 1);
+                      } catch (err) {
+                        toast.error(err.response?.data?.message || err.message || "Failed to join campaign");
+                      } finally {
+                        setJoiningCampaign(false);
+                      }
+                    }}
+                  >
+                    {joiningCampaign ? "Submitting..." : "Send Request to Join"}
+                  </Button>
+                )}
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Premium Subscription Offer Popup */}
       <Dialog open={showOfferPopup} onOpenChange={setShowOfferPopup}>
         <DialogContent className="sm:max-w-[720px] rounded-3xl border border-border bg-card p-0 overflow-hidden shadow-elevated">
@@ -2980,9 +3927,762 @@ console.log("Verification Status:", profile?.verificationStatus);
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Task 6: Deliverable Content Submission Dialog */}
+      <Dialog
+        open={Boolean(selectedCollabForSubmission)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedCollabForSubmission(null);
+            setSubmissionFile(null);
+            setSubmissionFilePreview(null);
+            setSubmissionCaption("");
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[500px] rounded-3xl p-6">
+          <DialogHeader>
+            <DialogTitle className="font-display text-lg font-bold flex items-center gap-2">
+              <Upload className="h-5 w-5 text-primary" /> Submit Deliverable Work
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Upload your completed work for "{selectedCollabForSubmission?.campaign?.title || "Campaign"}". The brand will review your submitted content.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedCollabForSubmission && (
+            <div className="space-y-4 py-2">
+              {/* Deliverable Type Select */}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-foreground">
+                  Select Deliverable Type <span className="text-red-500">*</span>
+                </Label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {selectedCollabForSubmission.deliverablesTracking?.map((deliv) => {
+                    const isSelected = submissionDeliverableType === deliv.type;
+                    const isFulfilled = (deliv.completedQuantity || 0) >= deliv.requiredQuantity;
+                    const typeLabels = {
+                      REEL: "Reel",
+                      POST: "Post",
+                      STORY: "Story",
+                      VIDEO: "Video",
+                    };
+                    return (
+                      <button
+                        key={deliv.type}
+                        type="button"
+                        disabled={isFulfilled}
+                        onClick={() => setSubmissionDeliverableType(deliv.type)}
+                        className={cn(
+                          "flex flex-col items-center justify-center p-2.5 rounded-xl border text-xs transition font-semibold cursor-pointer",
+                          isSelected
+                            ? "border-primary bg-primary/10 text-primary shadow-sm ring-1 ring-primary"
+                            : isFulfilled
+                            ? "border-border/40 bg-muted/20 text-muted-foreground opacity-50 cursor-not-allowed"
+                            : "border-border bg-card hover:bg-secondary/60 text-foreground"
+                        )}
+                      >
+                        <span>{typeLabels[deliv.type] || deliv.type}</span>
+                        <span className="text-[10px] font-normal opacity-80 mt-0.5">
+                          {deliv.completedQuantity || 0}/{deliv.requiredQuantity}
+                        </span>
+                        {isFulfilled && (
+                          <span className="text-[9px] font-bold text-emerald-600">Done ✓</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* File Upload Area */}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-foreground">
+                  Upload Deliverable File (Video or Image) <span className="text-red-500">*</span>
+                </Label>
+                <div className="rounded-2xl border-2 border-dashed border-border/80 bg-secondary/20 p-4 text-center hover:border-primary/50 transition">
+                  {submissionFilePreview ? (
+                    <div className="space-y-3">
+                      {submissionFile?.type?.startsWith("video") ? (
+                        <video
+                          src={submissionFilePreview}
+                          controls
+                          className="max-h-48 mx-auto rounded-xl shadow-sm border border-border"
+                        />
+                      ) : (
+                        <img
+                          src={submissionFilePreview}
+                          alt="Preview"
+                          className="max-h-48 mx-auto rounded-xl object-contain shadow-sm border border-border"
+                        />
+                      )}
+                      <div className="flex items-center justify-between text-xs text-muted-foreground px-2">
+                        <span className="truncate max-w-[260px] font-medium text-foreground">
+                          {submissionFile?.name}
+                        </span>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 text-xs text-red-500 hover:text-red-600 hover:bg-red-500/10 rounded-full"
+                          onClick={() => {
+                            setSubmissionFile(null);
+                            setSubmissionFilePreview(null);
+                          }}
+                        >
+                          Change File
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <label className="flex flex-col items-center justify-center cursor-pointer py-4">
+                      <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary mb-2 shadow-sm">
+                        <Upload className="h-6 w-6" />
+                      </div>
+                      <span className="text-xs font-bold text-foreground">Click or drag file to upload</span>
+                      <span className="text-[11px] text-muted-foreground mt-0.5">
+                        MP4, MOV, WebM, JPG, PNG, WebP up to 50MB
+                      </span>
+                      <input
+                        type="file"
+                        accept="video/*,image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            if (file.size > 50 * 1024 * 1024) {
+                              toast.error("File exceeds 50MB maximum size limit.");
+                              return;
+                            }
+                            setSubmissionFile(file);
+                            setSubmissionFilePreview(URL.createObjectURL(file));
+                          }
+                        }}
+                      />
+                    </label>
+                  )}
+                </div>
+              </div>
+
+              {/* Optional Caption / Description */}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-foreground">
+                  Caption / Description / Submission Notes (Optional)
+                </Label>
+                <Textarea
+                  placeholder="e.g. Here is the first draft of the Reel focusing on the product unboxing..."
+                  value={submissionCaption}
+                  onChange={(e) => setSubmissionCaption(e.target.value)}
+                  className="text-xs min-h-[70px] rounded-xl resize-none"
+                />
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="flex gap-2 sm:justify-end pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-full text-xs"
+              onClick={() => {
+                setSelectedCollabForSubmission(null);
+                setSubmissionFile(null);
+                setSubmissionFilePreview(null);
+                setSubmissionCaption("");
+              }}
+              disabled={submittingDeliverable}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              className="rounded-full gradient-sunset text-white font-bold text-xs px-6 shadow-glow"
+              disabled={!submissionDeliverableType || !submissionFile || submittingDeliverable}
+              onClick={async () => {
+                if (!selectedCollabForSubmission || !submissionDeliverableType || !submissionFile) {
+                  toast.error("Please select deliverable type and upload a file.");
+                  return;
+                }
+
+                setSubmittingDeliverable(true);
+                try {
+                  const formData = new FormData();
+                  formData.append("deliverableType", submissionDeliverableType);
+                  formData.append("file", submissionFile);
+                  if (submissionCaption) {
+                    formData.append("caption", submissionCaption);
+                  }
+
+                  await api.post(`/api/submissions/${selectedCollabForSubmission._id}/submit`, formData, {
+                    headers: {
+                      "Content-Type": "multipart/form-data",
+                    },
+                  });
+
+                  toast.success("Deliverable submitted successfully! Brand has been notified.");
+                  setSelectedCollabForSubmission(null);
+                  setSubmissionFile(null);
+                  setSubmissionFilePreview(null);
+                  setSubmissionCaption("");
+                  setRequestsRefreshKey((k) => k + 1);
+                } catch (err) {
+                  console.error("Submission error:", err);
+                  toast.error(err?.response?.data?.message || err.message || "Failed to submit deliverable.");
+                } finally {
+                  setSubmittingDeliverable(false);
+                }
+              }}
+            >
+              {submittingDeliverable ? "Submitting Work..." : "Submit Deliverable"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Task 7: Submissions & Brand Review Feedback History Dialog for Creator */}
+      <Dialog
+        open={Boolean(selectedCollabForHistory)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedCollabForHistory(null);
+            setCreatorSubmissionsList([]);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[600px] max-h-[85vh] overflow-y-auto rounded-3xl p-6">
+          <DialogHeader>
+            <DialogTitle className="font-display text-lg font-bold flex items-center gap-2">
+              <Eye className="h-5 w-5 text-primary" /> Submissions & Brand Review Feedback
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Review status and feedback from the brand for "{selectedCollabForHistory?.campaign?.title || "Campaign"}".
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedCollabForHistory && (
+            <div className="space-y-4 py-2">
+              {/* Deliverables Overview Stats */}
+              <div className="rounded-2xl border border-border/80 bg-secondary/20 p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+                <div>
+                  <span className="text-muted-foreground block text-[10px]">Brand</span>
+                  <span className="font-bold text-foreground">{selectedCollabForHistory.brandProfile?.fullName || "Brand"}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block text-[10px]">Campaign</span>
+                  <span className="font-bold text-foreground truncate max-w-[200px] block">{selectedCollabForHistory.campaign?.title || "Campaign"}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block text-[10px]">Approved Deliverables</span>
+                  {(() => {
+                    const totalReq = selectedCollabForHistory.deliverablesTracking?.reduce((sum, d) => sum + (d.requiredQuantity || 0), 0) || 0;
+                    const totalComp = selectedCollabForHistory.deliverablesTracking?.reduce((sum, d) => sum + (d.completedQuantity || 0), 0) || 0;
+                    return (
+                      <span className="font-bold text-primary">
+                        {totalComp} / {totalReq} Approved
+                      </span>
+                    );
+                  })()}
+                </div>
+              </div>
+
+              {/* Submissions List */}
+              {loadingCreatorSubmissions ? (
+                <div className="py-12 text-center text-xs text-muted-foreground">
+                  Loading submissions...
+                </div>
+              ) : creatorSubmissionsList.length === 0 ? (
+                <div className="py-12 text-center rounded-2xl border border-dashed border-border p-6 space-y-1">
+                  <p className="text-sm font-semibold text-foreground">No submissions yet</p>
+                  <p className="text-xs text-muted-foreground">
+                    You have not uploaded any deliverables for this collaboration.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {creatorSubmissionsList.map((sub, idx) => {
+                    const isVideo = sub.contentUrl?.match(/\.(mp4|mov|webm|avi|mkv)$/i) || sub.deliverableType === "REEL" || sub.deliverableType === "VIDEO";
+                    const formattedDate = new Date(sub.submittedAt || sub.createdAt).toLocaleString([], {
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                    });
+
+                    return (
+                      <div
+                        key={sub._id || idx}
+                        className={cn(
+                          "rounded-2xl border p-4 space-y-3 transition",
+                          sub.status === "APPROVED"
+                            ? "border-emerald-500/30 bg-emerald-500/5"
+                            : sub.status === "REJECTED"
+                            ? "border-red-500/30 bg-red-500/5"
+                            : "border-border/80 bg-card"
+                        )}
+                      >
+                        {/* Header */}
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <Badge className="bg-primary/10 text-primary border border-primary/20 font-bold text-[10px] px-2 py-0.5">
+                              {sub.deliverableType}
+                            </Badge>
+                            <span className="text-xs font-semibold text-foreground">
+                              Submission #{creatorSubmissionsList.length - idx}
+                            </span>
+                            {sub.version && sub.version > 1 && (
+                              <Badge variant="outline" className="text-[9px] font-bold text-muted-foreground border-border px-1.5 py-0">
+                                v{sub.version}
+                              </Badge>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            {sub.status === "APPROVED" ? (
+                              <Badge className="bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 text-[10px] font-bold flex items-center gap-1">
+                                <CheckCircle2 className="h-3 w-3" /> APPROVED
+                              </Badge>
+                            ) : sub.status === "REJECTED" ? (
+                              <Badge variant="destructive" className="text-[10px] font-bold flex items-center gap-1">
+                                <X className="h-3 w-3" /> REJECTED / CHANGES NEEDED
+                              </Badge>
+                            ) : sub.status === "RESUBMITTED" ? (
+                              <Badge className="bg-blue-500/10 text-blue-600 border border-blue-500/20 text-[10px] font-bold">
+                                RESUBMITTED · AWAITING REVIEW
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-amber-500/10 text-amber-600 border border-amber-500/20 text-[10px] font-bold">
+                                AWAITING BRAND REVIEW
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Rejection Feedback Banner if Rejected */}
+                        {sub.status === "REJECTED" && (
+                          <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 space-y-2">
+                            <span className="font-bold text-[11px] text-red-600 uppercase flex items-center gap-1">
+                              <X className="h-3.5 w-3.5" /> Brand Feedback / Reason:
+                            </span>
+                            <p className="text-xs text-foreground leading-relaxed">
+                              {sub.rejectionReason || "Please review and adjust your work according to the campaign requirements."}
+                            </p>
+
+                            {/* Task 8: Rework & Resubmit Action Trigger */}
+                            <div className="pt-1 flex items-center justify-between gap-2 border-t border-red-500/20">
+                              <span className="text-[10px] text-red-500 font-semibold">
+                                Corrected work can be uploaded & resubmitted for review.
+                              </span>
+                              <Button
+                                size="sm"
+                                className="h-7 text-xs font-bold rounded-full gradient-sunset text-white border-0 shadow-sm px-4 flex items-center gap-1.5"
+                                onClick={() => {
+                                  setReworkingSubmission(sub);
+                                  setReworkFile(null);
+                                  setReworkFilePreview(null);
+                                  setReworkCaption(sub.caption || "");
+                                }}
+                              >
+                                <Upload className="h-3 w-3" /> Rework & Resubmit
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Resubmitted info banner if RESUBMITTED */}
+                        {sub.status === "RESUBMITTED" && (
+                          <div className="rounded-xl border border-blue-500/30 bg-blue-500/10 p-2.5 text-xs text-blue-700 flex items-center gap-2">
+                            <CheckCircle2 className="h-4 w-4 text-blue-600 shrink-0" />
+                            <span>Corrected work (v{sub.version || 2}) was submitted and is now awaiting Brand review.</span>
+                          </div>
+                        )}
+
+                        {/* Content Preview */}
+                        <div className="rounded-xl overflow-hidden bg-background border border-border/60 max-h-56 flex items-center justify-center">
+                          {isVideo ? (
+                            <video
+                              src={resolveImageUrl(sub.contentUrl)}
+                              controls
+                              className="max-h-56 w-full object-contain"
+                            />
+                          ) : (
+                            <img
+                              src={resolveImageUrl(sub.contentUrl)}
+                              alt="Deliverable"
+                              className="max-h-56 w-full object-contain"
+                            />
+                          )}
+                        </div>
+
+                        {/* Caption if provided */}
+                        {sub.caption && (
+                          <div className="text-xs text-muted-foreground bg-secondary/30 rounded-xl p-2.5 border border-border/40">
+                            <span className="font-semibold text-foreground block text-[10px] uppercase mb-0.5">
+                              Your Submission Notes:
+                            </span>
+                            "{sub.caption}"
+                          </div>
+                        )}
+
+                        {/* Footer info */}
+                        <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1 border-t border-border/40">
+                          <span>
+                            {sub.status === "RESUBMITTED" ? "Resubmitted" : "Submitted"}: {formattedDate}
+                          </span>
+                          <a
+                            href={resolveImageUrl(sub.contentUrl)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-primary hover:underline flex items-center gap-1 font-semibold"
+                          >
+                            <ExternalLink className="h-3 w-3" /> View Full File
+                          </a>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter className="pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-full text-xs"
+              onClick={() => {
+                setSelectedCollabForHistory(null);
+                setCreatorSubmissionsList([]);
+              }}
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Task 8: Creator Rework & Resubmission Dialog */}
+      <Dialog
+        open={Boolean(reworkingSubmission)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setReworkingSubmission(null);
+            setReworkFile(null);
+            setReworkFilePreview(null);
+            setReworkCaption("");
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[500px] rounded-3xl p-6">
+          <DialogHeader>
+            <DialogTitle className="font-display text-lg font-bold flex items-center gap-2">
+              <Upload className="h-5 w-5 text-primary" /> Rework & Resubmit Deliverable
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Upload your revised {reworkingSubmission?.deliverableType} addressing the Brand's feedback for "{selectedCollabForHistory?.campaign?.title || "Campaign"}".
+            </DialogDescription>
+          </DialogHeader>
+
+          {reworkingSubmission && (
+            <div className="space-y-4 py-2">
+              {/* Previous Rejection Feedback Box */}
+              <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-3 space-y-1 text-xs">
+                <span className="font-bold text-[11px] text-red-600 uppercase flex items-center gap-1">
+                  <X className="h-3.5 w-3.5" /> Previous Brand Feedback (v{reworkingSubmission.version || 1}):
+                </span>
+                <p className="text-foreground leading-relaxed">
+                  "{reworkingSubmission.rejectionReason || "Please review and adjust according to campaign guidelines."}"
+                </p>
+              </div>
+
+              {/* Corrected File Upload Area */}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-foreground">
+                  Upload Corrected Deliverable File <span className="text-red-500">*</span>
+                </Label>
+                <div className="rounded-2xl border-2 border-dashed border-border/80 bg-secondary/20 p-4 text-center hover:border-primary/50 transition">
+                  {reworkFilePreview ? (
+                    <div className="space-y-3">
+                      {reworkFile?.type?.startsWith("video") ? (
+                        <video
+                          src={reworkFilePreview}
+                          controls
+                          className="max-h-48 mx-auto rounded-xl shadow-sm border border-border"
+                        />
+                      ) : (
+                        <img
+                          src={reworkFilePreview}
+                          alt="Preview"
+                          className="max-h-48 mx-auto rounded-xl object-contain shadow-sm border border-border"
+                        />
+                      )}
+                      <div className="flex items-center justify-between text-xs text-muted-foreground px-2">
+                        <span className="truncate max-w-[260px] font-medium text-foreground">
+                          {reworkFile?.name}
+                        </span>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 text-xs text-red-500 hover:text-red-600 hover:bg-red-500/10 rounded-full"
+                          onClick={() => {
+                            setReworkFile(null);
+                            setReworkFilePreview(null);
+                          }}
+                        >
+                          Change File
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <label className="flex flex-col items-center justify-center cursor-pointer py-4">
+                      <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary mb-2 shadow-sm">
+                        <Upload className="h-6 w-6" />
+                      </div>
+                      <span className="text-xs font-bold text-foreground">Click to upload corrected file</span>
+                      <span className="text-[11px] text-muted-foreground mt-0.5">
+                        MP4, MOV, WebM, JPG, PNG, WebP up to 50MB
+                      </span>
+                      <input
+                        type="file"
+                        accept="video/*,image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            if (file.size > 50 * 1024 * 1024) {
+                              toast.error("File exceeds 50MB maximum size limit.");
+                              return;
+                            }
+                            setReworkFile(file);
+                            setReworkFilePreview(URL.createObjectURL(file));
+                          }
+                        }}
+                      />
+                    </label>
+                  )}
+                </div>
+              </div>
+
+              {/* Rework Notes / Response */}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-foreground">
+                  Notes / Response to Brand (Optional)
+                </Label>
+                <Textarea
+                  placeholder="e.g. Corrected the video to add the brand's required tag and updated the product intro..."
+                  value={reworkCaption}
+                  onChange={(e) => setReworkCaption(e.target.value)}
+                  className="text-xs min-h-[70px] rounded-xl resize-none"
+                />
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="flex gap-2 sm:justify-end pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-full text-xs"
+              onClick={() => {
+                setReworkingSubmission(null);
+                setReworkFile(null);
+                setReworkFilePreview(null);
+                setReworkCaption("");
+              }}
+              disabled={submittingRework}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              className="rounded-full gradient-sunset text-white font-bold text-xs px-6 shadow-glow"
+              disabled={!reworkFile || submittingRework}
+              onClick={async () => {
+                if (!reworkingSubmission || !reworkFile) {
+                  toast.error("Please upload the corrected deliverable file.");
+                  return;
+                }
+
+                setSubmittingRework(true);
+                try {
+                  const formData = new FormData();
+                  formData.append("file", reworkFile);
+                  if (reworkCaption) {
+                    formData.append("caption", reworkCaption);
+                  }
+
+                  await api.post(`/api/submissions/${reworkingSubmission._id}/resubmit`, formData, {
+                    headers: {
+                      "Content-Type": "multipart/form-data",
+                    },
+                  });
+
+                  toast.success(`Deliverable resubmitted successfully as v${(reworkingSubmission.version || 1) + 1}! Brand notified.`);
+                  setReworkingSubmission(null);
+                  setReworkFile(null);
+                  setReworkFilePreview(null);
+                  setReworkCaption("");
+
+                  // Refresh history modal submissions
+                  if (selectedCollabForHistory) {
+                    const refreshed = await api.get(`/api/submissions/${selectedCollabForHistory._id}/submissions`);
+                    setCreatorSubmissionsList(refreshed.data?.data?.submissions || []);
+                  }
+                  setRequestsRefreshKey((k) => k + 1);
+                } catch (err) {
+                  console.error("Resubmission error:", err);
+                  toast.error(err?.response?.data?.message || err.message || "Failed to resubmit deliverable.");
+                } finally {
+                  setSubmittingRework(false);
+                }
+              }}
+            >
+              {submittingRework ? "Resubmitting..." : `Resubmit Deliverable (v${(reworkingSubmission?.version || 1) + 1})`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* WITHDRAW FUNDS DIALOG (TASK 14) */}
+      <Dialog
+        open={showWithdrawDialog}
+        onOpenChange={(open) => !open && !requestingWithdrawal && setShowWithdrawDialog(false)}
+      >
+        <DialogContent className="sm:max-w-md rounded-3xl">
+          <DialogHeader>
+            <DialogTitle className="font-display text-lg font-bold flex items-center gap-2">
+              <Wallet className="h-5 w-5 text-primary" /> Withdraw Funds to Bank
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Request a payout transfer from your available wallet balance directly to your registered bank account.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const amt = Number(withdrawAmountInput);
+              const available = Number(creatorWalletData?.wallet?.availableBalance || 0);
+
+              if (isNaN(amt) || amt <= 0) {
+                toast.error("Please enter a valid withdrawal amount.");
+                return;
+              }
+              if (amt < 100) {
+                toast.error("Minimum withdrawal amount is ₹100.");
+                return;
+              }
+              if (amt > available) {
+                toast.error(`Amount exceeds available balance (₹${available.toLocaleString("en-IN")}).`);
+                return;
+              }
+              if (!bankDetails || !bankDetails.accountNumber) {
+                toast.error("Please configure your bank details in Payment Settings first.");
+                return;
+              }
+
+              setRequestingWithdrawal(true);
+              try {
+                const res = await api.post("/api/wallet/withdraw", {
+                  amount: amt,
+                  withdrawalMethod: "BANK_TRANSFER",
+                });
+
+                if (res.data?.success) {
+                  toast.success(res.data.message || `Withdrawal request for ₹${amt.toLocaleString("en-IN")} submitted!`);
+                  setShowWithdrawDialog(false);
+                  setWithdrawAmountInput("");
+                  setWalletRefreshKey((k) => k + 1);
+                }
+              } catch (err) {
+                console.error("Withdrawal request error:", err);
+                toast.error(err?.response?.data?.message || err.message || "Failed to submit withdrawal request.");
+              } finally {
+                setRequestingWithdrawal(false);
+              }
+            }}
+            className="space-y-4 pt-1 text-xs"
+          >
+            {/* Balance Card */}
+            <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4 flex justify-between items-center">
+              <div>
+                <span className="text-[11px] text-muted-foreground uppercase font-bold tracking-wider">Available to Withdraw</span>
+                <div className="text-2xl font-extrabold text-foreground font-display mt-0.5">
+                  ₹{Number(creatorWalletData?.wallet?.availableBalance || 0).toLocaleString("en-IN")}
+                </div>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="rounded-full text-[10px] h-7 px-2.5 font-bold"
+                onClick={() => setWithdrawAmountInput(String(creatorWalletData?.wallet?.availableBalance || 0))}
+              >
+                Max Amount
+              </Button>
+            </div>
+
+            {/* Destination Bank Snapshot */}
+            <div className="rounded-2xl border border-border bg-secondary/20 p-3.5 space-y-1 text-[11px]">
+              <div className="flex justify-between items-center font-semibold text-foreground">
+                <span>Destination Bank:</span>
+                <span>{bankDetails?.bankName || "Bank Account Not Found"}</span>
+              </div>
+              {bankDetails?.accountNumber ? (
+                <div className="text-muted-foreground text-[10px] space-y-0.5">
+                  <p>A/C Holder: <strong className="text-foreground">{bankDetails.accountHolderName || bankDetails.fullName}</strong></p>
+                  <p>A/C Number: ••••••••{bankDetails.accountNumber.slice(-4)} | IFSC: {bankDetails.ifsc}</p>
+                </div>
+              ) : (
+                <p className="text-amber-600 text-[10px] font-medium pt-1">
+                  ⚠️ No bank details found. Please save your bank details in the Payment Settings section below first.
+                </p>
+              )}
+            </div>
+
+            {/* Amount input */}
+            <div className="space-y-1.5">
+              <Label htmlFor="withdraw-amt" className="text-xs font-semibold">
+                Withdrawal Amount (₹) *
+              </Label>
+              <Input
+                id="withdraw-amt"
+                type="number"
+                min={100}
+                max={creatorWalletData?.wallet?.availableBalance || 0}
+                placeholder="Enter amount (min ₹100)"
+                required
+                value={withdrawAmountInput}
+                onChange={(e) => setWithdrawAmountInput(e.target.value)}
+                className="text-sm font-bold"
+              />
+              <p className="text-[10px] text-muted-foreground">
+                Funds will be reserved immediately and disbursed upon admin review.
+              </p>
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="rounded-full text-xs"
+                disabled={requestingWithdrawal}
+                onClick={() => setShowWithdrawDialog(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                className="rounded-full gradient-sunset text-white font-bold text-xs px-6 shadow-glow"
+                disabled={requestingWithdrawal || !bankDetails?.accountNumber || Number(creatorWalletData?.wallet?.availableBalance || 0) <= 0}
+              >
+                {requestingWithdrawal ? "Submitting..." : "Confirm & Submit Withdrawal"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
-
 
 export default DashboardInfluencer;

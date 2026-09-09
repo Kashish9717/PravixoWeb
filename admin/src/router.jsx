@@ -14,6 +14,7 @@ import BrandRequests from "@/pages/BrandRequests";
 import ClientReviewsPage from "./pages/client-reviews";
 import BlogsPage from "./pages/blogs";
 import ProTipsPage from "./pages/protips";
+import { CampaignsPage } from "./pages/campaigns";
 
 export const router = createBrowserRouter([
   {
@@ -26,6 +27,10 @@ export const router = createBrowserRouter([
       {
         path: "/dashboard",
         element: <Dashboard />,
+      },
+      {
+        path: "/campaigns",
+        element: <CampaignsPage />,
       },
       {
         path: "/users",

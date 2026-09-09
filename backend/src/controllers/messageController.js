@@ -1,12 +1,28 @@
 import Message from "../models/Message.js";
 import Conversation from "../models/Conversation.js";
+import Profile from "../models/Profile.js";
+import Notification from "../models/Notification.js";
 
 // Send message
 export const sendMessage = async (req, res) => {
   try {
     const { conversationId, senderId, text } = req.body;
 
-    if (!conversationId || !senderId || !text) {
+    let actualSenderId = req.user?._id || senderId;
+
+    if (!actualSenderId && conversationId) {
+      const conv = await Conversation.findById(conversationId);
+      if (conv) {
+        if (conv.adminId) {
+          actualSenderId = conv.adminId;
+        } else {
+          const adminProfile = await Profile.findOne({ role: "admin" });
+          if (adminProfile) actualSenderId = adminProfile._id;
+        }
+      }
+    }
+
+    if (!conversationId || !actualSenderId || !text || !text.trim()) {
       return res.status(400).json({
         success: false,
         message: "Required fields are missing.",
@@ -15,8 +31,8 @@ export const sendMessage = async (req, res) => {
 
     const message = await Message.create({
       conversationId,
-      senderId,
-      text,
+      senderId: actualSenderId,
+      text: text.trim(),
       read: false,
     });
 
@@ -34,6 +50,31 @@ export const sendMessage = async (req, res) => {
       }
       if (isUpdated) {
         await conversation.save();
+      }
+
+      // Determine recipient for notification
+      let recipientId = null;
+      const actualSenderStr = actualSenderId.toString();
+
+      if (conversation.creatorId && conversation.creatorId.toString() !== actualSenderStr) {
+        recipientId = conversation.creatorId;
+      } else if (conversation.brandId && conversation.brandId.toString() !== actualSenderStr) {
+        recipientId = conversation.brandId;
+      } else if (conversation.adminId && conversation.adminId.toString() !== actualSenderStr) {
+        recipientId = conversation.adminId;
+      }
+
+      if (recipientId) {
+        const senderProfile = await Profile.findById(actualSenderId).select("fullName role").lean();
+        const senderName = senderProfile?.fullName || (senderProfile?.role === "admin" ? "Pravixo Admin" : "User");
+
+        await Notification.create({
+          recipientId,
+          senderId: actualSenderId,
+          type: "admin_message",
+          text: `New message from ${senderName}: "${text.trim().slice(0, 60)}${text.trim().length > 60 ? "..." : ""}"`,
+          createdAt: Date.now(),
+        }).catch((notifErr) => console.warn("Could not dispatch message notification:", notifErr));
       }
     }
 

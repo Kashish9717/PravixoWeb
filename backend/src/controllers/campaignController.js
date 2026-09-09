@@ -1,30 +1,458 @@
 import mongoose from "mongoose";
 import Campaign from "../models/Campaign.js";
+import Profile from "../models/Profile.js";
+import Connection from "../models/Connection.js";
+import Notification from "../models/Notification.js";
+import Review from "../models/Review.js";
 
+// Helper: Calculate remaining budget for a campaign
+const calculateCampaignRemainingBudget = async (campaign) => {
+  const totalBudget = Number(campaign.totalBudget) || 0;
+  if (totalBudget <= 0) return 0;
+
+  // Find all approved or completed connections/tasks for this campaign
+  // For now, each creator request or approved connection is tied to a budget
+  // Check connections and campaign tasks
+  // Sum allocated budgets
+  const activeConnections = await Connection.find({
+    campaignId: campaign._id,
+    status: { $in: ["accepted", "pending"] },
+  }).lean();
+
+  // If minBudgetPerCreator is defined, calculate allocated based on average or min
+  // Or if tasks have payment/budget, subtract that
+  const minBudget = Number(campaign.minBudgetPerCreator) || 0;
+  const allocatedBudget = activeConnections.length * minBudget;
+  const remaining = Math.max(0, totalBudget - allocatedBudget);
+
+  return remaining;
+};
+
+// =====================================================
+// 1. BRAND: CREATE CAMPAIGN
+// POST /api/campaigns
+// =====================================================
+export const createCampaign = async (req, res) => {
+  try {
+    const brandId = req.user?._id || req.body.brandId;
+
+    if (!brandId) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required to create a campaign.",
+      });
+    }
+
+    const {
+      title,
+      name,
+      description,
+      startDate,
+      endDate,
+      category,
+      location,
+      totalBudget,
+      minBudgetPerCreator,
+      maxBudgetPerCreator,
+      deliverables,
+      budget,
+      duration,
+      active,
+    } = req.body;
+
+    const campaignTitle = (title || name || "").trim();
+
+    if (!campaignTitle) {
+      return res.status(400).json({
+        success: false,
+        message: "Campaign name is required.",
+      });
+    }
+
+    const startTs = startDate ? new Date(startDate).getTime() : Date.now();
+    const endTs = endDate ? new Date(endDate).getTime() : startTs + 30 * 24 * 60 * 60 * 1000;
+
+    const totalBudgetInt = Number(totalBudget) || (budget ? Number(String(budget).replace(/[^0-9]/g, "")) : 0);
+    const minBudgetInt = Number(minBudgetPerCreator) || 0;
+    const maxBudgetInt = Number(maxBudgetPerCreator) || 0;
+
+    const formattedBudget = budget || `₹${totalBudgetInt.toLocaleString("en-IN")}`;
+    const formattedDuration = duration || `${Math.max(1, Math.round((endTs - startTs) / (24 * 60 * 60 * 1000)))} days`;
+
+    const parsedDeliverables = typeof deliverables === "object" && deliverables !== null
+      ? {
+          reels: Number(deliverables.reels) || 0,
+          posts: Number(deliverables.posts) || 0,
+          stories: Number(deliverables.stories) || 0,
+          videos: Number(deliverables.videos) || 0,
+          notes: String(deliverables.notes || ""),
+        }
+      : {
+          reels: 0,
+          posts: 0,
+          stories: 0,
+          videos: 0,
+          notes: typeof deliverables === "string" ? deliverables : "",
+        };
+
+    const campaign = await Campaign.create({
+      brandId,
+      title: campaignTitle,
+      description: description || "",
+      startDate: startTs,
+      endDate: endTs,
+      category: category || "General",
+      location: location || "Pan India",
+      totalBudget: totalBudgetInt,
+      minBudgetPerCreator: minBudgetInt,
+      maxBudgetPerCreator: maxBudgetInt,
+      deliverables: parsedDeliverables,
+      budget: formattedBudget,
+      duration: formattedDuration,
+      status: "PENDING_VERIFICATION", // Initial status for Task 1
+      active: active !== undefined ? Boolean(active) : true,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+
+    // Create Admin notification
+    const admins = await Profile.find({ role: "admin" }).select("_id").lean();
+    if (admins && admins.length > 0) {
+      const notifications = admins.map((admin) => ({
+        recipientId: admin._id,
+        senderId: brandId,
+        type: "campaign_pending_verification",
+        text: `New campaign "${campaign.title}" submitted for verification.`,
+        createdAt: Date.now(),
+      }));
+      await Notification.insertMany(notifications);
+    }
+
+    return res.status(201).json({
+      success: true,
+      message: "Campaign submitted for verification.",
+      data: campaign,
+    });
+  } catch (error) {
+    console.error("Create campaign error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to create campaign.",
+      error: error.message,
+    });
+  }
+};
+
+// =====================================================
+// 2. CREATOR DISCOVERY: GET APPROVED ACTIVE CAMPAIGNS
+// GET /api/campaigns/discover
+// =====================================================
+export const getDiscoverableCampaigns = async (req, res) => {
+  try {
+    const creatorId = req.user?._id;
+    const now = Date.now();
+
+    // Only APPROVED and active campaigns with valid date range
+    const filter = {
+      status: "APPROVED",
+      active: true,
+      endDate: { $gte: now - 24 * 60 * 60 * 1000 }, // allow ongoing until end of day
+    };
+
+    const campaigns = await Campaign.find(filter)
+      .populate("brandId", "fullName handle avatarUrl rating location category startingPrice")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // Map each campaign and compute remaining budget, reviews/ratings, and creator request status
+    const data = await Promise.all(
+      campaigns.map(async (camp) => {
+        const brandProfile = camp.brandId;
+        const brandId = brandProfile?._id || camp.brandId;
+
+        // Brand reviews and rating
+        let brandRating = 0;
+        let reviewCount = 0;
+        if (brandId) {
+          const reviews = await Review.find({ brandId, visible: true }).select("rating").lean();
+          if (reviews.length > 0) {
+            const sum = reviews.reduce((acc, r) => acc + (r.rating || 0), 0);
+            brandRating = Number((sum / reviews.length).toFixed(1));
+            reviewCount = reviews.length;
+          }
+        }
+
+        // Remaining budget check
+        const totalBudget = Number(camp.totalBudget) || 0;
+        const minBudget = Number(camp.minBudgetPerCreator) || 0;
+
+        // Count accepted + pending requests for budget allocation
+        const connections = await Connection.find({
+          campaignId: camp._id,
+          status: { $in: ["accepted", "pending"] },
+        }).lean();
+
+        // Used budget approximation
+        const allocatedBudget = connections.length * minBudget;
+        const remainingBudget = totalBudget > 0 ? Math.max(0, totalBudget - allocatedBudget) : 0;
+
+        // Check if current creator already requested or is participating
+        let requestStatus = null;
+        let isRequested = false;
+        let isParticipating = false;
+
+        if (creatorId) {
+          const myConnection = connections.find(
+            (c) => String(c.creatorId) === String(creatorId)
+          );
+          if (myConnection) {
+            requestStatus = myConnection.status; // "pending" | "accepted" | "rejected"
+            isRequested = myConnection.status === "pending";
+            isParticipating = myConnection.status === "accepted";
+          }
+        }
+
+        const isBudgetExhausted = totalBudget > 0 && minBudget > 0 && remainingBudget < minBudget;
+
+        return {
+          ...camp,
+          brand: brandProfile
+            ? {
+                ...brandProfile,
+                rating: brandRating,
+                reviewCount,
+              }
+            : null,
+          remainingBudget,
+          isBudgetExhausted,
+          requestStatus,
+          isRequested,
+          isParticipating,
+        };
+      })
+    );
+
+    // Filter out campaigns where remaining budget cannot afford even 1 creator (if totalBudget > 0 and minBudget > 0)
+    const discoverable = data.filter((camp) => !camp.isBudgetExhausted);
+
+    return res.status(200).json({
+      success: true,
+      data: discoverable,
+    });
+  } catch (error) {
+    console.error("Get discoverable campaigns error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch discoverable campaigns.",
+      error: error.message,
+    });
+  }
+};
+
+// =====================================================
+// 3. CREATOR: REQUEST TO JOIN CAMPAIGN
+// POST /api/campaigns/:id/join
+// =====================================================
+export const joinCampaignRequest = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { pitch } = req.body;
+
+    // Security Check: Authenticated User & Role
+    if (!req.user || !req.user._id) {
+      return res.status(401).json({
+        success: false,
+        message: "You must be logged in to join a campaign.",
+      });
+    }
+
+    if (req.user.role !== "creator") {
+      return res.status(403).json({
+        success: false,
+        message: "Only Creators can request to join campaigns.",
+      });
+    }
+
+    const creatorId = req.user._id;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid campaign ID.",
+      });
+    }
+
+    // Verify Campaign existence & approval status
+    const campaign = await Campaign.findById(id);
+    if (!campaign) {
+      return res.status(404).json({
+        success: false,
+        message: "Campaign not found.",
+      });
+    }
+
+    if (campaign.status !== "APPROVED") {
+      return res.status(400).json({
+        success: false,
+        message: "Campaign is not approved for creator requests.",
+      });
+    }
+
+    if (!campaign.active) {
+      return res.status(400).json({
+        success: false,
+        message: "Campaign is currently inactive.",
+      });
+    }
+
+    // Check dates availability
+    const now = Date.now();
+    if (campaign.endDate && campaign.endDate < now - 24 * 60 * 60 * 1000) {
+      return res.status(400).json({
+        success: false,
+        message: "This campaign has already ended.",
+      });
+    }
+
+    // Check duplicate request from this creator
+    const existingConnection = await Connection.findOne({
+      creatorId,
+      campaignId: campaign._id,
+    });
+
+    if (existingConnection) {
+      if (existingConnection.status === "pending") {
+        return res.status(409).json({
+          success: false,
+          message: "You have already requested to join this campaign (Request Pending).",
+        });
+      }
+      if (existingConnection.status === "accepted") {
+        return res.status(409).json({
+          success: false,
+          message: "You are already participating in this campaign.",
+        });
+      }
+    }
+
+    // Check remaining budget
+    const totalBudget = Number(campaign.totalBudget) || 0;
+    const minBudget = Number(campaign.minBudgetPerCreator) || 0;
+
+    if (totalBudget > 0 && minBudget > 0) {
+      const activeConnectionsCount = await Connection.countDocuments({
+        campaignId: campaign._id,
+        status: { $in: ["accepted", "pending"] },
+      });
+
+      const allocatedBudget = activeConnectionsCount * minBudget;
+      const remainingBudget = totalBudget - allocatedBudget;
+
+      if (remainingBudget < minBudget) {
+        return res.status(400).json({
+          success: false,
+          message: "Campaign budget has been exhausted. No new requests can be accepted.",
+        });
+      }
+    }
+
+    // Create Connection / Request record
+    const connection = await Connection.create({
+      creatorId,
+      brandId: campaign.brandId,
+      campaignId: campaign._id,
+      pitch: pitch || `Hi! I would love to collaborate on your "${campaign.title}" campaign.`,
+      status: "pending",
+      creatorNotificationSeen: false,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+
+    // Notify brand of incoming campaign join request
+    await Notification.create({
+      recipientId: campaign.brandId,
+      senderId: creatorId,
+      type: "campaign_request_received",
+      text: `${req.user.fullName || "A Creator"} requested to join your campaign "${campaign.title}".`,
+      createdAt: Date.now(),
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Request to join campaign sent successfully!",
+      data: connection,
+    });
+  } catch (error) {
+    console.error("Join campaign error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to submit campaign request.",
+      error: error.message,
+    });
+  }
+};
+
+// =====================================================
+// 4. LIST CAMPAIGNS BY BRAND
+// GET /api/campaigns/brand/:brandId
+// =====================================================
 export const listCampaigns = async (req, res) => {
   try {
-    const { brandId } = req.query;
+    const { brandId } = req.params;
 
-    const filter = brandId
-      ? { brandId }
-      : {};
-
+    const filter = brandId ? { brandId } : {};
     const campaigns = await Campaign.find(filter).sort({ createdAt: -1 });
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       data: campaigns,
     });
   } catch (error) {
     console.error("List campaigns error:", error);
-
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Failed to fetch campaigns.",
     });
   }
 };
 
+// =====================================================
+// 5. GET ACTIVE CAMPAIGNS BY BRAND
+// GET /api/campaigns/brand/:brandId/active
+// =====================================================
+export const getActiveCampaignsByBrand = async (req, res) => {
+  try {
+    const { brandId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(brandId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid brand ID.",
+      });
+    }
+
+    const campaigns = await Campaign.find({
+      brandId,
+      active: true,
+    }).sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      success: true,
+      data: campaigns,
+    });
+  } catch (error) {
+    console.error("Get active campaigns error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch active campaigns.",
+    });
+  }
+};
+
+// =====================================================
+// 6. GET CAMPAIGN BY ID
+// GET /api/campaigns/:id
+// =====================================================
 export const getCampaignById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -36,7 +464,10 @@ export const getCampaignById = async (req, res) => {
       });
     }
 
-    const campaign = await Campaign.findById(id);
+    const campaign = await Campaign.findById(id).populate(
+      "brandId",
+      "fullName handle avatarUrl rating location category startingPrice website"
+    );
 
     if (!campaign) {
       return res.status(404).json({
@@ -45,69 +476,23 @@ export const getCampaignById = async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       data: campaign,
     });
   } catch (error) {
     console.error("Get campaign error:", error);
-
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Failed to fetch campaign.",
     });
   }
 };
 
-export const createCampaign = async (req, res) => {
-  try {
-    const {
-      brandId,
-      title,
-      budget,
-      category,
-      duration,
-      active,
-    } = req.body;
-
-    if (
-      !brandId ||
-      !title ||
-      !budget ||
-      !category ||
-      !duration ||
-      active === undefined
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: "Required campaign fields are missing.",
-      });
-    }
-
-    const campaign = await Campaign.create({
-      brandId,
-      title,
-      budget,
-      category,
-      duration,
-      active,
-      createdAt: Date.now(),
-    });
-
-    res.status(201).json({
-      success: true,
-      data: campaign,
-    });
-  } catch (error) {
-    console.error("Create campaign error:", error);
-
-    res.status(500).json({
-      success: false,
-      message: "Failed to create campaign.",
-    });
-  }
-};
-
+// =====================================================
+// 7. UPDATE CAMPAIGN
+// PATCH /api/campaigns/:id
+// =====================================================
 export const updateCampaign = async (req, res) => {
   try {
     const { id } = req.params;
@@ -121,21 +506,39 @@ export const updateCampaign = async (req, res) => {
 
     const {
       title,
-      budget,
+      name,
+      description,
+      startDate,
+      endDate,
       category,
+      location,
+      totalBudget,
+      minBudgetPerCreator,
+      maxBudgetPerCreator,
+      deliverables,
+      budget,
       duration,
       active,
     } = req.body;
 
+    const updates = { updatedAt: Date.now() };
+    if (title || name) updates.title = (title || name).trim();
+    if (description !== undefined) updates.description = description;
+    if (startDate) updates.startDate = new Date(startDate).getTime();
+    if (endDate) updates.endDate = new Date(endDate).getTime();
+    if (category) updates.category = category.trim();
+    if (location) updates.location = location.trim();
+    if (totalBudget !== undefined) updates.totalBudget = Number(totalBudget);
+    if (minBudgetPerCreator !== undefined) updates.minBudgetPerCreator = Number(minBudgetPerCreator);
+    if (maxBudgetPerCreator !== undefined) updates.maxBudgetPerCreator = Number(maxBudgetPerCreator);
+    if (deliverables) updates.deliverables = deliverables;
+    if (budget) updates.budget = budget;
+    if (duration) updates.duration = duration;
+    if (active !== undefined) updates.active = active;
+
     const campaign = await Campaign.findByIdAndUpdate(
       id,
-      {
-        title,
-        budget,
-        category,
-        duration,
-        active,
-      },
+      { $set: updates },
       { new: true, runValidators: true }
     );
 
@@ -146,20 +549,24 @@ export const updateCampaign = async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       data: campaign,
     });
   } catch (error) {
     console.error("Update campaign error:", error);
-
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Failed to update campaign.",
+      error: error.message,
     });
   }
 };
 
+// =====================================================
+// 8. DELETE CAMPAIGN
+// DELETE /api/campaigns/:id
+// =====================================================
 export const deleteCampaign = async (req, res) => {
   try {
     const { id } = req.params;
@@ -180,46 +587,15 @@ export const deleteCampaign = async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: "Campaign deleted successfully.",
     });
   } catch (error) {
     console.error("Delete campaign error:", error);
-
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Failed to delete campaign.",
-    });
-  }
-};
-
-export const getActiveCampaignsByBrand = async (req, res) => {
-  try {
-    const { brandId } = req.params;
-
-    if (!mongoose.Types.ObjectId.isValid(brandId)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid brand ID.",
-      });
-    }
-
-    const campaigns = await Campaign.find({
-      brandId,
-      active: true,
-    }).sort({ createdAt: -1 });
-
-    res.status(200).json({
-      success: true,
-      data: campaigns,
-    });
-  } catch (error) {
-    console.error("Get active campaigns error:", error);
-
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch active campaigns.",
     });
   }
 };

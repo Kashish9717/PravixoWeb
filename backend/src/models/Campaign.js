@@ -12,26 +12,88 @@ const campaignSchema = new mongoose.Schema(
     title: {
       type: String,
       required: true,
+      trim: true,
     },
 
-    budget: {
+    description: {
       type: String,
+      default: "",
+      trim: true,
+    },
+
+    startDate: {
+      type: Number,
+      required: true,
+      default: Date.now,
+    },
+
+    endDate: {
+      type: Number,
       required: true,
     },
 
     category: {
       type: String,
       required: true,
+      trim: true,
+    },
+
+    location: {
+      type: String,
+      default: "Pan India",
+      trim: true,
+    },
+
+    totalBudget: {
+      type: Number,
+      required: true,
+      default: 0,
+    },
+
+    minBudgetPerCreator: {
+      type: Number,
+      default: 0,
+    },
+
+    maxBudgetPerCreator: {
+      type: Number,
+      default: 0,
+    },
+
+    deliverables: {
+      reels: { type: Number, default: 0 },
+      posts: { type: Number, default: 0 },
+      stories: { type: Number, default: 0 },
+      videos: { type: Number, default: 0 },
+      notes: { type: String, default: "" },
+    },
+
+    budget: {
+      type: String,
+      default: "",
     },
 
     duration: {
       type: String,
-      required: true,
+      default: "",
+    },
+
+    status: {
+      type: String,
+      enum: ["PENDING_VERIFICATION", "APPROVED", "REJECTED"],
+      default: "PENDING_VERIFICATION",
+      index: true,
+    },
+
+    verificationFeedback: {
+      type: String,
+      default: "",
     },
 
     active: {
       type: Boolean,
       required: true,
+      default: true,
     },
 
     createdAt: {
@@ -39,8 +101,18 @@ const campaignSchema = new mongoose.Schema(
       required: true,
       default: Date.now,
     },
+
+    updatedAt: {
+      type: Number,
+      default: Date.now,
+    },
+  },
+  {
+    timestamps: true,
   }
 );
+
+campaignSchema.index({ status: 1, active: 1, endDate: 1 });
 
 const Campaign = mongoose.model("Campaign", campaignSchema);
 

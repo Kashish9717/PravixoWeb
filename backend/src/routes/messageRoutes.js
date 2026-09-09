@@ -5,13 +5,14 @@ import {
   getMessages,
   unsendMessage,
 } from "../controllers/messageController.js";
+import { optionalAuth } from "../middleware/auth.js";
 
 const router = express.Router();
 
-router.post("/", sendMessage);
+router.post("/", optionalAuth, sendMessage);
 
-router.get("/:conversationId", getMessages);
+router.get("/:conversationId", optionalAuth, getMessages);
 
-router.patch("/:messageId/unsend", unsendMessage);
+router.patch("/:messageId/unsend", optionalAuth, unsendMessage);
 
 export default router;

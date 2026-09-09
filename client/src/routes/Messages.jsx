@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   MessageSquare,
@@ -9,12 +9,22 @@ import {
   ArrowLeft,
   Trash2,
   Ban,
+  IndianRupee,
+  Check,
+  ShieldCheck,
+  Sparkles,
+  RefreshCw,
+  Info,
+  FileText,
 } from "lucide-react";
 import { toast } from "sonner";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { formatINR } from "@/lib/format";
+import { AgreementModal } from "@/components/collaboration/AgreementModal";
 
 import { useAuth } from "@/components/auth/AuthProvider";
 import api from "@/lib/api";
-import { useRef } from "react";
 
 const resolveImageUrl = (url) => {
   if (!url || url === "undefined" || url === "null") return null;
@@ -26,7 +36,7 @@ const resolveImageUrl = (url) => {
 
 export default function Messages() {
   const { profile } = useAuth();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const queryConversationId = searchParams.get("conversationId");
 
@@ -34,6 +44,13 @@ export default function Messages() {
   const [messages, setMessages] = useState([]);
 
   const [activeConversation, setActiveConversation] = useState(null);
+
+  // Negotiation states
+  const [negotiationAmount, setNegotiationAmount] = useState("");
+  const [isSubmittingOffer, setIsSubmittingOffer] = useState(false);
+  const [isAgreeingOffer, setIsAgreeingOffer] = useState(false);
+  const [isReopeningNegotiation, setIsReopeningNegotiation] = useState(false);
+  const [viewAgreementOpen, setViewAgreementOpen] = useState(false);
 
   const [search, setSearch] = useState("");
   const [activeFilter, setActiveFilter] = useState("all");
@@ -119,6 +136,9 @@ export default function Messages() {
     }
   }, [profile]);
 
+  const activeConvIdRef = useRef(null);
+  activeConvIdRef.current = activeConversation?._id;
+
   /*
    * ----------------------------------------------------
    * OPEN CONVERSATION
@@ -126,15 +146,25 @@ export default function Messages() {
    */
   const openConversation = async (conversation) => {
     if (!conversation?._id) return;
+    const isNewSelection = activeConvIdRef.current !== conversation._id;
 
-    setActiveConversation(conversation);
-    setMessages([]);
+    // Sync active ID ref immediately to block re-triggering
+    activeConvIdRef.current = conversation._id;
 
-    await fetchMessages(conversation._id);
+    // Keep URL in sync with selected conversation
+    if (queryConversationId !== conversation._id) {
+      setSearchParams({ conversationId: conversation._id }, { replace: true });
+    }
 
+    if (isNewSelection) {
+      setActiveConversation(conversation);
+      setMessages([]);
+    }
+
+    await fetchMessages(conversation._id, isNewSelection);
     await markConversationAsRead(conversation._id);
 
-    // Update unread count locally
+    // Update unread count locally without triggering full re-selection
     setConversations((prev) =>
       prev.map((item) =>
         item._id === conversation._id
@@ -155,6 +185,9 @@ export default function Messages() {
   useEffect(() => {
     if (!queryConversationId || !conversations.length) return;
 
+    // Prevent re-opening already active conversation
+    if (activeConvIdRef.current === queryConversationId) return;
+
     const conversation = conversations.find(
       (item) => item._id === queryConversationId
     );
@@ -169,9 +202,9 @@ export default function Messages() {
    * GET MESSAGES
    * ----------------------------------------------------
    */
-  const fetchMessages = async (conversationId) => {
+  const fetchMessages = async (conversationId, showLoading = true) => {
     try {
-      setMessagesLoading(true);
+      if (showLoading) setMessagesLoading(true);
 
       const response = await api(
         `/api/messages/${conversationId}`,
@@ -195,7 +228,7 @@ export default function Messages() {
           "Failed to load messages."
       );
     } finally {
-      setMessagesLoading(false);
+      if (showLoading) setMessagesLoading(false);
       setTimeout(scrollToBottom, 100);
     }
   };
@@ -215,7 +248,7 @@ export default function Messages() {
       console.error("Unsend message error:", error);
       toast.error("Failed to unsend message");
       // Revert optimistic update on failure
-      fetchMessages(activeConversation._id);
+      fetchMessages(activeConversation._id, false);
     }
   };
 
@@ -226,7 +259,7 @@ export default function Messages() {
    */
   useEffect(() => {
     let interval;
-    if (activeConversation) {
+    if (activeConversation?._id && profile?._id) {
       interval = setInterval(() => {
         // Silently fetch new messages without triggering loading state
         api(`/api/messages/${activeConversation._id}`)
@@ -234,8 +267,7 @@ export default function Messages() {
             const data = response?.data?.data || response?.data || [];
             const newMessages = Array.isArray(data) ? data : [];
             setMessages((prev) => {
-              // Only update if there are new messages to avoid unnecessary re-renders
-              if (prev.length !== newMessages.length) {
+              if (prev.length !== newMessages.length || (prev.length > 0 && prev[prev.length - 1]?._id !== newMessages[newMessages.length - 1]?._id)) {
                 setTimeout(scrollToBottom, 100);
                 return newMessages;
               }
@@ -244,20 +276,46 @@ export default function Messages() {
           })
           .catch(console.error);
 
-        // Also fetch conversations quietly to update unread counts and last message
+        // Also fetch conversations quietly to update unread counts, last message, and collaboration status
         api(`/api/conversations?profileId=${profile._id}&role=${profile.role}`)
           .then((response) => {
             const data = response?.data?.data || response?.data || [];
-            setConversations(Array.isArray(data) ? data : []);
+            const list = Array.isArray(data) ? data : [];
+            setConversations((prev) => {
+              const prevStr = JSON.stringify(prev);
+              const nextStr = JSON.stringify(list);
+              if (prevStr !== nextStr) {
+                return list;
+              }
+              return prev;
+            });
+            if (activeConversation?._id) {
+              const currentUpdated = list.find((c) => c._id === activeConversation._id);
+              if (currentUpdated && currentUpdated.connection) {
+                setActiveConversation((prev) => {
+                  if (
+                    prev?.connection?.status !== currentUpdated.connection.status ||
+                    prev?.connection?.proposedRate !== currentUpdated.connection.proposedRate ||
+                    prev?.connection?.agreedRate !== currentUpdated.connection.agreedRate
+                  ) {
+                    return {
+                      ...prev,
+                      connection: currentUpdated.connection,
+                    };
+                  }
+                  return prev;
+                });
+              }
+            }
           })
           .catch(console.error);
-      }, 3000); // Poll every 3 seconds
+      }, 4000);
     }
 
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [activeConversation, profile]);
+  }, [activeConversation?._id, profile?._id, profile?.role]);
 
   /*
    * ----------------------------------------------------
@@ -279,6 +337,213 @@ export default function Messages() {
       );
     } catch (error) {
       console.error("Mark as read error:", error);
+    }
+  };
+
+  /*
+   * ----------------------------------------------------
+   * NEGOTIATION HANDLERS
+   * ----------------------------------------------------
+   */
+  const handleProposeAmount = async (e) => {
+    e?.preventDefault();
+    const connId = activeConversation?.connection?._id;
+    if (!connId) {
+      toast.error("No active collaboration connection found.");
+      return;
+    }
+
+    const num = Number(negotiationAmount);
+    if (!num || num <= 0) {
+      toast.error("Please enter a valid amount greater than ₹0.");
+      return;
+    }
+
+    try {
+      setIsSubmittingOffer(true);
+      const res = await api.patch(`/api/connections/${connId}/propose-amount`, {
+        amount: num,
+      });
+
+      const updatedConn = res?.data?.data || res?.data;
+      if (updatedConn) {
+        setActiveConversation((prev) => ({
+          ...prev,
+          connection: updatedConn,
+        }));
+        setConversations((prev) =>
+          prev.map((c) =>
+            c._id === activeConversation._id
+              ? { ...c, connection: updatedConn }
+              : c
+          )
+        );
+      }
+
+      toast.success(`Proposed creator amount ₹${num.toLocaleString()} successfully!`);
+      setNegotiationAmount("");
+      setIsReopeningNegotiation(false);
+      await fetchConversations();
+    } catch (error) {
+      console.error("Propose offer error:", error);
+      toast.error(
+        error?.response?.data?.message ||
+          error?.message ||
+          "Failed to propose payment amount."
+      );
+    } finally {
+      setIsSubmittingOffer(false);
+    }
+  };
+
+  const handleAgreeAmount = async () => {
+    const connId = activeConversation?.connection?._id;
+    if (!connId) {
+      toast.error("No active collaboration connection found.");
+      return;
+    }
+
+    try {
+      setIsAgreeingOffer(true);
+      const res = await api.patch(`/api/connections/${connId}/agree-amount`);
+
+      const updatedConn = res?.data?.data || res?.data;
+      if (updatedConn) {
+        setActiveConversation((prev) => ({
+          ...prev,
+          connection: updatedConn,
+        }));
+        setConversations((prev) =>
+          prev.map((c) =>
+            c._id === activeConversation._id
+              ? { ...c, connection: updatedConn }
+              : c
+          )
+        );
+      }
+
+      toast.success("Payment amount agreed successfully!");
+      setIsReopeningNegotiation(false);
+      await fetchConversations();
+    } catch (error) {
+      console.error("Agree offer error:", error);
+      toast.error(
+        error?.response?.data?.message ||
+          error?.message ||
+          "Failed to agree on payment amount."
+      );
+    } finally {
+      setIsAgreeingOffer(false);
+    }
+  };
+
+  /*
+   * ----------------------------------------------------
+   * TASK 4: COLLABORATION PAYMENT HANDLER (BRAND -> PRAVIXO)
+   * ----------------------------------------------------
+   */
+  const [isPayingCollaboration, setIsPayingCollaboration] = useState(false);
+
+  const handlePayCollaboration = async () => {
+    const connId = activeConversation?.connection?._id;
+    if (!connId) {
+      toast.error("No active collaboration connection found.");
+      return;
+    }
+
+    try {
+      setIsPayingCollaboration(true);
+
+      // Step 1: Request Order from backend
+      const res = await api.post(`/api/payments/collaboration/${connId}/order`);
+      const orderData = res.data?.data || res.data;
+
+      if (!orderData || !orderData.orderId) {
+        throw new Error("Failed to generate payment order.");
+      }
+
+      // Step 2: Open Razorpay checkout modal
+      const options = {
+        key: orderData.key || import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_placeholder",
+        amount: orderData.amount,
+        currency: orderData.currency || "INR",
+        name: "Pravixo Platform",
+        description: `Payment for Campaign Collaboration (${activeConversation.campaign?.title || "Campaign"})`,
+        order_id: orderData.orderId,
+        handler: async (response) => {
+          try {
+            setIsPayingCollaboration(true);
+            // Step 3: Server-side signature verification
+            const verifyRes = await api.post(`/api/payments/collaboration/${connId}/verify`, {
+              gatewayOrderId: response.razorpay_order_id,
+              gatewayPaymentId: response.razorpay_payment_id,
+              gatewaySignature: response.razorpay_signature,
+            });
+
+            const updatedConn = verifyRes.data?.data?.connection || {
+              ...activeConversation.connection,
+              paymentStatus: "PAID",
+            };
+
+            setActiveConversation((prev) => ({
+              ...prev,
+              connection: updatedConn,
+            }));
+
+            setConversations((prev) =>
+              prev.map((c) =>
+                c._id === activeConversation._id
+                  ? { ...c, connection: updatedConn }
+                  : c
+              )
+            );
+
+            toast.success("Payment successful! Funds secured with Pravixo.");
+            await fetchConversations();
+          } catch (verifyErr) {
+            console.error("Verification error:", verifyErr);
+            toast.error(verifyErr?.response?.data?.message || verifyErr.message || "Payment verification failed.");
+          } finally {
+            setIsPayingCollaboration(false);
+          }
+        },
+        prefill: {
+          name: profile.fullName || "",
+          email: profile.email || "",
+          contact: profile.phone || "",
+        },
+        theme: {
+          color: "#EC4899",
+        },
+        modal: {
+          ondismiss: () => {
+            setIsPayingCollaboration(false);
+            toast.info("Payment window closed.");
+          },
+        },
+      };
+
+      if (!window.Razorpay) {
+        // Dynamically load Razorpay script if not loaded
+        const script = document.createElement("script");
+        script.src = "https://checkout.razorpay.com/v1/checkout.js";
+        script.onload = () => {
+          const rzp = new window.Razorpay(options);
+          rzp.open();
+        };
+        document.body.appendChild(script);
+      } else {
+        const rzp = new window.Razorpay(options);
+        rzp.open();
+      }
+    } catch (error) {
+      console.error("Initiate payment error:", error);
+      toast.error(
+        error?.response?.data?.message ||
+          error?.message ||
+          "Failed to initiate payment."
+      );
+      setIsPayingCollaboration(false);
     }
   };
 
@@ -650,11 +915,18 @@ export default function Messages() {
                       <div className="min-w-0 flex-1">
 
                         <div className="flex items-center justify-between gap-2">
-
-                          <h4 className="truncate font-display font-semibold">
-                            {other?.fullName ||
-                              "Unknown User"}
-                          </h4>
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <h4 className="truncate font-display font-semibold">
+                              {other?.role === "admin" || conversation.conversationType?.startsWith("admin_")
+                                ? "Pravixo Admin"
+                                : other?.fullName || "Unknown User"}
+                            </h4>
+                            {(other?.role === "admin" || conversation.conversationType?.startsWith("admin_")) && (
+                              <span className="shrink-0 rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-bold text-primary border border-primary/20">
+                                🛡️ Admin
+                              </span>
+                            )}
+                          </div>
 
                           <span className="shrink-0 text-[10px] text-muted-foreground">
                             {conversation.lastMessage
@@ -670,7 +942,6 @@ export default function Messages() {
                                 )
                               : ""}
                           </span>
-
                         </div>
 
                         <div className="mt-1 flex items-center justify-between">
@@ -761,19 +1032,26 @@ export default function Messages() {
 
                 {/* NAME */}
                 <div className="min-w-0 flex-1">
-
-                  <h2 className="truncate font-display font-semibold">
-                    {otherProfile?.fullName ||
-                      "Unknown User"}
-                  </h2>
+                  <div className="flex items-center gap-2">
+                    <h2 className="truncate font-display font-semibold">
+                      {otherProfile?.role === "admin" || activeConversation.conversationType?.startsWith("admin_")
+                        ? "Pravixo Admin"
+                        : otherProfile?.fullName || "Unknown User"}
+                    </h2>
+                    {(otherProfile?.role === "admin" || activeConversation.conversationType?.startsWith("admin_")) && (
+                      <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary border border-primary/20">
+                        🛡️ Pravixo Team
+                      </span>
+                    )}
+                  </div>
 
                   <p className="text-xs text-muted-foreground">
-                    {activeConversation.status ===
-                    "active"
+                    {otherProfile?.role === "admin" || activeConversation.conversationType?.startsWith("admin_")
+                      ? "Official Support & Platform Coordination"
+                      : activeConversation.status === "active"
                       ? "Active conversation"
                       : activeConversation.status}
                   </p>
-
                 </div>
 
                 {/* DELETE CHAT */}
@@ -799,6 +1077,340 @@ export default function Messages() {
                 </button>
 
               </div>
+
+              {/* COLLABORATION & PAYMENT NEGOTIATION BAR */}
+              {activeConversation.connection && (
+                <div className="border-b border-border bg-card/60 p-4 backdrop-blur-sm">
+                  {(() => {
+                    const conn = activeConversation.connection;
+                    const camp = activeConversation.campaign;
+                    const isAgreed = conn.collaborationStatus === "AMOUNT_AGREED" && !isReopeningNegotiation;
+                    const hasPendingProposal = conn.proposedAmount > 0 && conn.collaborationStatus === "NEGOTIATING";
+                    const isProposedByMe = String(conn.proposedBy) === String(profile._id);
+
+                    // Calculations
+                    const displayCreatorAmount = isAgreed ? conn.creatorAmount : (conn.proposedAmount || 0);
+                    const displayFee = isAgreed ? conn.pravixoFee : Math.round(displayCreatorAmount * 0.20);
+                    const displayBrandTotal = isAgreed ? conn.brandTotal : (displayCreatorAmount + displayFee);
+
+                    return (
+                      <div className="rounded-2xl border border-border/80 bg-background/90 p-4 shadow-sm">
+                        {/* Header & Status */}
+                        <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-border/60">
+                          <div className="flex items-center gap-2">
+                            <Sparkles className="h-4 w-4 text-primary" />
+                            <span className="font-display text-sm font-bold text-foreground">
+                              Campaign Collaboration & Payment Negotiation
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            {isAgreed && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setViewAgreementOpen(true)}
+                                className="h-7 rounded-lg border-primary/30 bg-primary/5 text-primary hover:bg-primary/10 text-xs font-semibold px-2.5 flex items-center gap-1 shadow-sm"
+                              >
+                                <FileText className="h-3.5 w-3.5" /> View Agreement
+                              </Button>
+                            )}
+                            {isAgreed ? (
+                              <Badge className="bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 font-semibold px-2.5 py-0.5 text-xs flex items-center gap-1">
+                                <ShieldCheck className="h-3.5 w-3.5" /> Amount Agreed ✓
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/20 font-semibold px-2.5 py-0.5 text-xs">
+                                Negotiating Payment
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Campaign Context Info */}
+                        {camp && (
+                          <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                            <span><strong>Campaign:</strong> {camp.title}</span>
+                            <span>•</span>
+                            <span><strong>Campaign Budget:</strong> ₹{camp.totalBudget?.toLocaleString() || "0"}</span>
+                            {camp.maxBudgetPerCreator > 0 && (
+                              <>
+                                <span>•</span>
+                                <span><strong>Max / Creator:</strong> ₹{camp.maxBudgetPerCreator?.toLocaleString()}</span>
+                              </>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Amount Agreement Display or Negotiation Area */}
+                        {isAgreed ? (
+                          /* AGREED VIEW */
+                          <div className="mt-3.5 space-y-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-xl bg-secondary/30 p-3.5 border border-border/60">
+                              <div className="text-center sm:text-left">
+                                <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium block">
+                                  Creator Payment
+                                </span>
+                                <span className="text-base font-bold text-emerald-600">
+                                  ₹{conn.creatorAmount?.toLocaleString()}
+                                </span>
+                                <span className="block text-[10px] text-muted-foreground">
+                                  Creator receives full amount
+                                </span>
+                              </div>
+
+                              <div className="text-center sm:text-left">
+                                <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium block">
+                                  Pravixo Fee (20%)
+                                </span>
+                                <span className="text-base font-bold text-foreground">
+                                  ₹{conn.pravixoFee?.toLocaleString()}
+                                </span>
+                                <span className="block text-[10px] text-muted-foreground">
+                                  Paid by brand on top
+                                </span>
+                              </div>
+
+                              <div className="text-center sm:text-left">
+                                <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium block">
+                                  Brand Total
+                                </span>
+                                <span className="text-base font-bold text-primary">
+                                  ₹{conn.brandTotal?.toLocaleString()}
+                                </span>
+                                <span className="block text-[10px] text-muted-foreground">
+                                  Total payable by brand
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Payment Status & Pay Pravixo Button Section */}
+                            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/80 bg-background p-3">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-semibold text-foreground">Payment Status:</span>
+                                {conn.paymentStatus === "PAID" ? (
+                                  <Badge className="bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 font-bold px-2.5 py-0.5 text-xs flex items-center gap-1">
+                                    <ShieldCheck className="h-3.5 w-3.5" /> PAID (Payment Successful)
+                                  </Badge>
+                                ) : conn.paymentStatus === "FAILED" ? (
+                                  <Badge variant="destructive" className="font-bold px-2.5 py-0.5 text-xs">
+                                    Payment Failed (Retry Available)
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/20 font-bold px-2.5 py-0.5 text-xs">
+                                    Payment Pending
+                                  </Badge>
+                                )}
+                              </div>
+
+                              {/* Brand Payment Action */}
+                              {profile.role === "brand" && conn.paymentStatus !== "PAID" && (
+                                <Button
+                                  size="sm"
+                                  onClick={handlePayCollaboration}
+                                  disabled={isPayingCollaboration}
+                                  className="rounded-xl gradient-sunset text-white font-bold text-xs px-5 h-9 shadow-glow flex items-center gap-1.5"
+                                >
+                                  <IndianRupee className="h-4 w-4" />
+                                  {isPayingCollaboration
+                                    ? "Processing Payment..."
+                                    : `Pay Pravixo ₹${conn.brandTotal?.toLocaleString()}`}
+                                </Button>
+                              )}
+
+                              {conn.paymentStatus === "PAID" && (
+                                <span className="text-xs text-emerald-600 font-semibold flex items-center gap-1">
+                                  ✓ Payment secured with Pravixo
+                                </span>
+                              )}
+                            </div>
+                                        {/* Task 5: Campaign Deliverables Progress Bar & Breakdown */}
+                            {conn.deliverablesTracking && conn.deliverablesTracking.length > 0 && (
+                              <div className="rounded-xl border border-border/80 bg-background/60 p-3 space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-xs font-bold text-foreground uppercase tracking-wider">
+                                      Campaign Deliverables
+                                    </span>
+                                    {conn.paymentStatus === "PAID" ? (
+                                      <Badge className="bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 text-[10px] py-0 px-1.5 font-bold">
+                                        Active
+                                      </Badge>
+                                    ) : (
+                                      <Badge variant="outline" className="text-[10px] py-0 px-1.5 font-medium text-muted-foreground">
+                                        Inactive (Requires Payment)
+                                      </Badge>
+                                    )}
+                                  </div>
+
+                                  {conn.paymentStatus === "PAID" && (() => {
+                                    const totalReq = conn.deliverablesTracking.reduce((acc, d) => acc + (d.requiredQuantity || 0), 0);
+                                    const totalComp = conn.deliverablesTracking.reduce((acc, d) => acc + (d.completedQuantity || 0), 0);
+                                    const pct = totalReq > 0 ? Math.round((totalComp / totalReq) * 100) : 0;
+                                    return (
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-xs font-bold text-primary">
+                                          {totalComp} / {totalReq} Completed ({pct}%)
+                                        </span>
+                                      </div>
+                                    );
+                                  })()}
+                                </div>
+
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                  {conn.deliverablesTracking.map((deliv, dIdx) => {
+                                    const typeLabels = {
+                                      REEL: "Reels",
+                                      POST: "Posts",
+                                      STORY: "Stories",
+                                      VIDEO: "Videos",
+                                    };
+                                    return (
+                                      <div
+                                        key={dIdx}
+                                        className={cn(
+                                          "flex flex-col p-2 rounded-lg border text-xs",
+                                          conn.paymentStatus === "PAID"
+                                            ? "bg-secondary/40 border-border/70"
+                                            : "bg-muted/20 border-border/30 opacity-60"
+                                        )}
+                                      >
+                                        <div className="flex items-center justify-between text-[11px] text-muted-foreground font-medium">
+                                          <span>{typeLabels[deliv.type] || deliv.type}</span>
+                                          <span className="text-[9px] uppercase font-bold text-muted-foreground">
+                                            {deliv.status || "PENDING"}
+                                          </span>
+                                        </div>
+                                        <div className="mt-1 flex items-baseline justify-between">
+                                          <span className="text-sm font-bold text-foreground">
+                                            {deliv.completedQuantity || 0}
+                                            <span className="text-xs font-normal text-muted-foreground"> / {deliv.requiredQuantity}</span>
+                                          </span>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+
+                            <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
+                              <span>
+                                Agreed at: {conn.agreedAt ? new Date(conn.agreedAt).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "Recently"}
+                              </span>
+                              {conn.paymentStatus !== "PAID" && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-7 text-xs text-muted-foreground hover:text-foreground"
+                                  onClick={() => setIsReopeningNegotiation(true)}
+                                >
+                                  <RefreshCw className="h-3 w-3 mr-1" /> Re-negotiate Amount
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          /* NEGOTIATING VIEW */
+                          <div className="mt-3.5 space-y-3">
+                            {/* Pending Offer Banner if exists */}
+                            {hasPendingProposal && (
+                              <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                <div className="space-y-1">
+                                  <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                                    <IndianRupee className="h-3.5 w-3.5 text-primary" />
+                                    <span>
+                                      {isProposedByMe
+                                        ? `You proposed a creator payment of ₹${conn.proposedAmount?.toLocaleString()}`
+                                        : `${otherProfile?.fullName || "Partner"} proposed a creator payment of ₹${conn.proposedAmount?.toLocaleString()}`}
+                                    </span>
+                                  </div>
+                                  <div className="flex flex-wrap gap-x-3 text-[11px] text-muted-foreground">
+                                    <span><strong>Creator receives:</strong> ₹{displayCreatorAmount?.toLocaleString()}</span>
+                                    <span>•</span>
+                                    <span><strong>Pravixo fee (20%):</strong> ₹{displayFee?.toLocaleString()}</span>
+                                    <span>•</span>
+                                    <span><strong>Brand total:</strong> ₹{displayBrandTotal?.toLocaleString()}</span>
+                                  </div>
+                                </div>
+
+                                {!isProposedByMe && (
+                                  <Button
+                                    size="sm"
+                                    onClick={handleAgreeAmount}
+                                    disabled={isAgreeingOffer}
+                                    className="rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-4 h-8 shrink-0 flex items-center gap-1.5"
+                                  >
+                                    <Check className="h-3.5 w-3.5" />
+                                    {isAgreeingOffer ? "Agreeing..." : "Accept & Agree"}
+                                  </Button>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Propose/Counter Offer Input Form */}
+                            <form onSubmit={handleProposeAmount} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                              <div className="relative flex-1">
+                                <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                <input
+                                  type="number"
+                                  min="1"
+                                  placeholder={
+                                    hasPendingProposal
+                                      ? "Enter counter offer for creator payment..."
+                                      : "Enter proposed creator payment amount (₹)..."
+                                  }
+                                  value={negotiationAmount}
+                                  onChange={(e) => setNegotiationAmount(e.target.value)}
+                                  className="w-full rounded-xl border border-input bg-background py-2 pl-9 pr-4 text-xs font-medium outline-none focus:ring-1 focus:ring-primary"
+                                />
+                              </div>
+
+                              <Button
+                                type="submit"
+                                size="sm"
+                                disabled={!negotiationAmount || isSubmittingOffer}
+                                className="rounded-xl gradient-sunset text-white text-xs font-semibold px-4 h-9 shrink-0"
+                              >
+                                {isSubmittingOffer
+                                  ? "Sending Offer..."
+                                  : hasPendingProposal
+                                  ? "Send Counter Offer"
+                                  : "Propose Amount"}
+                              </Button>
+
+                              {isReopeningNegotiation && (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setIsReopeningNegotiation(false)}
+                                  className="rounded-xl text-xs h-9"
+                                >
+                                  Cancel
+                                </Button>
+                              )}
+                            </form>
+
+                            {/* Live calculation breakdown preview */}
+                            {negotiationAmount && Number(negotiationAmount) > 0 && (
+                              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg bg-secondary/30 px-3 py-2 text-[11px] text-muted-foreground">
+                                <span><strong>Creator will get:</strong> ₹{Number(negotiationAmount).toLocaleString()}</span>
+                                <span>•</span>
+                                <span><strong>Pravixo Fee (20%):</strong> ₹{Math.round(Number(negotiationAmount) * 0.20).toLocaleString()}</span>
+                                <span>•</span>
+                                <span className="text-foreground font-semibold">
+                                  <strong>Brand will pay:</strong> ₹{(Number(negotiationAmount) + Math.round(Number(negotiationAmount) * 0.20)).toLocaleString()}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
 
               {/* MESSAGES */}
               <div className="flex-1 space-y-3 overflow-y-auto p-5">
@@ -874,32 +1486,112 @@ export default function Messages() {
                                 <Trash2 className="h-4 w-4" />
                               </button>
                             )}
-                            <div
-                              onTouchStart={() => isMine && handleTouchStartMessage(item._id)}
-                              onTouchEnd={handleTouchEnd}
-                              onTouchCancel={handleTouchEnd}
-                              className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm ${
-                                isMine
-                                  ? "rounded-br-md gradient-sunset text-white"
-                                  : "rounded-bl-md bg-muted text-foreground"
-                              }`}
-                            >
-                              <p>{item.text}</p>
-                              <p
-                                className={`mt-1 text-[10px] ${
+                            {item.messageType === "deliverable_submission" && item.metadata ? (
+                              <div
+                                onTouchStart={() => isMine && handleTouchStartMessage(item._id)}
+                                onTouchEnd={handleTouchEnd}
+                                onTouchCancel={handleTouchEnd}
+                                className={cn(
+                                  "max-w-[320px] sm:max-w-[380px] rounded-2xl p-3 text-xs border shadow-sm space-y-2",
                                   isMine
-                                    ? "text-white/70"
-                                    : "text-muted-foreground"
+                                    ? "rounded-br-md bg-primary/10 border-primary/30 text-foreground"
+                                    : "rounded-bl-md bg-card border-border/80 text-foreground"
+                                )}
+                              >
+                                <div className="flex items-center justify-between gap-1 pb-1.5 border-b border-border/40">
+                                  <span className="font-bold text-[11px] text-primary flex items-center gap-1">
+                                    <Sparkles className="h-3 w-3" /> Campaign Deliverable Submitted
+                                  </span>
+                                  <Badge className="bg-amber-500/10 text-amber-600 border border-amber-500/20 text-[9px] px-1.5 py-0 font-bold">
+                                    {item.metadata.status || "SUBMITTED"}
+                                  </Badge>
+                                </div>
+
+                                <div className="space-y-1">
+                                  <div className="flex items-center justify-between text-[11px]">
+                                    <span className="font-semibold text-foreground">
+                                      {item.metadata.deliverableType} #{item.metadata.sequenceNumber || 1}
+                                    </span>
+                                    <span className="text-[10px] text-muted-foreground">
+                                      Req: {item.metadata.requiredQuantity}
+                                    </span>
+                                  </div>
+
+                                  {/* Thumbnail / Media Preview */}
+                                  {item.metadata.contentUrl && (
+                                    <div className="rounded-xl overflow-hidden bg-background border border-border/60 max-h-48 flex items-center justify-center mt-1">
+                                      {item.metadata.contentUrl?.match(/\.(mp4|mov|webm|avi|mkv)$/i) || item.metadata.deliverableType === "REEL" || item.metadata.deliverableType === "VIDEO" ? (
+                                        <video
+                                          src={resolveImageUrl(item.metadata.contentUrl)}
+                                          controls
+                                          className="max-h-48 w-full object-contain"
+                                        />
+                                      ) : (
+                                        <img
+                                          src={resolveImageUrl(item.metadata.contentUrl)}
+                                          alt="Submission"
+                                          className="max-h-48 w-full object-contain"
+                                        />
+                                      )}
+                                    </div>
+                                  )}
+
+                                  {item.metadata.caption && (
+                                    <p className="text-[11px] text-muted-foreground italic mt-1 pt-1 border-t border-border/30">
+                                      "{item.metadata.caption}"
+                                    </p>
+                                  )}
+                                </div>
+
+                                <div className="flex items-center justify-between text-[9px] text-muted-foreground pt-1 border-t border-border/30">
+                                  <span>
+                                    {item.createdAt
+                                      ? new Date(item.createdAt).toLocaleTimeString([], {
+                                          hour: "2-digit",
+                                          minute: "2-digit",
+                                        })
+                                      : ""}
+                                  </span>
+                                  {item.metadata.contentUrl && (
+                                    <a
+                                      href={resolveImageUrl(item.metadata.contentUrl)}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="text-primary hover:underline font-semibold"
+                                    >
+                                      View Original ↗
+                                    </a>
+                                  )}
+                                </div>
+                              </div>
+                            ) : (
+                              <div
+                                onTouchStart={() => isMine && handleTouchStartMessage(item._id)}
+                                onTouchEnd={handleTouchEnd}
+                                onTouchCancel={handleTouchEnd}
+                                className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm ${
+                                  isMine
+                                    ? "rounded-br-md gradient-sunset text-white"
+                                    : "rounded-bl-md bg-muted text-foreground"
                                 }`}
                               >
-                                {item.createdAt
-                                  ? new Date(item.createdAt).toLocaleTimeString([], {
-                                      hour: "2-digit",
-                                      minute: "2-digit",
-                                    })
-                                  : ""}
-                              </p>
-                            </div>
+                                <p>{item.text}</p>
+                                <p
+                                  className={`mt-1 text-[10px] ${
+                                    isMine
+                                      ? "text-white/70"
+                                      : "text-muted-foreground"
+                                  }`}
+                                >
+                                  {item.createdAt
+                                    ? new Date(item.createdAt).toLocaleTimeString([], {
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                      })
+                                    : ""}
+                                </p>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -966,6 +1658,15 @@ export default function Messages() {
 
         </div>
       </div>
+
+      {/* Collaboration Agreement Viewer Modal */}
+      {viewAgreementOpen && activeConversation?.connection?._id && (
+        <AgreementModal
+          isOpen={viewAgreementOpen}
+          onClose={() => setViewAgreementOpen(false)}
+          connectionId={activeConversation.connection._id}
+        />
+      )}
     </div>
   );
 }

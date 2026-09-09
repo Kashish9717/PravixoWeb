@@ -16,6 +16,9 @@ import {
   unsuspendProfile,
   listAllTasks,
   listAllPayments,
+  listCollaborationPaymentReleases,
+  getCollaborationPaymentReleaseDetails,
+  releaseCreatorPayout,
   resolveDispute,
   getRevenueStats,
   getWebhookLogs,
@@ -52,11 +55,20 @@ import {
   getAdminActivityFeed,
   restoreProfile,
   sendAdminMessage,
+  listAdminCampaigns,
+  verifyCampaign,
+  openAdminConversation,
+  listWithdrawals,
+  processWithdrawal,
 } from "../controllers/adminController.js";
 
 const router = express.Router();
 
 router.use(adminProtect);
+
+// Campaign verification queues & moderation
+router.get("/campaigns", listAdminCampaigns);
+router.patch("/campaigns/:id/verify", verifyCampaign);
 
 // Aggregate stats & overview
 router.get("/stats", getStats);
@@ -104,8 +116,9 @@ router.delete("/content/protips/:id", deleteProTip);
 // Users (Profiles)
 router.get("/profiles", listAllProfiles);
 
-// Conversations & Messages moderation
+// Conversations & Messages moderation / participation
 router.get("/conversations", listAllConversations);
+router.post("/conversations/open", openAdminConversation);
 router.get("/conversations/:id/messages", listMessages);
 router.delete("/conversations/:id", deleteConversation);
 router.post("/messages/bulk-delete", bulkDeleteMessages);
@@ -130,7 +143,14 @@ router.get("/tasks", listAllTasks);
 
 // Payments & Escrow arbitration
 router.get("/payments", listAllPayments);
+router.get("/payments/collaborations", listCollaborationPaymentReleases);
+router.get("/payments/collaborations/:id", getCollaborationPaymentReleaseDetails);
+router.post("/payments/collaborations/:id/release", releaseCreatorPayout);
 router.post("/payments/:id/resolve-dispute", resolveDispute);
+
+// Creator Withdrawal Requests (Task 14)
+router.get("/withdrawals", listWithdrawals);
+router.post("/withdrawals/:id/process", processWithdrawal);
 
 // Webhook audit logs
 router.get("/webhooks/logs", getWebhookLogs);

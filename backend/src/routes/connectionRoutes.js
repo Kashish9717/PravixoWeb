@@ -1,4 +1,5 @@
 import express from "express";
+import { protect, optionalAuth } from "../middleware/auth.js";
 
 import {
   sendRequest,
@@ -12,15 +13,29 @@ import {
   getAllConnections,
   getMyRequestsForCreator,
   getApprovedCollaborationsForBrand,
+  proposeCollaborationAmount,
+  agreeCollaborationAmount,
+  getCollaborationDetails,
+  getCollaborationDeliverables,
 } from "../controllers/connectionController.js";
 
 const router = express.Router();
 
-router.post("/request", sendRequest);
+router.post("/request", protect, sendRequest);
 
-router.patch("/:connectionId/accept", acceptRequest);
+router.patch("/:connectionId/accept", protect, acceptRequest);
 
-router.patch("/:connectionId/reject", rejectRequest);
+router.patch("/:connectionId/reject", protect, rejectRequest);
+
+router.patch("/:connectionId/propose-amount", protect, proposeCollaborationAmount);
+
+router.patch("/:connectionId/agree-amount", protect, agreeCollaborationAmount);
+
+router.get("/:connectionId/collaboration", protect, getCollaborationDetails);
+
+router.get("/:connectionId/deliverables", protect, getCollaborationDeliverables);
+
+router.get("/collaboration-details", protect, getCollaborationDetails);
 
 router.get("/notification-count", getNavbarNotificationCount);
 

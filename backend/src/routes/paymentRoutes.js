@@ -1,4 +1,5 @@
 import express from "express";
+import { protect } from "../middleware/auth.js";
 
 import {
   initiatePaymentOrder,
@@ -10,9 +11,29 @@ import {
   getCreatorBankDetails,
   getPaymentsForBrand,
   getPaymentsForCreator,
+  initiateCollaborationPayment,
+  verifyCollaborationPayment,
 } from "../controllers/paymentController.js";
 
 const router = express.Router();
+
+/*
+|--------------------------------------------------------------------------
+| Task 4: Collaboration Payment (Brand -> Pravixo)
+|--------------------------------------------------------------------------
+*/
+
+router.post(
+  "/collaboration/:connectionId/order",
+  protect,
+  initiateCollaborationPayment
+);
+
+router.post(
+  "/collaboration/:connectionId/verify",
+  protect,
+  verifyCollaborationPayment
+);
 
 /*
 |--------------------------------------------------------------------------

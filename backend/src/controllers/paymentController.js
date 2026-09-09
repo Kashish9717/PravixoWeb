@@ -5,6 +5,10 @@ import CreatorBankDetails from "../models/CreatorBankDetails.js";
 import PaymentAuditLog from "../models/PaymentAuditLog.js";
 import WebhookLog from "../models/WebhookLog.js";
 import Notification from "../models/Notification.js";
+import Connection from "../models/Connection.js";
+import Campaign from "../models/Campaign.js";
+import Profile from "../models/Profile.js";
+import Conversation from "../models/Conversation.js";
 
 import {
   createOrder,
@@ -1608,3 +1612,415 @@ export const refundPayment =
       });
     }
   };
+
+/*
+|--------------------------------------------------------------------------
+| 9. INITIATE COLLABORATION PAYMENT (TASK 4)
+|
+| POST /api/payments/collaboration/:connectionId/order
+|--------------------------------------------------------------------------
+*/
+export const initiateCollaborationPayment = async (req, res) => {
+  try {
+    const { connectionId } = req.params;
+
+    if (!isValidObjectId(connectionId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid connection/collaboration ID",
+      });
+    }
+
+    const connection = await Connection.findById(connectionId);
+    if (!connection) {
+      return res.status(404).json({
+        success: false,
+        message: "Collaboration not found",
+      });
+    }
+
+    // Security: Brand Authentication & Ownership
+    if (req.user) {
+      if (req.user.role !== "brand") {
+        return res.status(403).json({
+          success: false,
+          message: "Only Brands can pay for collaborations",
+        });
+      }
+
+      if (String(connection.brandId) !== String(req.user._id)) {
+        return res.status(403).json({
+          success: false,
+          message: "Unauthorized: You do not own this collaboration",
+        });
+      }
+    }
+
+    // Collaboration must be in AMOUNT_AGREED status
+    if (connection.collaborationStatus !== "AMOUNT_AGREED") {
+      return res.status(400).json({
+        success: false,
+        message: "Payment can only be initiated after collaboration amount is agreed.",
+      });
+    }
+
+    // Prevent duplicate payment
+    if (connection.paymentStatus === "PAID") {
+      return res.status(400).json({
+        success: false,
+        message: "This collaboration has already been paid.",
+      });
+    }
+
+    // Strict backend calculations from stored data (never trust frontend)
+    const creatorAmount = connection.creatorAmount;
+    const pravixoFee = connection.pravixoFee || Math.round(creatorAmount * 0.20);
+    const brandTotal = connection.brandTotal || (creatorAmount + pravixoFee);
+
+    if (!brandTotal || brandTotal <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid agreed collaboration amount.",
+      });
+    }
+
+    const invoiceNumber = `INV-${Date.now()}-${connection._id.toString().slice(-4).toUpperCase()}`;
+
+    // Find existing conversation if any
+    let conversation = null;
+    if (connection.campaignId) {
+      conversation = await Conversation.findOne({
+        creatorId: connection.creatorId,
+        brandId: connection.brandId,
+        campaignId: connection.campaignId,
+      });
+    } else {
+      conversation = await Conversation.findOne({
+        creatorId: connection.creatorId,
+        brandId: connection.brandId,
+      });
+    }
+
+    // Find or create Payment document
+    let payment = null;
+    if (connection.paymentId) {
+      payment = await Payment.findById(connection.paymentId);
+    }
+
+    if (!payment) {
+      payment = await Payment.create({
+        campaignId: connection.campaignId,
+        taskId: null,
+        conversationId: conversation?._id || null,
+        connectionId: connection._id,
+        brandId: connection.brandId,
+        creatorId: connection.creatorId,
+        paymentGateway: "razorpay",
+        invoiceNumber,
+        invoiceStatus: "generated",
+        currency: "INR",
+        grossAmount: brandTotal,
+        platformCommissionPercentage: 20,
+        platformCommissionAmount: pravixoFee,
+        creatorAmount: creatorAmount,
+        paymentStatus: "pending",
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      connection.paymentId = payment._id;
+    } else {
+      payment.grossAmount = brandTotal;
+      payment.platformCommissionAmount = pravixoFee;
+      payment.creatorAmount = creatorAmount;
+      payment.paymentStatus = "pending";
+      payment.invoiceStatus = "generated";
+      payment.updatedAt = Date.now();
+      await payment.save();
+    }
+
+    // Create Razorpay Order with exact brandTotal (in INR)
+    const order = await createOrder({
+      amount: brandTotal,
+      currency: "INR",
+      receiptId: invoiceNumber,
+    });
+
+    payment.gatewayOrderId = order.id;
+    payment.paymentStatus = "pending";
+    payment.updatedAt = Date.now();
+    await payment.save();
+
+    connection.paymentStatus = "PAYMENT_INITIATED";
+    connection.updatedAt = Date.now();
+    await connection.save();
+
+    await createAuditLog({
+      paymentId: payment._id,
+      action: "Payment Initiated",
+      details: `Razorpay Order ${order.id} initiated for collaboration ${connection._id}. Amount: ₹${brandTotal}`,
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        paymentId: payment._id,
+        orderId: order.id,
+        amount: order.amount,
+        currency: order.currency,
+        creatorAmount,
+        pravixoFee,
+        brandTotal,
+        key: process.env.RAZORPAY_KEY_ID || "rzp_test_placeholder",
+      },
+    });
+  } catch (error) {
+    console.error("initiateCollaborationPayment error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to initiate collaboration payment.",
+    });
+  }
+};
+
+/*
+|--------------------------------------------------------------------------
+| 10. VERIFY COLLABORATION PAYMENT (TASK 4)
+|
+| POST /api/payments/collaboration/:connectionId/verify
+|--------------------------------------------------------------------------
+*/
+export const verifyCollaborationPayment = async (req, res) => {
+  try {
+    const { connectionId } = req.params;
+    const {
+      gatewayOrderId,
+      gatewayPaymentId,
+      gatewaySignature,
+    } = req.body;
+
+    if (!isValidObjectId(connectionId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid connection/collaboration ID",
+      });
+    }
+
+    if (!gatewayOrderId || !gatewayPaymentId || !gatewaySignature) {
+      return res.status(400).json({
+        success: false,
+        message: "Payment verification credentials missing",
+      });
+    }
+
+    const connection = await Connection.findById(connectionId);
+    if (!connection) {
+      return res.status(404).json({
+        success: false,
+        message: "Collaboration not found",
+      });
+    }
+
+    // Security: Brand Authentication & Ownership
+    if (req.user) {
+      if (req.user.role !== "brand") {
+        return res.status(403).json({
+          success: false,
+          message: "Only Brands can verify payments",
+        });
+      }
+
+      if (String(connection.brandId) !== String(req.user._id)) {
+        return res.status(403).json({
+          success: false,
+          message: "Unauthorized: You do not own this collaboration",
+        });
+      }
+    }
+
+    // Check duplicate payment
+    if (connection.paymentStatus === "PAID") {
+      return res.status(200).json({
+        success: true,
+        message: "Payment is already completed and verified.",
+        data: {
+          connection,
+          paymentStatus: "PAID",
+        },
+      });
+    }
+
+    const payment = await Payment.findOne({
+      connectionId: connection._id,
+      gatewayOrderId,
+    });
+
+    if (!payment) {
+      return res.status(404).json({
+        success: false,
+        message: "Payment record for this order was not found",
+      });
+    }
+
+    // Verify Server-side Razorpay signature
+    const isValid = verifySignature({
+      orderId: gatewayOrderId,
+      paymentId: gatewayPaymentId,
+      signature: gatewaySignature,
+    });
+
+    if (!isValid) {
+      connection.paymentStatus = "FAILED";
+      connection.updatedAt = Date.now();
+      await connection.save();
+
+      payment.paymentStatus = "pending";
+      payment.invoiceStatus = "failed";
+      await payment.save();
+
+      await createAuditLog({
+        paymentId: payment._id,
+        action: "Payment Verification Failed",
+        details: `Invalid signature for Order ${gatewayOrderId} and Payment ${gatewayPaymentId}.`,
+      });
+
+      return res.status(400).json({
+        success: false,
+        message: "Invalid payment signature verification failed.",
+      });
+    }
+
+    // Attempt capture if live Razorpay instance configured
+    let captureStatus = "captured";
+    try {
+      const capture = await capturePayment({
+        paymentId: gatewayPaymentId,
+        amount: payment.grossAmount,
+        currency: payment.currency || "INR",
+      });
+      captureStatus = capture.status || "captured";
+    } catch (captureErr) {
+      // If already captured or simulated in test mode, proceed
+      console.log("Payment capture response/note:", captureErr.message);
+    }
+
+    const now = Date.now();
+
+    // Update Payment model
+    payment.gatewayPaymentId = gatewayPaymentId;
+    payment.gatewaySignature = gatewaySignature;
+    payment.gatewayStatus = captureStatus;
+    payment.invoiceStatus = "paid";
+    payment.paymentStatus = "payment_successful";
+    payment.transactionReference = `TXN-${gatewayPaymentId}`;
+    payment.updatedAt = now;
+    await payment.save();
+
+    // Update Connection model
+    connection.paymentStatus = "PAID";
+    connection.paidAt = now;
+    connection.updatedAt = now;
+
+    // Task 5: Ensure deliverablesTracking snapshot is populated from campaign
+    if ((!connection.deliverablesTracking || connection.deliverablesTracking.length === 0) && connection.campaignId) {
+      const camp = await Campaign.findById(connection.campaignId).lean();
+      if (camp && camp.deliverables) {
+        const delivs = [];
+        if (camp.deliverables.reels > 0) {
+          delivs.push({
+            type: "REEL",
+            requiredQuantity: camp.deliverables.reels,
+            completedQuantity: 0,
+            status: "PENDING",
+            createdAt: now,
+            updatedAt: now,
+          });
+        }
+        if (camp.deliverables.posts > 0) {
+          delivs.push({
+            type: "POST",
+            requiredQuantity: camp.deliverables.posts,
+            completedQuantity: 0,
+            status: "PENDING",
+            createdAt: now,
+            updatedAt: now,
+          });
+        }
+        if (camp.deliverables.stories > 0) {
+          delivs.push({
+            type: "STORY",
+            requiredQuantity: camp.deliverables.stories,
+            completedQuantity: 0,
+            status: "PENDING",
+            createdAt: now,
+            updatedAt: now,
+          });
+        }
+        if (camp.deliverables.videos > 0) {
+          delivs.push({
+            type: "VIDEO",
+            requiredQuantity: camp.deliverables.videos,
+            completedQuantity: 0,
+            status: "PENDING",
+            createdAt: now,
+            updatedAt: now,
+          });
+        }
+        connection.deliverablesTracking = delivs;
+      }
+    }
+
+    await connection.save();
+
+    await createAuditLog({
+      paymentId: payment._id,
+      action: "Payment Secured",
+      details: `Payment of ₹${payment.grossAmount} (Creator: ₹${payment.creatorAmount}, Pravixo Fee: ₹${payment.platformCommissionAmount}) verified and marked PAID.`,
+    });
+
+    // Notify Creator & Admin
+    const brandProfile = await Profile.findById(connection.brandId).select("fullName").lean();
+    const brandName = brandProfile?.fullName || "Brand";
+
+    let campaignTitle = "collaboration";
+    if (connection.campaignId) {
+      const camp = await Campaign.findById(connection.campaignId).select("title").lean();
+      if (camp) campaignTitle = camp.title;
+    }
+
+    // Notify Creator
+    await createNotification({
+      recipientId: connection.creatorId,
+      senderId: connection.brandId,
+      type: "payment_secured",
+      text: `${brandName} has successfully paid Pravixo ₹${payment.grossAmount.toLocaleString()} for "${campaignTitle}". Creator allocation: ₹${payment.creatorAmount.toLocaleString()}.`,
+    });
+
+    // Notify Admins
+    const admins = await Profile.find({ role: "admin" }).select("_id").lean();
+    for (const admin of admins) {
+      await createNotification({
+        recipientId: admin._id,
+        senderId: connection.brandId,
+        type: "new_payment",
+        text: `${brandName} successfully paid ₹${payment.grossAmount.toLocaleString()} for "${campaignTitle}".`,
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Payment successfully verified and completed.",
+      data: {
+        payment,
+        connection,
+        paymentStatus: "PAID",
+      },
+    });
+  } catch (error) {
+    console.error("verifyCollaborationPayment error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to verify collaboration payment.",
+    });
+  }
+};

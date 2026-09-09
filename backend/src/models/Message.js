@@ -49,6 +49,15 @@ const messageSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    messageType: {
+      type: String,
+      enum: ["text", "deliverable_submission", "agreement_document", "system"],
+      default: "text",
+    },
+    metadata: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
+    },
   },
   {
     timestamps: true,

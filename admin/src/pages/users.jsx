@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { resolveImageUrl } from "@/lib/utils";
-import { Search, Trash2, MoreHorizontal, ArrowUpDown, UserX, UserMinus, Clock, Calendar, Users, ChevronDown, RotateCcw } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Search, Trash2, MoreHorizontal, ArrowUpDown, UserX, UserMinus, Clock, Calendar, Users, ChevronDown, RotateCcw, MessageSquare } from "lucide-react";
 import api from "@/lib/axios";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,6 +56,7 @@ function filterByTime(profiles, period) {
 }
 
 export function UsersPage() {
+  const navigate = useNavigate();
   useEffect(() => {
     document.title = "Users — Pravixo Admin";
   }, []);
@@ -76,6 +78,22 @@ export function UsersPage() {
   const [isSuspendDialogOpen, setIsSuspendDialogOpen] = useState(false);
 
   const [allProfiles, setAllProfiles] = useState(null);
+
+  const handleOpenChat = async (userId, userName) => {
+    try {
+      toast.loading(`Opening chat with ${userName}...`, { id: "open-chat" });
+      const res = await api.post("/admin/conversations/open", { targetUserId: userId });
+      toast.dismiss("open-chat");
+      if (res.data?.success && res.data?.conversationId) {
+        navigate(`/messages/${res.data.conversationId}`);
+      } else {
+        navigate(`/messages`);
+      }
+    } catch (err) {
+      toast.dismiss("open-chat");
+      toast.error(err.response?.data?.message || "Failed to open conversation");
+    }
+  };
 
   const fetchProfiles = async () => {
     try {
@@ -577,7 +595,19 @@ export function UsersPage() {
                               <MoreHorizontal className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-48 rounded-xl" onClick={(e) => e.stopPropagation()}>
+                          <DropdownMenuContent align="end" className="w-52 rounded-xl" onClick={(e) => e.stopPropagation()}>
+                            <DropdownMenuItem
+                              className="cursor-pointer font-medium text-primary focus:text-primary"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenChat(u._id || u.userId, u.fullName);
+                              }}
+                            >
+                              <MessageSquare className="mr-2 h-4 w-4" />
+                              Open Chat Room
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+
                             <DropdownMenuItem
                               className="cursor-pointer"
                               onClick={(e) => {

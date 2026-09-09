@@ -16,6 +16,7 @@ import {
   FileText,
   VideoIcon,
   Lightbulb,
+  Megaphone,
 } from "lucide-react";
 import { useState } from "react";
 import { useTheme } from "./theme-provider";
@@ -35,6 +36,7 @@ import {
 
 const navLinks = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/campaigns", label: "Campaigns", icon: Megaphone },
   { to: "/users", label: "Users", icon: Users },
   { to: "/conversations", label: "Conversations", icon: MessageSquare },
   { to: "/tasks", label: "Tasks", icon: ClipboardCheck },

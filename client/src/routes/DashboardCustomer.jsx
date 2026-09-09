@@ -28,6 +28,7 @@ import {
   ExternalLink,
   Activity,
   CreditCard,
+  Eye,
 } from "lucide-react";
 
 
@@ -160,7 +161,7 @@ const COMPANY_SIZE_OPTIONS = [
 import api from "@/lib/api";
 
 function useApiQuery(url, params = {}, enabled = true) {
-  const [data, setData] = useState(null);
+  const [data, setData] = useState(undefined);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(Boolean(enabled));
   const query = JSON.stringify(params);
@@ -169,9 +170,15 @@ function useApiQuery(url, params = {}, enabled = true) {
     let cancelled = false;
     setLoading(true);
     api.get(url, { params }).then((res) => {
-      if (!cancelled) setData(res.data?.data ?? res.data ?? null);
+      if (!cancelled) {
+        const payload = res.data?.data ?? res.data;
+        setData(payload !== null && payload !== undefined ? payload : undefined);
+      }
     }).catch((err) => {
-      if (!cancelled) setError(err);
+      if (!cancelled) {
+        setError(err);
+        setData(undefined);
+      }
     }).finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [url, query, enabled]);
@@ -195,16 +202,19 @@ export function DashboardCustomer() {
     return `${apiUrl}${url}`;
   };
 
-  // Queries
-  const { data: conversations = [] } = useApiQuery(null, {}, false); // messages list endpoint is not in the shared Express routes yet
+  const [requestsRefreshKey, setRequestsRefreshKey] = useState(0);
+  const { data: pendingRequests = [] } = useApiQuery(`/connections/brand/${profile?._id}/requests?k=${requestsRefreshKey}`, {}, Boolean(profile));
 
-  const { data: pendingRequests = [] } = useApiQuery(`/connections/brand/${profile?._id}/requests`, {}, Boolean(profile));
-
-  const { data: approvedCollabs = [] } = useApiQuery(`/connections/brand/${profile?._id}/approved`, {}, Boolean(profile));
+  const { data: approvedCollabs = [] } = useApiQuery(`/connections/brand/${profile?._id}/approved?k=${requestsRefreshKey}`, {}, Boolean(profile));
 
   const { data: brandTasks = [] } = useApiQuery(`/tasks/brand/${profile?._id}`, {}, Boolean(profile));
 
   const { data: notifications = [] } = useApiQuery(`/tasks/notifications/${profile?._id}`, {}, Boolean(profile));
+
+  // Campaign Requests Modal & Creator Details Modal States
+  const [selectedCampaignForRequests, setSelectedCampaignForRequests] = useState(null);
+  const [selectedCreatorForDetails, setSelectedCreatorForDetails] = useState(null);
+  const [processingRequestId, setProcessingRequestId] = useState(null);
 
   // Task Assignment Modal States
   const [selectedCollabForTask, setSelectedCollabForTask] = useState(null);
@@ -225,6 +235,14 @@ export function DashboardCustomer() {
   const { data: brandPayments = [] } = useApiQuery(`/payments/brand/${profile?._id}`, {}, Boolean(profile));
   const [selectedAuditLogPayment, setSelectedAuditLogPayment] = useState(null);
   const [payingId, setPayingId] = useState(null);
+
+  // Deliverables Submissions View & Review Modal (Task 6 & Task 7)
+  const [selectedCollabForSubmissions, setSelectedCollabForSubmissions] = useState(null);
+  const [collabSubmissionsList, setCollabSubmissionsList] = useState([]);
+  const [loadingSubmissions, setLoadingSubmissions] = useState(false);
+  const [reviewingSubmissionId, setReviewingSubmissionId] = useState(null);
+  const [rejectingSubmission, setRejectingSubmission] = useState(null);
+  const [submissionRejectionReason, setSubmissionRejectionReason] = useState("");
 
   // Tab State
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -325,13 +343,20 @@ export function DashboardCustomer() {
     }
   }, [popupSettings, offers, profile, user]);
 
-  const { data: portfolioImages = [] } = useApiQuery(`/portfolio/profile/${profile?._id}`, {}, Boolean(profile));
+  const [galleryRefreshKey, setGalleryRefreshKey] = useState(0);
+  const { data: portfolioImages = [] } = useApiQuery(`/portfolio/profile/${profile?._id}?k=${galleryRefreshKey}`, {}, Boolean(profile));
 
   const { data: campaigns = [] } = useApiQuery(`/campaigns/brand/${profile?._id}`, {}, Boolean(profile));
 
   const { data: reviews = [] } = useApiQuery(`/reviews/creator/${profile?._id}`, {}, Boolean(profile));
 
   const { data: favsQuery = [] } = useApiQuery(`/favorites`, { brandId: profile?._id }, Boolean(profile));
+
+  const { data: conversations = [] } = useApiQuery(
+    `/conversations?profileId=${profile?._id}&role=${profile?.role || "brand"}`,
+    {},
+    Boolean(profile)
+  );
 
   const { data: allLiveCreators = [] } = useApiQuery(`/profiles`, { role: "creator" });
 
@@ -402,9 +427,18 @@ const upgradeSubscription = async ({ profileId, packageId, offerId }) => api.pos
   const [isCampaignModalOpen, setIsCampaignModalOpen] = useState(false);
   const [editingCampaign, setEditingCampaign] = useState(null);
   const [campTitle, setCampTitle] = useState("");
-  const [campBudget, setCampBudget] = useState("");
+  const [campDescription, setCampDescription] = useState("");
+  const [campStartDate, setCampStartDate] = useState("");
+  const [campEndDate, setCampEndDate] = useState("");
   const [campCategory, setCampCategory] = useState("");
-  const [campDuration, setCampDuration] = useState("");
+  const [campLocation, setCampLocation] = useState("Pan India");
+  const [campTotalBudget, setCampTotalBudget] = useState("");
+  const [campMinBudget, setCampMinBudget] = useState("");
+  const [campMaxBudget, setCampMaxBudget] = useState("");
+  const [campReels, setCampReels] = useState(0);
+  const [campPosts, setCampPosts] = useState(0);
+  const [campStories, setCampStories] = useState(0);
+  const [campVideos, setCampVideos] = useState(0);
   const [campActive, setCampActive] = useState(true);
   const [campaignDialogOpen, setCampaignDialogOpen] = useState(false);
   const [savingCampaign, setSavingCampaign] = useState(false);
@@ -654,6 +688,7 @@ const [submittingVerification, setSubmittingVerification] =
       await api.post("/portfolio", form, {
         headers: { "Content-Type": "multipart/form-data" },
       });
+      setGalleryRefreshKey((k) => k + 1);
       toast.success("Gallery image uploaded!");
     } catch (err) {
       console.error(err);
@@ -707,13 +742,13 @@ const [submittingVerification, setSubmittingVerification] =
   };
 
   const handleRemoveGalleryImage = async (id) => {
-
     try {
-      await removePortfolioImage({ id });
+      await api.delete(`/portfolio/${id}`);
+      setGalleryRefreshKey((k) => k + 1);
       toast.success("Gallery image removed");
     } catch (err) {
-      const e = err ;
-      toast.error(e.message);
+      console.error(err);
+      toast.error(err?.response?.data?.message || err?.message || "Failed to remove image");
     }
   };
 
@@ -721,53 +756,102 @@ const [submittingVerification, setSubmittingVerification] =
   const openAddCampaignModal = () => {
     setEditingCampaign(null);
     setCampTitle("");
-    setCampBudget("");
-    setCampCategory("");
-    setCampDuration("");
+    setCampDescription("");
+    setCampStartDate(new Date().toISOString().split("T")[0]);
+    const nextMonth = new Date();
+    nextMonth.setDate(nextMonth.getDate() + 30);
+    setCampEndDate(nextMonth.toISOString().split("T")[0]);
+    setCampCategory(CATEGORY_OPTIONS[0] || "General");
+    setCampLocation("Pan India");
+    setCampTotalBudget("");
+    setCampMinBudget("");
+    setCampMaxBudget("");
+    setCampReels(0);
+    setCampPosts(0);
+    setCampStories(0);
+    setCampVideos(0);
     setCampActive(true);
     setIsCampaignModalOpen(true);
   };
 
   const openEditCampaignModal = (camp) => {
     setEditingCampaign(camp);
-    setCampTitle(camp.title);
-    setCampBudget(camp.budget);
-    setCampCategory(camp.category);
-    setCampDuration(camp.duration);
-    setCampActive(camp.active);
+    setCampTitle(camp.title || "");
+    setCampDescription(camp.description || "");
+    setCampStartDate(camp.startDate ? new Date(camp.startDate).toISOString().split("T")[0] : "");
+    setCampEndDate(camp.endDate ? new Date(camp.endDate).toISOString().split("T")[0] : "");
+    setCampCategory(camp.category || "");
+    setCampLocation(camp.location || "Pan India");
+    setCampTotalBudget(camp.totalBudget ? String(camp.totalBudget) : "");
+    setCampMinBudget(camp.minBudgetPerCreator ? String(camp.minBudgetPerCreator) : "");
+    setCampMaxBudget(camp.maxBudgetPerCreator ? String(camp.maxBudgetPerCreator) : "");
+    setCampReels(camp.deliverables?.reels || 0);
+    setCampPosts(camp.deliverables?.posts || 0);
+    setCampStories(camp.deliverables?.stories || 0);
+    setCampVideos(camp.deliverables?.videos || 0);
+    setCampActive(camp.active !== undefined ? camp.active : true);
     setIsCampaignModalOpen(true);
   };
 
   const handleSaveCampaign = async (e) => {
     e.preventDefault();
     if (!profile) return;
+
+    if (!campTitle.trim()) {
+      toast.error("Campaign name is required");
+      return;
+    }
+    if (!campEndDate) {
+      toast.error("End date is required");
+      return;
+    }
+    if (!campTotalBudget || Number(campTotalBudget) <= 0) {
+      toast.error("Total campaign budget is required");
+      return;
+    }
+
     setSavingCampaign(true);
     try {
+      const payload = {
+        title: campTitle.trim(),
+        description: campDescription.trim(),
+        startDate: campStartDate ? new Date(campStartDate).getTime() : Date.now(),
+        endDate: new Date(campEndDate).getTime(),
+        category: campCategory.trim(),
+        location: campLocation.trim(),
+        totalBudget: Number(campTotalBudget),
+        minBudgetPerCreator: Number(campMinBudget) || 0,
+        maxBudgetPerCreator: Number(campMaxBudget) || 0,
+        deliverables: {
+          reels: Number(campReels) || 0,
+          posts: Number(campPosts) || 0,
+          stories: Number(campStories) || 0,
+          videos: Number(campVideos) || 0,
+        },
+        active: campActive,
+      };
+
       if (editingCampaign) {
         await updateCampaign({
           id: editingCampaign._id,
-          title: campTitle,
-          budget: campBudget,
-          category: campCategory,
-          duration: campDuration,
-          active: campActive,
+          ...payload,
         });
         toast.success("Campaign updated successfully!");
       } else {
         await createCampaign({
           brandId: profile._id,
-          title: campTitle,
-          budget: campBudget,
-          category: campCategory,
-          duration: campDuration,
-          active: campActive,
+          ...payload,
         });
-        toast.success("Campaign created successfully!");
+        toast.success("Campaign submitted for Admin verification!");
       }
       setIsCampaignModalOpen(false);
+      // refetch campaigns
+      api.get(`/campaigns/brand/${profile._id}`).then((res) => {
+        // query automatically updates on refresh
+      }).catch(console.error);
     } catch (err) {
-      const e = err ;
-      toast.error(e.message || "Failed to save campaign");
+      const e = err?.response?.data?.message || err?.message || "Failed to save campaign";
+      toast.error(e);
     } finally {
       setSavingCampaign(false);
     }
@@ -1251,6 +1335,194 @@ const [submittingVerification, setSubmittingVerification] =
                         </div>
                       </div>
                     )}
+
+                    {/* Collaboration Payment Status & Details */}
+                    <div className="rounded-xl border border-border/60 bg-background/50 p-3 text-xs space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground font-medium">Payment Status:</span>
+                        {collab.paymentStatus === "PAID" ? (
+                          <span className="font-bold text-emerald-600 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full text-[10px] flex items-center gap-1">
+                            ✓ PAID (Payment Successful)
+                          </span>
+                        ) : collab.paymentStatus === "FAILED" ? (
+                          <span className="font-bold text-red-600 bg-red-500/10 border border-red-500/20 px-2 py-0.5 rounded-full text-[10px]">
+                            Payment Failed
+                          </span>
+                        ) : collab.collaborationStatus === "AMOUNT_AGREED" ? (
+                          <span className="font-bold text-amber-600 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full text-[10px]">
+                            Payment Pending
+                          </span>
+                        ) : (
+                          <span className="font-semibold text-muted-foreground text-[11px]">
+                            Negotiating ({collab.proposedAmount > 0 ? `₹${collab.proposedAmount.toLocaleString()}` : "Pending offer"})
+                          </span>
+                        )}
+                      </div>
+
+                      {collab.collaborationStatus === "AMOUNT_AGREED" && (
+                        <div className="pt-2 border-t border-border/40 space-y-1 text-[11px]">
+                          <div className="flex justify-between text-muted-foreground">
+                            <span>Creator Payment:</span>
+                            <span className="font-medium text-foreground">₹{collab.creatorAmount?.toLocaleString()}</span>
+                          </div>
+                          <div className="flex justify-between text-muted-foreground">
+                            <span>Pravixo Fee (20%):</span>
+                            <span className="font-medium text-foreground">₹{collab.pravixoFee?.toLocaleString()}</span>
+                          </div>
+                          <div className="flex justify-between text-xs pt-1 border-t border-border/30">
+                            <span className="font-bold text-foreground">Total Payable:</span>
+                            <span className="font-bold text-primary">₹{collab.brandTotal?.toLocaleString()}</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Task 5: Campaign Deliverables Tracking for Brand */}
+                      {collab.deliverablesTracking && collab.deliverablesTracking.length > 0 && (
+                        <div className="pt-2.5 border-t border-border/40 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-[10px] text-foreground uppercase tracking-wider">
+                              Deliverables Progress
+                            </span>
+                            {collab.paymentStatus === "PAID" ? (
+                              (() => {
+                                const totalReq = collab.deliverablesTracking.reduce((acc, d) => acc + (d.requiredQuantity || 0), 0);
+                                const totalComp = collab.deliverablesTracking.reduce((acc, d) => acc + (d.completedQuantity || 0), 0);
+                                const pct = totalReq > 0 ? Math.round((totalComp / totalReq) * 100) : 0;
+                                return (
+                                  <span className="text-[10px] font-bold text-primary">
+                                    {totalComp}/{totalReq} ({pct}%)
+                                  </span>
+                                );
+                              })()
+                            ) : (
+                              <span className="text-[9px] text-amber-600 font-medium">
+                                Unlocked after payment
+                              </span>
+                            )}
+                          </div>
+
+                              <div className="grid grid-cols-2 gap-1.5">
+                            {collab.deliverablesTracking.map((deliv, dIdx) => {
+                              const typeLabels = {
+                                REEL: "Reels",
+                                POST: "Posts",
+                                STORY: "Stories",
+                                VIDEO: "Videos",
+                              };
+                              return (
+                                <div
+                                  key={dIdx}
+                                  className={cn(
+                                    "flex items-center justify-between rounded-lg px-2 py-1 text-[10px] border",
+                                    collab.paymentStatus === "PAID"
+                                      ? "bg-secondary/40 border-border/60"
+                                      : "bg-muted/20 border-border/30 opacity-70"
+                                  )}
+                                >
+                                  <span className="font-medium text-foreground">
+                                    {typeLabels[deliv.type] || deliv.type}
+                                  </span>
+                                  <span className="font-bold text-primary">
+                                    {deliv.completedQuantity || 0} / {deliv.requiredQuantity}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          {/* Task 6, 7, 9, 10: View Submissions Button & 72-Hour Status for Brand */}
+                          {collab.paymentStatus === "PAID" && (
+                            <div className="pt-1 space-y-1.5">
+                              {(() => {
+                                const allCompleted =
+                                  collab.allDeliverablesCompleted ||
+                                  collab.deliverablesTracking.every(
+                                    (d) => (d.completedQuantity || 0) >= (d.requiredQuantity || 1)
+                                  );
+
+                                if (allCompleted) {
+                                  const isReleased = collab.paymentReleaseStatus === "RELEASED";
+                                  const nowTime = Date.now();
+                                  const targetEligible =
+                                    collab.paymentReleaseEligibleAt ||
+                                    (collab.approvalCompletedAt ? collab.approvalCompletedAt + 72 * 60 * 60 * 1000 : null);
+                                  const isEligible = targetEligible ? nowTime >= targetEligible : false;
+
+                                  return (
+                                    <div className="rounded-xl border border-border/60 bg-secondary/20 p-2 text-[10px] space-y-1">
+                                      <div className="flex items-center justify-between font-bold">
+                                        <span className="text-muted-foreground uppercase text-[9px] tracking-wider flex items-center gap-1">
+                                          <Clock className="h-3 w-3 text-primary" /> Payout & Review Status
+                                        </span>
+                                        {isReleased ? (
+                                          <span className="text-emerald-600 font-bold">✓ Creator Payout Released</span>
+                                        ) : isEligible ? (
+                                          <span className="text-emerald-600 font-bold">✓ Review Period Completed</span>
+                                        ) : (
+                                          <span className="text-amber-600 font-bold">⏳ Active Review Period</span>
+                                        )}
+                                      </div>
+                                      <p className="text-muted-foreground text-[10px]">
+                                        {isReleased ? (
+                                          <span className="text-emerald-700 font-semibold block">
+                                            Creator payout of ₹{collab.creatorAmount?.toLocaleString()} has been released by Admin. Collaboration completed.
+                                          </span>
+                                        ) : isEligible ? (
+                                          <span className="text-foreground">
+                                            All deliverables approved. Payment is now eligible for Admin release.
+                                          </span>
+                                        ) : targetEligible ? (
+                                          <span>
+                                            Funds secured in escrow. Review period ends: <strong>{new Date(targetEligible).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</strong>
+                                          </span>
+                                        ) : (
+                                          <span>72-hour review period active. Funds held safely in escrow.</span>
+                                        )}
+                                      </p>
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              })()}
+
+                              {(() => {
+                                const submittedCount = collab.deliverablesTracking.reduce(
+                                  (sum, d) => sum + (d.completedQuantity || 0),
+                                  0
+                                );
+                                return (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="w-full h-8 rounded-full border-primary/30 text-primary hover:bg-primary/10 text-[10px] font-bold flex items-center justify-center gap-1.5"
+                                    onClick={async () => {
+                                      setSelectedCollabForSubmissions(collab);
+                                      setLoadingSubmissions(true);
+                                      try {
+                                        const res = await api.get(`/api/submissions/${collab._id}/submissions`);
+                                        const data = res.data?.data || res.data;
+                                        setCollabSubmissionsList(data.submissions || []);
+                                      } catch (err) {
+                                        console.error("Fetch submissions error:", err);
+                                        toast.error(err?.response?.data?.message || "Failed to load submissions.");
+                                      } finally {
+                                        setLoadingSubmissions(false);
+                                      }
+                                    }}
+                                  >
+                                    <Eye className="h-3.5 w-3.5" />
+                                    {submittedCount > 0
+                                      ? `View Submitted Deliverables (${submittedCount})`
+                                      : "View Submissions"}
+                                  </Button>
+                                );
+                              })()}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
                     <div className="flex items-center justify-between text-xs border-t border-border/40 pt-2.5">
                       <span className="text-muted-foreground">Chat Status:</span>
                       <span className="capitalize font-semibold text-emerald-600">{collab.conversationStatus}</span>
@@ -1296,50 +1568,126 @@ const [submittingVerification, setSubmittingVerification] =
                   {(() => {
                     const task = brandTasks?.find(t => t.creatorId === collab.creatorId && t.campaignId === collab.campaignId);
                     return (
-                      <div className="mt-4 flex gap-2">
-                        {collab.conversationId && (
-                          <Link
-                            to={`/messages?conversationId=${collab.conversationId}`}
-                            className="flex-1"
+                      <div className="mt-4 flex flex-col gap-2">
+                        {/* Direct Pay Pravixo button on Brand Dashboard */}
+                        {collab.collaborationStatus === "AMOUNT_AGREED" && collab.paymentStatus !== "PAID" && (
+                          <Button
+                            size="sm"
+                            className="w-full rounded-full gradient-sunset border-0 text-white shadow-glow text-xs h-9 font-bold flex items-center justify-center gap-1.5"
+                            disabled={payingId === collab._id}
+                            onClick={async () => {
+                              setPayingId(collab._id);
+                              try {
+                                const res = await api.post(`/api/payments/collaboration/${collab._id}/order`);
+                                const orderData = res.data?.data || res.data;
+
+                                const options = {
+                                  key: orderData.key || import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_placeholder",
+                                  amount: orderData.amount,
+                                  currency: orderData.currency || "INR",
+                                  name: "Pravixo Platform",
+                                  description: `Payment for Collaboration (${collab.campaign?.title || "Campaign"})`,
+                                  order_id: orderData.orderId,
+                                  handler: async (response) => {
+                                    try {
+                                      setPayingId(collab._id);
+                                      await api.post(`/api/payments/collaboration/${collab._id}/verify`, {
+                                        gatewayOrderId: response.razorpay_order_id,
+                                        gatewayPaymentId: response.razorpay_payment_id,
+                                        gatewaySignature: response.razorpay_signature,
+                                      });
+                                      toast.success("Payment successful! Funds secured with Pravixo.");
+                                      setRequestsRefreshKey((k) => k + 1);
+                                    } catch (err) {
+                                      toast.error(err?.response?.data?.message || err.message || "Payment verification failed.");
+                                    } finally {
+                                      setPayingId(null);
+                                    }
+                                  },
+                                  prefill: {
+                                    name: profile?.fullName || "",
+                                    email: profile?.email || "",
+                                    contact: profile?.phone || "",
+                                  },
+                                  theme: {
+                                    color: "#EC4899",
+                                  },
+                                  modal: {
+                                    ondismiss: () => {
+                                      setPayingId(null);
+                                      toast.info("Payment window closed.");
+                                    },
+                                  },
+                                };
+
+                                if (!window.Razorpay) {
+                                  const script = document.createElement("script");
+                                  script.src = "https://checkout.razorpay.com/v1/checkout.js";
+                                  script.onload = () => {
+                                    const rzp = new window.Razorpay(options);
+                                    rzp.open();
+                                  };
+                                  document.body.appendChild(script);
+                                } else {
+                                  const rzp = new window.Razorpay(options);
+                                  rzp.open();
+                                }
+                              } catch (e) {
+                                toast.error(e?.response?.data?.message || e.message || "Failed to initiate payment.");
+                                setPayingId(null);
+                              }
+                            }}
                           >
+                            <CreditCard className="h-4 w-4" />
+                            {payingId === collab._id ? "Processing..." : `Pay Pravixo ₹${collab.brandTotal?.toLocaleString()}`}
+                          </Button>
+                        )}
+
+                        <div className="flex gap-2">
+                          {collab.conversationId && (
+                            <Link
+                              to={`/messages?conversationId=${collab.conversationId}`}
+                              className="flex-1"
+                            >
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="w-full rounded-full border-border hover:bg-secondary text-xs h-9 font-semibold"
+                              >
+                                Open Chat
+                              </Button>
+                            </Link>
+                          )}
+                          
+                          {!task ? (
                             <Button
                               size="sm"
-                              variant="outline"
-                              className="w-full rounded-full border-border hover:bg-secondary text-xs h-9 font-semibold"
+                              className="flex-1 rounded-full bg-secondary hover:bg-secondary/80 text-foreground text-xs h-9 font-semibold"
+                              onClick={() => {
+                                setSelectedCollabForTask(collab);
+                                setTaskTitle("");
+                                setTaskDesc("");
+                                setTaskDeliverables("");
+                                setTaskDueDate("");
+                                setTaskDueTime("23:59");
+                                setTaskPriority("medium");
+                                setTaskNotes("");
+                              }}
                             >
-                              Open Chat
+                              Assign Task
                             </Button>
-                          </Link>
-                        )}
-                        
-                        {!task ? (
-                          <Button
-                            size="sm"
-                            className="flex-1 rounded-full gradient-sunset border-0 text-white shadow-glow text-xs h-9 font-semibold"
-                            onClick={() => {
-                              setSelectedCollabForTask(collab);
-                              setTaskTitle("");
-                              setTaskDesc("");
-                              setTaskDeliverables("");
-                              setTaskDueDate("");
-                              setTaskDueTime("23:59");
-                              setTaskPriority("medium");
-                              setTaskNotes("");
-                            }}
-                          >
-                            Assign Task
-                          </Button>
-                        ) : task.status === "completed" ? (
-                          <Button
-                            size="sm"
-                            className="flex-1 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white border-0 text-xs h-9 font-semibold"
-                            onClick={() => {
-                              setSelectedTaskForReview(task);
-                            }}
-                          >
-                            Review
-                          </Button>
-                        ) : null}
+                          ) : task.status === "completed" ? (
+                            <Button
+                              size="sm"
+                              className="flex-1 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white border-0 text-xs h-9 font-semibold"
+                              onClick={() => {
+                                setSelectedTaskForReview(task);
+                              }}
+                            >
+                              Review
+                            </Button>
+                          ) : null}
+                        </div>
                       </div>
                     );
                   })()}
@@ -1937,27 +2285,34 @@ const [submittingVerification, setSubmittingVerification] =
                 Showcase products, campaign banners, teams, or advertisements.
               </p>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                {portfolioImages?.map((img) => (
-                  <div
-                    key={img._id}
-                    className="group relative aspect-square overflow-hidden rounded-2xl border border-border"
-                  >
-                    {img.url && (
-                      <img
-                        src={img.url}
-                        alt=""
-                        className="h-full w-full object-cover"
-                      />
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveGalleryImage(img._id)}
-                      className="absolute right-2 top-2 rounded-full bg-background/90 p-1.5 opacity-0 shadow-soft transition-opacity group-hover:opacity-100"
+                {(portfolioImages || []).map((img) => {
+                  const imageSrc = resolveImageUrl(img.url || img.imageUrl);
+                  return (
+                    <div
+                      key={img._id}
+                      className="group relative aspect-square overflow-hidden rounded-2xl border border-border bg-secondary/10"
                     >
-                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                    </button>
-                  </div>
-                ))}
+                      {imageSrc && (
+                        <img
+                          src={imageSrc}
+                          alt="Brand Gallery"
+                          className="h-full w-full object-cover"
+                          onError={(e) => {
+                            e.currentTarget.style.display = "none";
+                          }}
+                        />
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveGalleryImage(img._id)}
+                        className="absolute right-2 top-2 rounded-full bg-background/90 p-1.5 opacity-0 shadow-soft transition-opacity group-hover:opacity-100"
+                        title="Delete image"
+                      >
+                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                      </button>
+                    </div>
+                  );
+                })}
                 <label className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded-2xl border border-dashed border-border text-xs text-muted-foreground hover:bg-secondary">
                   <Upload className="h-5 w-5" />
                   {uploadingGallery ? "Uploading…" : "Add Image"}
@@ -2083,45 +2438,116 @@ const [submittingVerification, setSubmittingVerification] =
                       key={camp._id}
                       className="rounded-2xl border border-border p-4 bg-background hover:bg-accent/5 transition-all flex flex-col justify-between"
                     >
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between">
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between gap-2">
                           <h4 className="font-display text-sm font-bold text-foreground line-clamp-1">
                             {camp.title}
                           </h4>
-                          <Badge
-                            variant={camp.active ? "default" : "secondary"}
-                            className="rounded-full text-[9px] px-2 py-0"
-                          >
-                            {camp.active ? "Active" : "Draft"}
-                          </Badge>
+                          {camp.status === "APPROVED" ? (
+                            <Badge variant="outline" className="rounded-full text-[9px] px-2 py-0 bg-emerald-500/10 text-emerald-600 border-emerald-500/20 font-semibold">
+                              Approved
+                            </Badge>
+                          ) : camp.status === "REJECTED" ? (
+                            <Badge variant="outline" className="rounded-full text-[9px] px-2 py-0 bg-red-500/10 text-red-500 border-red-500/20 font-semibold">
+                              Rejected
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="rounded-full text-[9px] px-2 py-0 bg-amber/10 text-amber border-amber/20 font-semibold">
+                              Pending Verification
+                            </Badge>
+                          )}
                         </div>
+
+                        {camp.description && (
+                          <p className="text-xs text-muted-foreground line-clamp-2">
+                            {camp.description}
+                          </p>
+                        )}
+
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground mt-1">
-                          <span className="font-semibold text-gradient-sunset">
-                            {camp.budget}
+                          <span className="font-bold text-gradient-sunset">
+                            ₹{Number(camp.totalBudget || 0).toLocaleString("en-IN")}
                           </span>
                           <span>·</span>
-                          <span>{camp.duration}</span>
+                          <span>₹{Number(camp.minBudgetPerCreator || 0).toLocaleString("en-IN")} - ₹{Number(camp.maxBudgetPerCreator || 0).toLocaleString("en-IN")}/creator</span>
                           <span>·</span>
                           <span>{camp.category}</span>
+                          <span>·</span>
+                          <span>{camp.location || "Pan India"}</span>
                         </div>
+
+                        {camp.deliverables && (
+                          <div className="flex flex-wrap gap-1.5 pt-1">
+                            {camp.deliverables.reels > 0 && (
+                              <span className="text-[10px] bg-secondary/40 text-foreground px-2 py-0.5 rounded-md font-medium">
+                                🎬 {camp.deliverables.reels} Reels
+                              </span>
+                            )}
+                            {camp.deliverables.posts > 0 && (
+                              <span className="text-[10px] bg-secondary/40 text-foreground px-2 py-0.5 rounded-md font-medium">
+                                📸 {camp.deliverables.posts} Posts
+                              </span>
+                            )}
+                            {camp.deliverables.stories > 0 && (
+                              <span className="text-[10px] bg-secondary/40 text-foreground px-2 py-0.5 rounded-md font-medium">
+                                📱 {camp.deliverables.stories} Stories
+                              </span>
+                            )}
+                            {camp.deliverables.videos > 0 && (
+                              <span className="text-[10px] bg-secondary/40 text-foreground px-2 py-0.5 rounded-md font-medium">
+                                🎥 {camp.deliverables.videos} Videos
+                              </span>
+                            )}
+                          </div>
+                        )}
+
+                        {camp.status === "REJECTED" && camp.verificationFeedback && (
+                          <p className="text-[11px] text-red-500 bg-red-500/10 p-2 rounded-lg mt-1">
+                            Reason: {camp.verificationFeedback}
+                          </p>
+                        )}
                       </div>
-                      <div className="flex items-center gap-2 mt-4 pt-2 border-t border-border/40 justify-end">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-8 rounded-full text-xs hover:bg-secondary px-3 flex items-center gap-1.5"
-                          onClick={() => openEditCampaignModal(camp)}
-                        >
-                          <Edit2 className="h-3 w-3" /> Edit
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-8 rounded-full text-xs text-destructive hover:bg-destructive/10 hover:text-destructive px-3 flex items-center gap-1.5"
-                          onClick={() => handleDeleteCampaign(camp._id)}
-                        >
-                          <Trash2 className="h-3 w-3" /> Delete
-                        </Button>
+                      <div className="flex items-center gap-2 mt-4 pt-2 border-t border-border/40 justify-between">
+                        {(() => {
+                          const reqsCount = (pendingRequests || []).filter(
+                            (r) => String(r.campaignId?._id || r.campaignId) === String(camp._id)
+                          ).length;
+                          return (
+                            <Button
+                              size="sm"
+                              variant={reqsCount > 0 ? "default" : "outline"}
+                              className={cn(
+                                "h-8 rounded-full text-xs px-3 flex items-center gap-1.5 font-semibold",
+                                reqsCount > 0
+                                  ? "gradient-sunset border-0 text-white shadow-glow"
+                                  : "border-border text-muted-foreground hover:text-foreground"
+                              )}
+                              onClick={() => setSelectedCampaignForRequests(camp)}
+                            >
+                              <Users className="h-3.5 w-3.5" />
+                              Requests {reqsCount > 0 && <span className="ml-0.5 px-1.5 py-0.2 bg-white text-black rounded-full text-[10px] font-bold">{reqsCount}</span>}
+                            </Button>
+                          );
+                        })()}
+
+                        <div className="flex items-center gap-1">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 rounded-full text-xs hover:bg-secondary px-3 flex items-center gap-1.5"
+                            onClick={() => openEditCampaignModal(camp)}
+                          >
+                            <Edit2 className="h-3 w-3" /> Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 rounded-full text-xs text-destructive hover:bg-destructive/10 hover:text-destructive px-3 flex items-center gap-1.5"
+                            onClick={() => handleDeleteCampaign(camp._id)}
+                          >
+                            <Trash2 className="h-3 w-3" /> Delete
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -2681,74 +3107,195 @@ const [submittingVerification, setSubmittingVerification] =
         </div>
       </div>
 
-      {/* CAMPAIGN DIALOG DIALOG (CREATE/EDIT) */}
+      {/* CAMPAIGN DIALOG (CREATE/EDIT) */}
       <Dialog open={isCampaignModalOpen} onOpenChange={setIsCampaignModalOpen}>
-        <DialogContent className="sm:max-w-[480px] rounded-3xl border border-border bg-card p-6">
+        <DialogContent className="sm:max-w-xl rounded-3xl border border-border bg-card p-6">
           <DialogHeader>
             <DialogTitle className="font-display text-xl font-bold">
-              {editingCampaign ? "Edit Campaign" : "Add Campaign"}
+              {editingCampaign ? "Edit Campaign" : "Create New Campaign"}
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
-              Define the collaboration campaign specifics for creators to view
-              and apply.
+              Define the collaboration campaign specifics. Newly created campaigns will be reviewed by Admin before being shown to creators.
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleSaveCampaign} className="space-y-4 mt-2">
+          <form onSubmit={handleSaveCampaign} className="space-y-4 mt-2 max-h-[72vh] overflow-y-auto pr-1">
             <div className="space-y-1.5">
-              <Label htmlFor="campTitle">Campaign Title</Label>
+              <Label htmlFor="campTitle">Campaign Name *</Label>
               <Input
                 id="campTitle"
                 value={campTitle}
                 onChange={(e) => setCampTitle(e.target.value)}
-                placeholder="e.g. Summer Sports Reels Series"
+                placeholder="e.g. Summer Fitness Brand Ambassador Campaign"
                 className="rounded-xl border-border bg-background"
                 required
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="campDescription">Campaign Description</Label>
+              <Textarea
+                id="campDescription"
+                value={campDescription}
+                onChange={(e) => setCampDescription(e.target.value)}
+                placeholder="Describe your brand goals, target audience, and expectations..."
+                className="rounded-xl border-border bg-background text-xs resize-none"
+                rows={3}
               />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label htmlFor="campBudget">Budget Range</Label>
+                <Label htmlFor="campStartDate">Start Date</Label>
                 <Input
-                  id="campBudget"
-                  value={campBudget}
-                  onChange={(e) => setCampBudget(e.target.value)}
-                  placeholder="e.g. ₹50,000 - ₹1,00,000"
-                  className="rounded-xl border-border bg-background"
-                  required
+                  id="campStartDate"
+                  type="date"
+                  value={campStartDate}
+                  onChange={(e) => setCampStartDate(e.target.value)}
+                  className="rounded-xl border-border bg-background text-xs"
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="campDuration">Duration</Label>
+                <Label htmlFor="campEndDate">End Date *</Label>
                 <Input
-                  id="campDuration"
-                  value={campDuration}
-                  onChange={(e) => setCampDuration(e.target.value)}
-                  placeholder="e.g. 3 weeks"
-                  className="rounded-xl border-border bg-background"
+                  id="campEndDate"
+                  type="date"
+                  value={campEndDate}
+                  onChange={(e) => setCampEndDate(e.target.value)}
+                  className="rounded-xl border-border bg-background text-xs"
                   required
                 />
               </div>
             </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="campCategory">Campaign Category</Label>
-              <Input
-                id="campCategory"
-                value={campCategory}
-                onChange={(e) => setCampCategory(e.target.value)}
-                placeholder="e.g. Sports & Fitness"
-                className="rounded-xl border-border bg-background"
-                required
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="campCategory">Category *</Label>
+                <select
+                  id="campCategory"
+                  value={campCategory}
+                  onChange={(e) => setCampCategory(e.target.value)}
+                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
+                  required
+                >
+                  {CATEGORY_OPTIONS.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="campLocation">Location</Label>
+                <select
+                  id="campLocation"
+                  value={campLocation}
+                  onChange={(e) => setCampLocation(e.target.value)}
+                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
+                >
+                  {LOCATION_OPTIONS.map((loc) => (
+                    <option key={loc} value={loc}>
+                      {loc}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
-            <div className="flex items-center justify-between border border-border rounded-2xl p-4 bg-background/50">
+            <div className="space-y-2 pt-1 border-t border-border/40">
+              <Label className="text-xs font-semibold">Budget Details (INR)</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <span className="text-[10px] text-muted-foreground block font-medium">Total Campaign Budget *</span>
+                  <Input
+                    type="number"
+                    min="0"
+                    placeholder="e.g. 10000"
+                    value={campTotalBudget}
+                    onChange={(e) => setCampTotalBudget(e.target.value)}
+                    className="rounded-xl border-border bg-background text-xs"
+                    required
+                  />
+                </div>
+                <div className="space-y-1">
+                  <span className="text-[10px] text-muted-foreground block font-medium">Min per Creator</span>
+                  <Input
+                    type="number"
+                    min="0"
+                    placeholder="e.g. 2000"
+                    value={campMinBudget}
+                    onChange={(e) => setCampMinBudget(e.target.value)}
+                    className="rounded-xl border-border bg-background text-xs"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <span className="text-[10px] text-muted-foreground block font-medium">Max per Creator</span>
+                  <Input
+                    type="number"
+                    min="0"
+                    placeholder="e.g. 5000"
+                    value={campMaxBudget}
+                    onChange={(e) => setCampMaxBudget(e.target.value)}
+                    className="rounded-xl border-border bg-background text-xs"
+                  />
+                </div>
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                A campaign can hire multiple creators within the total budget.
+              </p>
+            </div>
+
+            <div className="space-y-2 pt-1 border-t border-border/40">
+              <Label className="text-xs font-semibold">Deliverables Quantity (Optional)</Label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="space-y-1">
+                  <span className="text-[10px] text-muted-foreground block">🎬 Reels</span>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={campReels}
+                    onChange={(e) => setCampReels(Math.max(0, parseInt(e.target.value) || 0))}
+                    className="rounded-xl border-border bg-background text-xs"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <span className="text-[10px] text-muted-foreground block">📸 Posts</span>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={campPosts}
+                    onChange={(e) => setCampPosts(Math.max(0, parseInt(e.target.value) || 0))}
+                    className="rounded-xl border-border bg-background text-xs"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <span className="text-[10px] text-muted-foreground block">📱 Stories</span>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={campStories}
+                    onChange={(e) => setCampStories(Math.max(0, parseInt(e.target.value) || 0))}
+                    className="rounded-xl border-border bg-background text-xs"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <span className="text-[10px] text-muted-foreground block">🎥 Videos</span>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={campVideos}
+                    onChange={(e) => setCampVideos(Math.max(0, parseInt(e.target.value) || 0))}
+                    className="rounded-xl border-border bg-background text-xs"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between border border-border rounded-2xl p-3 bg-background/50">
               <div>
-                <Label className="text-sm font-semibold">Active Status</Label>
-                <span className="block text-[10px] text-muted-foreground mt-0.5">
-                  If active, creators can search and apply for this campaign.
+                <Label className="text-xs font-semibold">Active Status</Label>
+                <span className="block text-[10px] text-muted-foreground">
+                  If inactive, creators will not be able to apply.
                 </span>
               </div>
               <Switch checked={campActive} onCheckedChange={setCampActive} />
@@ -2772,7 +3319,7 @@ const [submittingVerification, setSubmittingVerification] =
                   ? "Saving..."
                   : editingCampaign
                     ? "Save Changes"
-                    : "Create Listing"}
+                    : "Submit for Verification"}
               </Button>
             </DialogFooter>
           </form>
@@ -3328,6 +3875,617 @@ const [submittingVerification, setSubmittingVerification] =
               </div>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* CAMPAIGN REQUESTS MODAL */}
+      <Dialog
+        open={Boolean(selectedCampaignForRequests)}
+        onOpenChange={(open) => !open && setSelectedCampaignForRequests(null)}
+      >
+        <DialogContent className="max-w-2xl rounded-3xl p-6">
+          <DialogHeader>
+            <DialogTitle className="font-display text-xl font-bold flex items-center gap-2">
+              <Users className="h-5 w-5 text-primary" />
+              Creator Requests
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              {selectedCampaignForRequests ? (
+                <>Managing applications for campaign <strong className="text-foreground">{selectedCampaignForRequests.title}</strong></>
+              ) : "Manage campaign applications."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
+            {(() => {
+              if (!selectedCampaignForRequests) return null;
+              const campRequests = (pendingRequests || []).filter(
+                (r) => String(r.campaignId?._id || r.campaignId) === String(selectedCampaignForRequests._id)
+              );
+
+              if (campRequests.length === 0) {
+                return (
+                  <div className="py-10 text-center border border-dashed border-border rounded-2xl">
+                    <Users className="mx-auto h-8 w-8 text-muted-foreground/30 mb-2" />
+                    <p className="font-semibold text-sm text-foreground">No pending requests for this campaign</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      When creators request to join this campaign, their pitches will appear here.
+                    </p>
+                  </div>
+                );
+              }
+
+              return campRequests.map((req) => (
+                <div
+                  key={req._id}
+                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border border-border p-4 bg-secondary/10 hover:bg-secondary/20 transition-all"
+                >
+                  <div className="flex items-start gap-3 flex-1 min-w-0">
+                    <img
+                      src={
+                        req.creatorProfile?.avatarUrl ||
+                        `https://api.dicebear.com/9.x/avataaars/svg?seed=${req.creatorProfile?.fullName || "Creator"}`
+                      }
+                      alt=""
+                      className="h-12 w-12 rounded-xl object-cover border border-border shrink-0 cursor-pointer"
+                      onClick={() => setSelectedCreatorForDetails(req)}
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = "https://api.dicebear.com/9.x/avataaars/svg?seed=Fallback";
+                      }}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span
+                          className="font-display text-sm font-bold hover:text-primary cursor-pointer truncate"
+                          onClick={() => setSelectedCreatorForDetails(req)}
+                        >
+                          {req.creatorProfile?.fullName || "Creator"}
+                        </span>
+                        {req.creatorProfile?.handle && (
+                          <span className="text-xs text-muted-foreground font-medium">
+                            {req.creatorProfile.handle}
+                          </span>
+                        )}
+                        {req.creatorProfile?.rating > 0 && (
+                          <span className="flex items-center gap-0.5 text-xs text-amber font-semibold">
+                            <Star className="h-3 w-3 fill-amber" /> {req.creatorProfile.rating}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex flex-wrap gap-x-2 gap-y-0.5 mt-1 text-[11px] text-muted-foreground">
+                        <span><strong>Followers:</strong> {req.creatorProfile?.followersCount?.toLocaleString() || "0"}</span>
+                        <span>·</span>
+                        <span><strong>Niche:</strong> {req.creatorProfile?.category || "General"}</span>
+                        <span>·</span>
+                        <span><strong>Location:</strong> {req.creatorProfile?.location || "India"}</span>
+                      </div>
+
+                      <p className="text-xs text-muted-foreground bg-background border border-border/40 rounded-xl p-2.5 mt-2 italic line-clamp-2">
+                        "{req.pitch}"
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex sm:flex-col gap-2 shrink-0 self-stretch sm:justify-center">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="rounded-full text-xs h-8 px-3 flex items-center justify-center gap-1 border-border"
+                      onClick={() => setSelectedCreatorForDetails(req)}
+                    >
+                      <Eye className="h-3.5 w-3.5" /> Details
+                    </Button>
+                    <Button
+                      size="sm"
+                      disabled={processingRequestId === req._id}
+                      className="rounded-full bg-emerald-600 hover:bg-emerald-700 text-white border-0 text-xs h-8 px-3.5 flex items-center justify-center gap-1 font-semibold"
+                      onClick={async () => {
+                        setProcessingRequestId(req._id);
+                        try {
+                          await acceptConnection({ connectionId: req._id });
+                          toast.success(`Approved request from ${req.creatorProfile?.fullName || "Creator"}!`);
+                          setRequestsRefreshKey((k) => k + 1);
+                        } catch (err) {
+                          toast.error(err?.response?.data?.message || "Failed to approve request");
+                        } finally {
+                          setProcessingRequestId(null);
+                        }
+                      }}
+                    >
+                      <Check className="h-3.5 w-3.5" /> Approve
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={processingRequestId === req._id}
+                      className="rounded-full border-border hover:bg-destructive/10 hover:text-destructive hover:border-destructive/20 text-xs h-8 px-3 flex items-center justify-center gap-1 font-semibold"
+                      onClick={async () => {
+                        setProcessingRequestId(req._id);
+                        try {
+                          await rejectConnection({ connectionId: req._id });
+                          toast.info("Request declined");
+                          setRequestsRefreshKey((k) => k + 1);
+                        } catch (err) {
+                          toast.error(err?.response?.data?.message || "Failed to decline request");
+                        } finally {
+                          setProcessingRequestId(null);
+                        }
+                      }}
+                    >
+                      <X className="h-3.5 w-3.5" /> Reject
+                    </Button>
+                  </div>
+                </div>
+              ));
+            })()}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* CREATOR PROFILE DETAILS REVIEW DIALOG */}
+      <Dialog
+        open={Boolean(selectedCreatorForDetails)}
+        onOpenChange={(open) => !open && setSelectedCreatorForDetails(null)}
+      >
+        <DialogContent className="max-w-xl rounded-3xl p-6">
+          {selectedCreatorForDetails && (
+            <div className="space-y-5">
+              <DialogHeader>
+                <div className="flex items-center gap-3.5">
+                  <img
+                    src={
+                      selectedCreatorForDetails.creatorProfile?.avatarUrl ||
+                      `https://api.dicebear.com/9.x/avataaars/svg?seed=${selectedCreatorForDetails.creatorProfile?.fullName || "Creator"}`
+                    }
+                    alt=""
+                    className="h-14 w-14 rounded-2xl object-cover border border-border shadow-sm shrink-0"
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = "https://api.dicebear.com/9.x/avataaars/svg?seed=Fallback";
+                    }}
+                  />
+                  <div>
+                    <DialogTitle className="font-display text-xl font-bold flex items-center gap-2">
+                      {selectedCreatorForDetails.creatorProfile?.fullName || "Creator Profile"}
+                    </DialogTitle>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                      <span>{selectedCreatorForDetails.creatorProfile?.handle || "@creator"}</span>
+                      <span>·</span>
+                      <span>{selectedCreatorForDetails.creatorProfile?.location || "India"}</span>
+                    </div>
+                  </div>
+                </div>
+              </DialogHeader>
+
+              {/* Creator Meta Stats */}
+              <div className="grid grid-cols-3 gap-2.5 bg-secondary/15 rounded-2xl p-3 text-center border border-border/40">
+                <div>
+                  <span className="block text-[10px] text-muted-foreground uppercase font-semibold">Total Reach</span>
+                  <span className="font-bold text-sm text-foreground">
+                    {selectedCreatorForDetails.creatorProfile?.followersCount?.toLocaleString() || "0"}
+                  </span>
+                </div>
+                <div>
+                  <span className="block text-[10px] text-muted-foreground uppercase font-semibold">Rating</span>
+                  <span className="font-bold text-sm text-amber flex items-center justify-center gap-1">
+                    <Star className="h-3.5 w-3.5 fill-amber" />
+                    {selectedCreatorForDetails.creatorProfile?.rating || "5.0"}
+                  </span>
+                </div>
+                <div>
+                  <span className="block text-[10px] text-muted-foreground uppercase font-semibold">Category</span>
+                  <span className="font-bold text-xs text-foreground truncate block">
+                    {selectedCreatorForDetails.creatorProfile?.category || "General"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Bio & Details */}
+              {selectedCreatorForDetails.creatorProfile?.bio && (
+                <div>
+                  <span className="text-xs font-semibold text-foreground block mb-1">About Creator</span>
+                  <p className="text-xs text-muted-foreground leading-relaxed bg-background border border-border/40 rounded-xl p-3">
+                    {selectedCreatorForDetails.creatorProfile.bio}
+                  </p>
+                </div>
+              )}
+
+              {/* Campaign & Pitch */}
+              <div>
+                <span className="text-xs font-semibold text-foreground block mb-1">
+                  Pitch for Campaign {selectedCreatorForDetails.campaign?.title ? `("${selectedCreatorForDetails.campaign.title}")` : ""}
+                </span>
+                <div className="bg-primary/5 border border-primary/20 rounded-2xl p-3.5 text-xs italic text-foreground leading-relaxed">
+                  "{selectedCreatorForDetails.pitch}"
+                </div>
+                <span className="block text-[10px] text-muted-foreground mt-1.5">
+                  Applied on {new Date(selectedCreatorForDetails.createdAt).toLocaleString()}
+                </span>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-2.5 pt-2 border-t border-border/40">
+                <Link
+                  to={`/influencer/${selectedCreatorForDetails.creatorId}`}
+                  target="_blank"
+                  className="flex-1"
+                >
+                  <Button variant="outline" size="sm" className="w-full rounded-full text-xs h-9 font-semibold">
+                    <ExternalLink className="h-3.5 w-3.5 mr-1" /> View Full Profile
+                  </Button>
+                </Link>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={processingRequestId === selectedCreatorForDetails._id}
+                  className="flex-1 rounded-full border-border hover:bg-destructive/10 hover:text-destructive hover:border-destructive/20 text-xs h-9 font-semibold"
+                  onClick={async () => {
+                    setProcessingRequestId(selectedCreatorForDetails._id);
+                    try {
+                      await rejectConnection({ connectionId: selectedCreatorForDetails._id });
+                      toast.info("Request declined");
+                      setSelectedCreatorForDetails(null);
+                      setRequestsRefreshKey((k) => k + 1);
+                    } catch (err) {
+                      toast.error(err?.response?.data?.message || "Failed to decline request");
+                    } finally {
+                      setProcessingRequestId(null);
+                    }
+                  }}
+                >
+                  <X className="h-4 w-4 mr-1" /> Decline
+                </Button>
+                <Button
+                  size="sm"
+                  disabled={processingRequestId === selectedCreatorForDetails._id}
+                  className="flex-1 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white border-0 text-xs h-9 font-semibold"
+                  onClick={async () => {
+                    setProcessingRequestId(selectedCreatorForDetails._id);
+                    try {
+                      await acceptConnection({ connectionId: selectedCreatorForDetails._id });
+                      toast.success(`Approved request from ${selectedCreatorForDetails.creatorProfile?.fullName || "Creator"}!`);
+                      setSelectedCreatorForDetails(null);
+                      setRequestsRefreshKey((k) => k + 1);
+                    } catch (err) {
+                      toast.error(err?.response?.data?.message || "Failed to approve request");
+                    } finally {
+                      setProcessingRequestId(null);
+                    }
+                  }}
+                >
+                  <Check className="h-4 w-4 mr-1" /> Approve
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Task 6: Deliverable Submissions View Dialog for Brand */}
+      <Dialog
+        open={Boolean(selectedCollabForSubmissions)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedCollabForSubmissions(null);
+            setCollabSubmissionsList([]);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[650px] max-h-[85vh] overflow-y-auto rounded-3xl p-6">
+          <DialogHeader>
+            <DialogTitle className="font-display text-lg font-bold flex items-center gap-2">
+              <Eye className="h-5 w-5 text-primary" /> Submitted Deliverables
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Review submitted campaign deliverables from {selectedCollabForSubmissions?.creatorProfile?.fullName || "Creator"} for "{selectedCollabForSubmissions?.campaign?.title || "Campaign"}".
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedCollabForSubmissions && (
+            <div className="space-y-4 py-2">
+              {/* Deliverables Overview Stats */}
+              <div className="rounded-2xl border border-border/80 bg-secondary/20 p-3.5 flex flex-wrap items-center justify-between gap-3 text-xs">
+                <div>
+                  <span className="text-muted-foreground block text-[11px]">Creator</span>
+                  <span className="font-bold text-foreground">{selectedCollabForSubmissions.creatorProfile?.fullName || "Creator"}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block text-[11px]">Campaign</span>
+                  <span className="font-bold text-foreground truncate max-w-[200px] block">{selectedCollabForSubmissions.campaign?.title || "Campaign"}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block text-[11px]">Approved Deliverables</span>
+                  {(() => {
+                    const totalReq = selectedCollabForSubmissions.deliverablesTracking?.reduce((sum, d) => sum + (d.requiredQuantity || 0), 0) || 0;
+                    const totalComp = selectedCollabForSubmissions.deliverablesTracking?.reduce((sum, d) => sum + (d.completedQuantity || 0), 0) || 0;
+                    const isAllApproved = totalReq > 0 && totalComp >= totalReq;
+                    return (
+                      <span className={cn("font-bold flex items-center gap-1", isAllApproved ? "text-emerald-600" : "text-primary")}>
+                        {totalComp} / {totalReq} Approved
+                        {isAllApproved && <Badge className="bg-emerald-500/15 text-emerald-600 border-emerald-500/30 text-[9px] px-1.5 py-0 font-bold">✓ 100% Completed</Badge>}
+                      </span>
+                    );
+                  })()}
+                </div>
+              </div>
+
+              {/* Submissions List */}
+              {loadingSubmissions ? (
+                <div className="py-12 text-center text-xs text-muted-foreground">
+                  Loading submitted deliverables...
+                </div>
+              ) : collabSubmissionsList.length === 0 ? (
+                <div className="py-12 text-center rounded-2xl border border-dashed border-border p-6 space-y-1">
+                  <p className="text-sm font-semibold text-foreground">No deliverables submitted yet</p>
+                  <p className="text-xs text-muted-foreground">
+                    The creator has not yet uploaded content for this campaign.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {collabSubmissionsList.map((sub, idx) => {
+                    const isVideo = sub.contentUrl?.match(/\.(mp4|mov|webm|avi|mkv)$/i) || sub.deliverableType === "REEL" || sub.deliverableType === "VIDEO";
+                    const formattedDate = new Date(sub.submittedAt || sub.createdAt).toLocaleString([], {
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                    });
+
+                    return (
+                      <div
+                        key={sub._id || idx}
+                        className="rounded-2xl border border-border/80 bg-card p-4 space-y-3 hover:border-border transition"
+                      >
+                        {/* Header */}
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <Badge className="bg-primary/10 text-primary border border-primary/20 font-bold text-[10px] px-2 py-0.5">
+                              {sub.deliverableType}
+                            </Badge>
+                            <span className="text-xs font-semibold text-foreground">
+                              Submission #{collabSubmissionsList.length - idx}
+                            </span>
+                            {sub.version && sub.version > 1 && (
+                              <Badge variant="outline" className="text-[9px] font-bold text-muted-foreground border-border px-1.5 py-0">
+                                v{sub.version}
+                              </Badge>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            {sub.status === "APPROVED" ? (
+                              <Badge className="bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 text-[10px] font-bold flex items-center gap-1">
+                                <CheckCircle2 className="h-3 w-3" /> APPROVED
+                              </Badge>
+                            ) : sub.status === "REJECTED" ? (
+                              <Badge variant="destructive" className="text-[10px] font-bold flex items-center gap-1">
+                                <X className="h-3 w-3" /> REJECTED
+                              </Badge>
+                            ) : sub.status === "RESUBMITTED" ? (
+                              <Badge className="bg-blue-500/10 text-blue-600 border border-blue-500/20 text-[10px] font-bold">
+                                RESUBMITTED · AWAITING REVIEW
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-amber-500/10 text-amber-600 border border-amber-500/20 text-[10px] font-bold">
+                                SUBMITTED · AWAITING REVIEW
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Content Preview */}
+                        <div className="rounded-xl overflow-hidden bg-background border border-border/60 max-h-64 flex items-center justify-center">
+                          {isVideo ? (
+                            <video
+                              src={resolveImageUrl(sub.contentUrl)}
+                              controls
+                              className="max-h-64 w-full object-contain"
+                            />
+                          ) : (
+                            <img
+                              src={resolveImageUrl(sub.contentUrl)}
+                              alt="Deliverable submission"
+                              className="max-h-64 w-full object-contain"
+                              onError={(e) => {
+                                e.target.onerror = null;
+                                e.target.src = "https://api.dicebear.com/9.x/shapes/svg?seed=Content";
+                              }}
+                            />
+                          )}
+                        </div>
+
+                        {/* Caption / Description if present */}
+                        {sub.caption && (
+                          <div className="text-xs text-foreground bg-secondary/30 rounded-xl p-2.5 border border-border/40 leading-relaxed">
+                            <span className="font-semibold text-muted-foreground block text-[10px] uppercase mb-0.5">
+                              {sub.status === "RESUBMITTED" ? "Creator Rework Notes:" : "Creator Caption / Notes:"}
+                            </span>
+                            "{sub.caption}"
+                          </div>
+                        )}
+
+                        {/* Footer Metadata & Review Actions (Task 7 & 8) */}
+                        <div className="space-y-2 pt-2 border-t border-border/40">
+                          <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                            <span>
+                              {sub.status === "RESUBMITTED" ? "Resubmitted on:" : "Submitted on:"} {formattedDate}
+                            </span>
+                            <a
+                              href={resolveImageUrl(sub.contentUrl)}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-primary hover:underline flex items-center gap-1 font-semibold"
+                            >
+                              <ExternalLink className="h-3 w-3" /> View Original
+                            </a>
+                          </div>
+
+                          {/* Rejection reason display if rejected */}
+                          {sub.status === "REJECTED" && sub.rejectionReason && (
+                            <div className="text-[11px] text-red-600 bg-red-500/10 border border-red-500/20 rounded-xl p-2.5">
+                              <strong>Previous Rejection Feedback:</strong> {sub.rejectionReason}
+                            </div>
+                          )}
+
+                          {/* Brand Review Actions: Approve / Reject (Enabled for SUBMITTED and RESUBMITTED) */}
+                          {(sub.status === "SUBMITTED" || sub.status === "RESUBMITTED") && (
+                            <div className="flex gap-2 pt-1">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="flex-1 rounded-full border-red-500/30 text-red-600 hover:bg-red-500/10 text-xs h-8 font-semibold flex items-center justify-center gap-1"
+                                disabled={reviewingSubmissionId === sub._id}
+                                onClick={() => {
+                                  setRejectingSubmission(sub);
+                                  setSubmissionRejectionReason("");
+                                }}
+                              >
+                                <X className="h-3.5 w-3.5" /> Reject / Request Changes
+                              </Button>
+
+                              <Button
+                                size="sm"
+                                className="flex-1 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white border-0 text-xs h-8 font-semibold flex items-center justify-center gap-1 shadow-sm"
+                                disabled={reviewingSubmissionId === sub._id}
+                                onClick={async () => {
+                                  setReviewingSubmissionId(sub._id);
+                                  try {
+                                    const res = await api.patch(`/api/submissions/${sub._id}/approve`);
+                                    toast.success(`Approved ${sub.deliverableType} (v${sub.version || 1}) submission!`);
+                                    
+                                    // Refresh modal submissions
+                                    const refreshed = await api.get(`/api/submissions/${selectedCollabForSubmissions._id}/submissions`);
+                                    setCollabSubmissionsList(refreshed.data?.data?.submissions || []);
+                                    setRequestsRefreshKey((k) => k + 1);
+                                  } catch (err) {
+                                    console.error("Approve submission error:", err);
+                                    toast.error(err?.response?.data?.message || err.message || "Failed to approve deliverable.");
+                                  } finally {
+                                    setReviewingSubmissionId(null);
+                                  }
+                                }}
+                              >
+                                <Check className="h-3.5 w-3.5" /> {reviewingSubmissionId === sub._id ? "Approving..." : "Approve Deliverable"}
+                              </Button>
+                            </div>
+                          )}
+
+                          {sub.status === "APPROVED" && (
+                            <div className="text-[11px] font-bold text-emerald-600 flex items-center gap-1">
+                              <CheckCircle2 className="h-3.5 w-3.5" /> Approved on {new Date(sub.approvedAt || sub.updatedAt).toLocaleDateString()}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter className="pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-full text-xs"
+              onClick={() => {
+                setSelectedCollabForSubmissions(null);
+                setCollabSubmissionsList([]);
+              }}
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Task 7: Rejection Reason Dialog */}
+      <Dialog
+        open={Boolean(rejectingSubmission)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setRejectingSubmission(null);
+            setSubmissionRejectionReason("");
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[450px] rounded-3xl p-6">
+          <DialogHeader>
+            <DialogTitle className="font-display text-base font-bold text-foreground flex items-center gap-2">
+              <X className="h-5 w-5 text-destructive" /> Reject Deliverable & Request Changes
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Provide feedback for the creator explaining why this {rejectingSubmission?.deliverableType} was rejected and what changes are needed.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2">
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold text-foreground">
+                Rejection Reason / Required Changes <span className="text-red-500">*</span>
+              </Label>
+              <Textarea
+                placeholder="e.g. Please ensure the campaign hashtag #BrandSummer is included in the video caption and product packaging is clearly visible."
+                value={submissionRejectionReason}
+                onChange={(e) => setSubmissionRejectionReason(e.target.value)}
+                className="text-xs min-h-[90px] rounded-xl resize-none"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="flex gap-2 sm:justify-end pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-full text-xs"
+              onClick={() => {
+                setRejectingSubmission(null);
+                setSubmissionRejectionReason("");
+              }}
+              disabled={reviewingSubmissionId !== null}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              className="rounded-full text-xs font-bold px-5"
+              disabled={!submissionRejectionReason.trim() || reviewingSubmissionId !== null}
+              onClick={async () => {
+                if (!rejectingSubmission || !submissionRejectionReason.trim()) {
+                  toast.error("Please enter a rejection reason.");
+                  return;
+                }
+
+                setReviewingSubmissionId(rejectingSubmission._id);
+                try {
+                  await api.patch(`/api/submissions/${rejectingSubmission._id}/reject`, {
+                    reason: submissionRejectionReason.trim(),
+                  });
+
+                  toast.info("Deliverable rejected. Feedback sent to creator.");
+                  setRejectingSubmission(null);
+                  setSubmissionRejectionReason("");
+
+                  // Refresh submissions
+                  if (selectedCollabForSubmissions) {
+                    const refreshed = await api.get(`/api/submissions/${selectedCollabForSubmissions._id}/submissions`);
+                    setCollabSubmissionsList(refreshed.data?.data?.submissions || []);
+                  }
+                  setRequestsRefreshKey((k) => k + 1);
+                } catch (err) {
+                  console.error("Reject submission error:", err);
+                  toast.error(err?.response?.data?.message || err.message || "Failed to reject deliverable.");
+                } finally {
+                  setReviewingSubmissionId(null);
+                }
+              }}
+            >
+              {reviewingSubmissionId !== null ? "Rejecting..." : "Confirm Rejection"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

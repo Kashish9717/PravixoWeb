@@ -13,6 +13,12 @@ import CreatorBankDetails from "../models/CreatorBankDetails.js";
 import WebhookLog from "../models/WebhookLog.js";
 import Notification from "../models/Notification.js";
 import UserSubscription from "../models/UserSubscription.js";
+import Connection from "../models/Connection.js";
+import Payout from "../models/Payout.js";
+import Wallet from "../models/Wallet.js";
+import WalletTransaction from "../models/WalletTransaction.js";
+import Withdrawal from "../models/Withdrawal.js";
+import { creditCreatorWallet } from "./walletController.js";
 
 // =====================================================
 // AGGREGATE STATS
@@ -54,10 +60,19 @@ export const getStats = async (req, res) => {
 // =====================================================
 export const listAllConversations = async (req, res) => {
   try {
-    const conversations = await Conversation.find()
+    const { type } = req.query;
+
+    const filter = {};
+    if (type) {
+      filter.conversationType = type;
+    }
+
+    const conversations = await Conversation.find(filter)
       .populate("creatorId", "fullName email handle avatarUrl role")
       .populate("brandId", "fullName email handle avatarUrl role")
+      .populate("adminId", "fullName email handle avatarUrl role")
       .populate("campaignId", "title budget category")
+      .sort({ updatedAt: -1, createdAt: -1 })
       .lean();
 
     const results = await Promise.all(
@@ -73,6 +88,7 @@ export const listAllConversations = async (req, res) => {
           ...c,
           creator: c.creatorId,
           brand: c.brandId,
+          admin: c.adminId,
           campaign: c.campaignId,
           lastMessage: messages[0] || null,
           messageCount,
@@ -103,12 +119,21 @@ export const listMessages = async (req, res) => {
     const { id } = req.params;
 
     const conversation = await Conversation.findById(id)
-      .populate("creatorId", "fullName email handle avatarUrl")
-      .populate("brandId", "fullName email handle avatarUrl")
+      .populate("creatorId", "fullName email handle avatarUrl role")
+      .populate("brandId", "fullName email handle avatarUrl role")
+      .populate("adminId", "fullName email handle avatarUrl role")
+      .populate("campaignId", "title budget category totalBudget deliverables")
       .lean();
 
+    if (!conversation) {
+      return res.status(404).json({
+        success: false,
+        message: "Conversation not found.",
+      });
+    }
+
     const messages = await Message.find({ conversationId: id })
-      .populate("senderId", "fullName email handle avatarUrl")
+      .populate("senderId", "fullName email handle avatarUrl role")
       .sort({ createdAt: 1 })
       .lean();
 
@@ -118,6 +143,8 @@ export const listMessages = async (req, res) => {
         conversation,
         creator: conversation?.creatorId || null,
         brand: conversation?.brandId || null,
+        admin: conversation?.adminId || null,
+        campaign: conversation?.campaignId || null,
         messages,
       },
     });
@@ -504,11 +531,75 @@ export const listAllTasks = async (req, res) => {
 };
 
 // =====================================================
+// HELPER: SYNC 72-HOUR PAYMENT RELEASE ELIGIBILITY (TASK 10)
+// =====================================================
+export const syncCollaboration72HourEligibility = async () => {
+  try {
+    const now = Date.now();
+    // Find all collaborations that are PAID, completed deliverables, and currently WAITING_72_HOURS or missing status
+    const waitingCollabs = await Connection.find({
+      paymentStatus: "PAID",
+      allDeliverablesCompleted: true,
+      paymentReleaseEligibleAt: { $ne: null },
+      paymentReleaseStatus: { $in: ["WAITING_72_HOURS", "NOT_APPLICABLE"] },
+    });
+
+    const admins = await Profile.find({ role: "admin" }).select("_id").lean();
+
+    for (const collab of waitingCollabs) {
+      if (now >= collab.paymentReleaseEligibleAt) {
+        collab.paymentReleaseStatus = "ELIGIBLE_FOR_RELEASE";
+        
+        // If admin hasn't been notified yet, dispatch payment_release_eligible notification
+        if (!collab.adminNotifiedOfEligibility) {
+          const brand = await Profile.findById(collab.brandId).select("fullName").lean();
+          const creator = await Profile.findById(collab.creatorId).select("fullName").lean();
+          let campaignTitle = "Campaign";
+          if (collab.campaignId) {
+            const camp = await Campaign.findById(collab.campaignId).select("title").lean();
+            if (camp) campaignTitle = camp.title;
+          }
+
+          const brandName = brand?.fullName || "Brand";
+          const creatorName = creator?.fullName || "Creator";
+          const creatorAmt = (collab.creatorAmount || 0).toLocaleString("en-IN");
+          const brandPaid = (collab.brandTotal || 0).toLocaleString("en-IN");
+
+          for (const admin of admins) {
+            await Notification.create({
+              recipientId: admin._id,
+              senderId: collab.creatorId,
+              type: "payment_release_eligible",
+              text: `Creator payment (₹${creatorAmt}) for "${campaignTitle}" (${creatorName} & ${brandName}) is now eligible for release after the 72-hour review period.`,
+              createdAt: now,
+            });
+          }
+
+          collab.adminNotifiedOfEligibility = true;
+        }
+
+        collab.updatedAt = now;
+        await collab.save();
+      } else if (collab.paymentReleaseStatus !== "WAITING_72_HOURS") {
+        collab.paymentReleaseStatus = "WAITING_72_HOURS";
+        collab.updatedAt = now;
+        await collab.save();
+      }
+    }
+  } catch (err) {
+    console.error("Error in syncCollaboration72HourEligibility:", err);
+  }
+};
+
+// =====================================================
 // LIST ALL PAYMENTS & ESCROW
 // GET /api/admin/payments
 // =====================================================
 export const listAllPayments = async (req, res) => {
   try {
+    // Run lightweight eligibility sync on demand
+    await syncCollaboration72HourEligibility();
+
     const payments = await Payment.find()
       .populate("campaignId", "title budget")
       .populate("creatorId", "fullName email handle avatarUrl")
@@ -542,6 +633,342 @@ export const listAllPayments = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to list payments.",
+      error: error.message,
+    });
+  }
+};
+
+// =====================================================
+// LIST COLLABORATION 72-HOUR PAYMENT RELEASES (TASK 10)
+// GET /api/admin/payments/collaborations
+// =====================================================
+export const listCollaborationPaymentReleases = async (req, res) => {
+  try {
+    // Run sync before querying
+    await syncCollaboration72HourEligibility();
+
+    const { status } = req.query; // "WAITING_72_HOURS", "ELIGIBLE_FOR_RELEASE", or empty for all paid/completed
+    const filter = {
+      paymentStatus: "PAID",
+      allDeliverablesCompleted: true,
+    };
+
+    if (status) {
+      filter.paymentReleaseStatus = status;
+    }
+
+    const collabs = await Connection.find(filter)
+      .populate("campaignId", "title deliverables minBudgetPerCreator maxBudgetPerCreator totalBudget")
+      .populate("creatorId", "fullName email handle avatarUrl phone location")
+      .populate("brandId", "fullName email handle avatarUrl website location")
+      .populate("paymentId")
+      .sort({ workCompletedAt: -1, createdAt: -1 })
+      .lean();
+
+    const now = Date.now();
+
+    const enriched = collabs.map((c) => {
+      const isEligible = c.paymentReleaseEligibleAt && now >= c.paymentReleaseEligibleAt;
+      const releaseStatus = isEligible ? "ELIGIBLE_FOR_RELEASE" : (c.paymentReleaseStatus || "WAITING_72_HOURS");
+      const remainingMs = c.paymentReleaseEligibleAt ? Math.max(0, c.paymentReleaseEligibleAt - now) : 0;
+
+      return {
+        _id: c._id,
+        campaign: c.campaignId,
+        creator: c.creatorId,
+        brand: c.brandId,
+        payment: c.paymentId,
+        creatorAmount: c.creatorAmount || 0,
+        pravixoFee: c.pravixoFee || 0,
+        brandTotal: c.brandTotal || 0,
+        paymentStatus: c.paymentStatus,
+        allDeliverablesCompleted: c.allDeliverablesCompleted,
+        deliverablesTracking: c.deliverablesTracking || [],
+        workCompletedAt: c.workCompletedAt,
+        approvalCompletedAt: c.approvalCompletedAt,
+        paymentReleaseEligibleAt: c.paymentReleaseEligibleAt,
+        paymentReleaseStatus: releaseStatus,
+        remainingMs,
+        createdAt: c.createdAt,
+      };
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: enriched,
+    });
+  } catch (error) {
+    console.error("Admin listCollaborationPaymentReleases error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to list collaboration payment releases.",
+      error: error.message,
+    });
+  }
+};
+
+// =====================================================
+// GET SINGLE COLLABORATION PAYMENT RELEASE DETAILS (TASK 10)
+// GET /api/admin/payments/collaborations/:id
+// =====================================================
+export const getCollaborationPaymentReleaseDetails = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: "Invalid collaboration ID." });
+    }
+
+    await syncCollaboration72HourEligibility();
+
+    const collab = await Connection.findById(id)
+      .populate("campaignId")
+      .populate("creatorId", "fullName email handle avatarUrl phone location")
+      .populate("brandId", "fullName email handle avatarUrl website location")
+      .populate("paymentId")
+      .lean();
+
+    if (!collab) {
+      return res.status(404).json({ success: false, message: "Collaboration not found." });
+    }
+
+    const now = Date.now();
+    const isEligible = collab.paymentReleaseEligibleAt && now >= collab.paymentReleaseEligibleAt;
+    const releaseStatus = isEligible ? "ELIGIBLE_FOR_RELEASE" : (collab.paymentReleaseStatus || "WAITING_72_HOURS");
+    const remainingMs = collab.paymentReleaseEligibleAt ? Math.max(0, collab.paymentReleaseEligibleAt - now) : 0;
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        ...collab,
+        paymentReleaseStatus: releaseStatus,
+        remainingMs,
+      },
+    });
+  } catch (error) {
+    console.error("Admin getCollaborationPaymentReleaseDetails error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch collaboration payment release details.",
+      error: error.message,
+    });
+  }
+};
+
+// =====================================================
+// RELEASE CREATOR PAYOUT (TASK 11)
+// POST /api/admin/payments/collaborations/:id/release
+// =====================================================
+export const releaseCreatorPayout = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { notes } = req.body || {};
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid collaboration ID.",
+      });
+    }
+
+    // Security & Eligibility Check: Fetch Connection and populate necessary refs
+    const connection = await Connection.findById(id);
+    if (!connection) {
+      return res.status(404).json({
+        success: false,
+        message: "Collaboration not found.",
+      });
+    }
+
+    // 1. Payment requirement: Must be PAID
+    if (connection.paymentStatus !== "PAID") {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot release payout: Collaboration payment is not in PAID status.",
+      });
+    }
+
+    // 2. Deliverables requirement: All required deliverables must be APPROVED
+    const allApproved =
+      connection.deliverablesTracking &&
+      connection.deliverablesTracking.length > 0 &&
+      connection.deliverablesTracking.every(
+        (deliv) => (deliv.completedQuantity || 0) >= (deliv.requiredQuantity || 1)
+      );
+
+    if (!connection.allDeliverablesCompleted || !allApproved) {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot release payout: Not all required campaign deliverables are approved.",
+      });
+    }
+
+    // 3. Review period requirement: 72 hours must be completed
+    const now = Date.now();
+    if (!connection.paymentReleaseEligibleAt || now < connection.paymentReleaseEligibleAt) {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot release payout: 72-hour review period has not yet elapsed.",
+      });
+    }
+
+    // 4. Idempotency Check: Cannot release if already RELEASED
+    if (connection.paymentReleaseStatus === "RELEASED") {
+      return res.status(400).json({
+        success: false,
+        message: "Payout has already been released for this collaboration.",
+      });
+    }
+
+    // 5. Derive trusted financial data directly from stored records
+    const creatorAmount = connection.creatorAmount;
+    if (!creatorAmount || creatorAmount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid or zero creator payout amount in collaboration record.",
+      });
+    }
+
+    const adminId = req.user?._id || req.user?.profileId;
+    const transactionReference = `PAYOUT-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+
+    // Fetch Campaign & Brand details for rich audit log and notifications
+    let campaignTitle = "Collaboration Campaign";
+    if (connection.campaignId) {
+      const camp = await Campaign.findById(connection.campaignId).select("title").lean();
+      if (camp?.title) campaignTitle = camp.title;
+    }
+
+    const brandDoc = await Profile.findById(connection.brandId).select("fullName").lean();
+    const brandName = brandDoc?.fullName || "Brand";
+
+    // Create Payout Record
+    const payout = await Payout.create({
+      collaborationId: connection._id,
+      paymentId: connection.paymentId || null,
+      campaignId: connection.campaignId || null,
+      brandId: connection.brandId,
+      creatorId: connection.creatorId,
+      amount: creatorAmount,
+      currency: "INR",
+      status: "COMPLETED",
+      payoutMethod: "MANUAL_BANK_TRANSFER",
+      transactionReference,
+      initiatedBy: adminId,
+      initiatedAt: now,
+      completedAt: now,
+      notes: notes || "Manual Admin Payout Release",
+    });
+
+    // Update Connection state
+    connection.paymentReleaseStatus = "RELEASED";
+    connection.payoutId = payout._id;
+    connection.payoutReleasedAt = now;
+    connection.updatedAt = now;
+    await connection.save();
+
+    // Update Payment record if present
+    if (connection.paymentId) {
+      const payment = await Payment.findById(connection.paymentId);
+      if (payment) {
+        payment.paymentStatus = "completed";
+        payment.holdingStatus = "released";
+        payment.payoutStatus = "processed";
+        payment.releasedAt = now;
+        payment.payoutReference = transactionReference;
+        payment.updatedAt = now;
+        await payment.save();
+
+        // Add audit log entry
+        await PaymentAuditLog.create({
+          paymentId: payment._id,
+          action: "Manual Payout Released",
+          details: `Admin released Creator payout of ₹${creatorAmount.toLocaleString("en-IN")}. Ref: ${transactionReference}`,
+          createdAt: now,
+        });
+      }
+    }
+
+    // Credit Creator Wallet (Task 13 - Idempotent, exactly creator agreed amount)
+    let walletResult = null;
+    try {
+      walletResult = await creditCreatorWallet({
+        creatorId: connection.creatorId,
+        amount: creatorAmount,
+        collaborationId: connection._id,
+        campaignId: connection.campaignId || null,
+        payoutId: payout._id,
+        referenceId: transactionReference,
+        description: `Payment released for collaboration (${campaignTitle})`,
+      });
+    } catch (walletErr) {
+      console.error("Wallet credit error:", walletErr);
+    }
+
+    // Send Notification to Creator
+    await Notification.create({
+      recipientId: connection.creatorId,
+      senderId: adminId || connection.brandId,
+      type: "payment_released",
+      text: `₹${creatorAmount.toLocaleString("en-IN")} has been added to your wallet from your completed collaboration for "${campaignTitle}" (Ref: ${transactionReference}).`,
+      targetUrl: "/dashboard/creator/wallet",
+      metadata: { collaborationId: connection._id, amount: creatorAmount, reference: transactionReference },
+      createdAt: now,
+    });
+
+    // Send Notification to Brand
+    await Notification.create({
+      recipientId: connection.brandId,
+      senderId: adminId || connection.creatorId,
+      type: "payment_released",
+      text: `Creator payout of ₹${creatorAmount.toLocaleString("en-IN")} for "${campaignTitle}" has been released and completed.`,
+      targetUrl: "/dashboard/brand/campaigns",
+      metadata: { collaborationId: connection._id, amount: creatorAmount, reference: transactionReference },
+      createdAt: now,
+    });
+
+    // Post update in conversation chat if exists
+    try {
+      const convFilter = {
+        creatorId: connection.creatorId,
+        brandId: connection.brandId,
+      };
+      if (connection.campaignId) convFilter.campaignId = connection.campaignId;
+      const conversation = await Conversation.findOne(convFilter);
+      if (conversation) {
+        await Message.create({
+          conversationId: conversation._id,
+          senderId: adminId || connection.brandId,
+          text: `[Payout Released] Admin released creator payout of ₹${creatorAmount.toLocaleString("en-IN")}. Transaction Ref: ${transactionReference}. Collaboration complete.`,
+          messageType: "system",
+          metadata: {
+            payoutId: payout._id,
+            amount: creatorAmount,
+            transactionReference,
+            releasedAt: now,
+          },
+          read: false,
+        });
+      }
+    } catch (chatErr) {
+      console.warn("Could not post payout message to chat:", chatErr);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Successfully released ₹${creatorAmount.toLocaleString("en-IN")} payout to creator.`,
+      data: {
+        payout,
+        connection,
+        wallet: walletResult?.wallet || null,
+        transaction: walletResult?.transaction || null,
+      },
+    });
+  } catch (error) {
+    console.error("Admin releaseCreatorPayout error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to release creator payout.",
       error: error.message,
     });
   }
@@ -1284,23 +1711,24 @@ export const getAdminActivityFeed = async (req, res) => {
       timestamp: new Date(p.createdAt).getTime(),
     }));
 
-    const adminActions = await Notification.find({
-      type: { $in: ["account_suspended", "account_deleted"] },
+    const campaignNotifications = await Notification.find({
+      type: { $in: ["campaign_pending_verification", "campaign_approved", "campaign_rejected"] },
       ...sinceFilter,
     }).sort({ createdAt: -1 }).limit(10)
+      .populate("senderId", "fullName avatarUrl role")
       .populate("recipientId", "fullName avatarUrl role").lean();
 
-    const actionEvents = adminActions.map((n) => ({
-      id: "action_" + n._id,
-      type: n.type === "account_deleted" ? "deleted" : "suspended",
-      title: n.type === "account_deleted" ? "Account deleted" : "Account suspended",
+    const campaignEvents = campaignNotifications.map((n) => ({
+      id: "camp_" + n._id,
+      type: "collaboration",
+      title: n.type === "campaign_pending_verification" ? "New Campaign Submitted" : "Campaign Verification Updated",
       body: n.text,
-      avatarUrl: n.recipientId ? n.recipientId.avatarUrl : null,
-      actorName: n.recipientId ? n.recipientId.fullName : "User",
+      avatarUrl: n.senderId?.avatarUrl || null,
+      actorName: n.senderId?.fullName || "Brand",
       timestamp: new Date(n.createdAt).getTime(),
     }));
 
-    const allEvents = [...signupEvents, ...collaborationEvents, ...paymentEvents, ...actionEvents]
+    const allEvents = [...signupEvents, ...campaignEvents, ...collaborationEvents, ...paymentEvents]
       .sort((a, b) => b.timestamp - a.timestamp)
       .slice(0, limit);
 
@@ -1310,3 +1738,378 @@ export const getAdminActivityFeed = async (req, res) => {
     return res.status(500).json({ success: false, message: "Failed to fetch activity feed.", error: error.message });
   }
 };
+
+// =====================================================
+// LIST ADMIN CAMPAIGNS FOR VERIFICATION
+// GET /api/admin/campaigns
+// =====================================================
+export const listAdminCampaigns = async (req, res) => {
+  try {
+    const { status } = req.query;
+
+    const filter = {};
+    if (status) {
+      filter.status = status;
+    }
+
+    const campaigns = await Campaign.find(filter)
+      .populate("brandId", "fullName email handle avatarUrl role location category startingPrice website")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return res.status(200).json({
+      success: true,
+      data: campaigns,
+    });
+  } catch (error) {
+    console.error("Admin listAdminCampaigns error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to list campaigns.",
+      error: error.message,
+    });
+  }
+};
+
+// =====================================================
+// VERIFY CAMPAIGN (APPROVE / REJECT)
+// PATCH /api/admin/campaigns/:id/verify
+// =====================================================
+export const verifyCampaign = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, verificationFeedback } = req.body;
+
+    if (!["APPROVED", "REJECTED"].includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: "Status must be either APPROVED or REJECTED.",
+      });
+    }
+
+    const campaign = await Campaign.findById(id).populate("brandId", "fullName email");
+    if (!campaign) {
+      return res.status(404).json({
+        success: false,
+        message: "Campaign not found.",
+      });
+    }
+
+    campaign.status = status;
+    if (verificationFeedback !== undefined) {
+      campaign.verificationFeedback = verificationFeedback;
+    }
+    campaign.updatedAt = Date.now();
+    await campaign.save();
+
+    // Send notification to Brand
+    const adminId = req.user?._id || req.user?.profileId;
+    const notifType = status === "APPROVED" ? "campaign_approved" : "campaign_rejected";
+    const notifText = status === "APPROVED"
+      ? `Great news! Your campaign "${campaign.title}" has been approved by Admin and is now live for Creators.`
+      : `Your campaign "${campaign.title}" was not approved.${verificationFeedback ? ` Reason: ${verificationFeedback}` : ""}`;
+
+    await Notification.create({
+      recipientId: campaign.brandId._id || campaign.brandId,
+      senderId: adminId || campaign.brandId._id || campaign.brandId,
+      type: notifType,
+      text: notifText,
+      createdAt: Date.now(),
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Campaign ${status === "APPROVED" ? "approved" : "rejected"} successfully.`,
+      data: campaign,
+    });
+  } catch (error) {
+    console.error("Admin verifyCampaign error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to verify campaign.",
+      error: error.message,
+    });
+  }
+};
+
+// =====================================================
+// OPEN OR CREATE ADMIN CONVERSATION (WITH BRAND OR CREATOR)
+// POST /api/admin/conversations/open
+// =====================================================
+export const openAdminConversation = async (req, res) => {
+  try {
+    const adminId = req.user?._id;
+    const { targetUserId, campaignId, initialMessage } = req.body;
+
+    if (!targetUserId) {
+      return res.status(400).json({
+        success: false,
+        message: "targetUserId is required.",
+      });
+    }
+
+    const targetProfile = await Profile.findById(targetUserId);
+    if (!targetProfile) {
+      return res.status(404).json({
+        success: false,
+        message: "Target user not found.",
+      });
+    }
+
+    let convType = "admin_brand";
+    let query = { adminId, conversationType: convType };
+
+    if (targetProfile.role === "creator") {
+      convType = "admin_creator";
+      query = { adminId, creatorId: targetProfile._id, conversationType: convType };
+    } else {
+      convType = "admin_brand";
+      query = { adminId, brandId: targetProfile._id, conversationType: convType };
+    }
+
+    if (campaignId) {
+      query.campaignId = campaignId;
+    }
+
+    let conversation = await Conversation.findOne(query);
+
+    if (!conversation) {
+      conversation = await Conversation.create({
+        adminId,
+        creatorId: targetProfile.role === "creator" ? targetProfile._id : null,
+        brandId: targetProfile.role === "brand" ? targetProfile._id : null,
+        conversationType: convType,
+        campaignId: campaignId || null,
+        status: "active",
+      });
+    }
+
+    if (initialMessage && initialMessage.trim()) {
+      await Message.create({
+        conversationId: conversation._id,
+        senderId: adminId,
+        text: initialMessage.trim(),
+        read: false,
+      });
+
+      // Send in-app notification to target user
+      await Notification.create({
+        recipientId: targetProfile._id,
+        senderId: adminId,
+        type: "admin_message",
+        text: `New message from Pravixo Admin: "${initialMessage.trim().slice(0, 60)}${initialMessage.trim().length > 60 ? "..." : ""}"`,
+        createdAt: Date.now(),
+      }).catch((notifErr) => console.warn("Could not dispatch message notification:", notifErr));
+    }
+
+    const populatedConversation = await Conversation.findById(conversation._id)
+      .populate("creatorId", "fullName email handle avatarUrl role")
+      .populate("brandId", "fullName email handle avatarUrl role")
+      .populate("adminId", "fullName email handle avatarUrl role")
+      .populate("campaignId", "title budget")
+      .lean();
+
+    return res.status(200).json({
+      success: true,
+      message: "Admin conversation ready.",
+      data: populatedConversation,
+      conversationId: conversation._id,
+    });
+  } catch (error) {
+    console.error("Admin openAdminConversation error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to open admin conversation.",
+      error: error.message,
+    });
+  }
+};
+
+// =====================================================
+// LIST CREATOR WITHDRAWAL REQUESTS (TASK 14)
+// GET /api/admin/withdrawals
+// =====================================================
+export const listWithdrawals = async (req, res) => {
+  try {
+    const { status } = req.query;
+    const filter = {};
+    if (status && status !== "all") {
+      filter.status = status;
+    }
+
+    const withdrawals = await Withdrawal.find(filter)
+      .populate("creatorId", "fullName email handle avatarUrl phone location")
+      .populate("processedBy", "fullName email")
+      .sort({ requestedAt: -1, createdAt: -1 })
+      .lean();
+
+    // Enrich with creator bank details if needed
+    const enriched = await Promise.all(
+      withdrawals.map(async (w) => {
+        let bank = null;
+        if (w.creatorId?._id) {
+          bank = await CreatorBankDetails.findOne({ creatorId: w.creatorId._id }).lean();
+        }
+        return {
+          ...w,
+          bankDetails: bank || w.bankDetailsSnapshot || null,
+        };
+      })
+    );
+
+    return res.status(200).json({
+      success: true,
+      data: enriched,
+    });
+  } catch (error) {
+    console.error("Admin listWithdrawals error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to load withdrawal requests.",
+      error: error.message,
+    });
+  }
+};
+
+// =====================================================
+// PROCESS / COMPLETE / REJECT CREATOR WITHDRAWAL (TASK 14)
+// POST /api/admin/withdrawals/:id/process
+// =====================================================
+export const processWithdrawal = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { action, notes = "", failureReason = "" } = req.body;
+    const adminId = req.user?._id;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: "Invalid withdrawal ID." });
+    }
+
+    if (!["APPROVE", "REJECT"].includes(action)) {
+      return res.status(400).json({ success: false, message: "Action must be 'APPROVE' or 'REJECT'." });
+    }
+
+    const withdrawal = await Withdrawal.findById(id);
+    if (!withdrawal) {
+      return res.status(404).json({ success: false, message: "Withdrawal request not found." });
+    }
+
+    // Idempotency: Can only process if PENDING or PROCESSING
+    if (withdrawal.status !== "PENDING" && withdrawal.status !== "PROCESSING") {
+      return res.status(400).json({
+        success: false,
+        message: `Withdrawal has already been processed with status: ${withdrawal.status}.`,
+      });
+    }
+
+    const now = Date.now();
+    const creatorId = withdrawal.creatorId;
+    const amount = withdrawal.amount;
+
+    if (action === "APPROVE") {
+      const payoutReference = `TXN-WDR-${Date.now()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
+
+      // Update withdrawal record
+      withdrawal.status = "COMPLETED";
+      withdrawal.payoutReference = payoutReference;
+      withdrawal.adminNotes = notes;
+      withdrawal.processedBy = adminId;
+      withdrawal.processedAt = now;
+      withdrawal.completedAt = now;
+      await withdrawal.save();
+
+      // Update Wallet: deduct reserved pendingWithdrawalBalance and increment totalWithdrawn
+      await Wallet.findOneAndUpdate(
+        { creatorId },
+        {
+          $inc: {
+            pendingWithdrawalBalance: -amount,
+            totalWithdrawn: amount,
+          },
+        }
+      );
+
+      // Update transaction ledger
+      await WalletTransaction.findOneAndUpdate(
+        { withdrawalId: withdrawal._id },
+        {
+          status: "COMPLETED",
+          description: `Withdrawal of ₹${amount.toLocaleString("en-IN")} completed (Ref: ${payoutReference})`,
+        }
+      );
+
+      // Notify creator
+      await Notification.create({
+        recipientId: creatorId,
+        senderId: adminId,
+        type: "withdrawal_completed",
+        text: `Your ₹${amount.toLocaleString("en-IN")} withdrawal request has been completed (Ref: ${payoutReference}).`,
+        targetUrl: "/dashboard/creator/wallet",
+        metadata: { withdrawalId: withdrawal._id, amount, payoutReference },
+        createdAt: now,
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: `Withdrawal of ₹${amount.toLocaleString("en-IN")} successfully processed and completed.`,
+        data: withdrawal,
+      });
+    } else if (action === "REJECT") {
+      // Reject & Restore reserved funds
+      withdrawal.status = "FAILED";
+      withdrawal.failureReason = failureReason || notes || "Declined by administrator";
+      withdrawal.adminNotes = notes;
+      withdrawal.processedBy = adminId;
+      withdrawal.processedAt = now;
+      await withdrawal.save();
+
+      // Restore wallet availableBalance atomically
+      const restoredWallet = await Wallet.findOneAndUpdate(
+        { creatorId },
+        {
+          $inc: {
+            availableBalance: amount,
+            pendingWithdrawalBalance: -amount,
+          },
+        },
+        { new: true }
+      );
+
+      // Update transaction ledger
+      await WalletTransaction.findOneAndUpdate(
+        { withdrawalId: withdrawal._id },
+        {
+          status: "FAILED",
+          description: `Withdrawal failed: ${withdrawal.failureReason}. Funds restored.`,
+          balanceAfter: restoredWallet?.availableBalance || 0,
+        }
+      );
+
+      // Notify creator
+      await Notification.create({
+        recipientId: creatorId,
+        senderId: adminId,
+        type: "withdrawal_failed",
+        text: `Your withdrawal request of ₹${amount.toLocaleString("en-IN")} was not completed (${withdrawal.failureReason}). The funds have been restored to your available wallet balance.`,
+        targetUrl: "/dashboard/creator/wallet",
+        metadata: { withdrawalId: withdrawal._id, amount, reason: withdrawal.failureReason },
+        createdAt: now,
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: `Withdrawal rejected and ₹${amount.toLocaleString("en-IN")} restored to creator's available wallet balance.`,
+        data: withdrawal,
+      });
+    }
+  } catch (error) {
+    console.error("Admin processWithdrawal error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to process withdrawal.",
+      error: error.message,
+    });
+  }
+};
+
+

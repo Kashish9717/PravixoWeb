@@ -19,7 +19,8 @@ if (isCloudinaryConfigured) {
     cloudinary,
     params: {
       folder: "pravixo/uploads",
-      allowed_formats: ["jpg", "jpeg", "png", "webp", "pdf"],
+      resource_type: "auto",
+      allowed_formats: ["jpg", "jpeg", "png", "webp", "pdf", "mp4", "mov", "avi", "mkv", "webm"],
     },
   });
 } else {
@@ -43,7 +44,7 @@ if (isCloudinaryConfigured) {
 const upload = multer({
   storage,
   limits: {
-    fileSize: 15 * 1024 * 1024,
+    fileSize: 50 * 1024 * 1024, // 50MB for videos/images/deliverables
   },
 });
 

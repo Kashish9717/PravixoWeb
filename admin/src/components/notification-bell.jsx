@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Bell,
   UserPlus,
@@ -10,6 +11,9 @@ import {
   X,
   Trash2,
   Check,
+  Megaphone,
+  FileCheck,
+  Wallet,
 } from "lucide-react";
 import api from "@/lib/axios";
 
@@ -18,6 +22,9 @@ function getEventIcon(type) {
     case "signup": return UserPlus;
     case "collaboration": return Handshake;
     case "payment": return CreditCard;
+    case "withdrawal": return Wallet;
+    case "agreement": return FileCheck;
+    case "campaign": return Megaphone;
     case "deleted": return UserX;
     case "suspended": return UserMinus;
     default: return CheckCircle;
@@ -47,6 +54,7 @@ function timeAgo(timestamp) {
 }
 
 export function NotificationBell({ align = "right" }) {
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [allEvents, setAllEvents] = useState([]);
   const [readIds, setReadIds] = useState(() => {
@@ -238,10 +246,40 @@ export function NotificationBell({ align = "right" }) {
                   const Icon = getEventIcon(event.type);
                   const colorClass = getEventColor(event.type);
                   const isUnread = !readIds.has(event.id);
+
+                  const handleClickEvent = () => {
+                    if (isUnread) {
+                      handleMarkRead(event.id, null);
+                    }
+                    setOpen(false);
+
+                    switch (event.type) {
+                      case "signup":
+                      case "deleted":
+                      case "suspended":
+                        navigate("/users");
+                        break;
+                      case "collaboration":
+                      case "agreement":
+                        navigate("/conversations");
+                        break;
+                      case "payment":
+                      case "withdrawal":
+                        navigate("/payments");
+                        break;
+                      case "campaign":
+                        navigate("/campaigns");
+                        break;
+                      default:
+                        break;
+                    }
+                  };
+
                   return (
                     <div
                       key={event.id}
-                      className={`group flex items-start gap-3 px-4 py-3 transition-colors hover:bg-secondary/40 ${
+                      onClick={handleClickEvent}
+                      className={`group flex items-start gap-3 px-4 py-3 transition-colors hover:bg-secondary/40 cursor-pointer ${
                         isUnread ? "bg-primary/5" : ""
                       }`}
                     >
@@ -268,7 +306,10 @@ export function NotificationBell({ align = "right" }) {
                           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                             {isUnread && (
                               <button
-                                onClick={(e) => handleMarkRead(event.id, e)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleMarkRead(event.id, e);
+                                }}
                                 title="Mark as read"
                                 className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
                               >
@@ -276,7 +317,10 @@ export function NotificationBell({ align = "right" }) {
                               </button>
                             )}
                             <button
-                              onClick={(e) => handleDelete(event.id, e)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDelete(event.id, e);
+                              }}
                               title="Delete"
                               className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:text-red-500 hover:bg-red-500/10 transition-colors"
                             >

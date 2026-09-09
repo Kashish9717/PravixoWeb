@@ -28,6 +28,9 @@ import otpRoutes from "./routes/otpRoutes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
+import submissionRoutes from "./routes/submissionRoutes.js";
+import walletRoutes from "./routes/walletRoutes.js";
+import agreementRoutes from "./routes/agreementRoutes.js";
 
 const app = express();
 
@@ -57,6 +60,9 @@ app.get("/", (req, res) => {
 // =====================================================
 // API ROUTES
 // =====================================================
+
+app.use("/api/agreements", agreementRoutes);
+app.use("/api/wallet", walletRoutes);
 
 app.use("/api/payments", paymentRoutes);
 
@@ -104,5 +110,7 @@ app.use("/api/otp", otpRoutes);
 app.use("/api/auth", authRoutes);
 
 app.use("/api/admin", adminRoutes);
+
+app.use("/api/submissions", submissionRoutes);
 
 export default app;
