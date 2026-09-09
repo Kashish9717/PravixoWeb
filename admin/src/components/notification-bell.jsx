@@ -337,10 +337,19 @@ export function NotificationBell({ align = "right" }) {
           </div>
 
           {/* Footer */}
-          <div className="border-t border-border px-4 py-2 text-center shrink-0">
-            <p className="text-[10px] text-muted-foreground">
+          <div className="border-t border-border px-4 py-2.5 flex items-center justify-between shrink-0 bg-secondary/20">
+            <span className="text-[10px] text-muted-foreground">
               Auto-refreshes every 30s
-            </p>
+            </span>
+            <button
+              onClick={() => {
+                setOpen(false);
+                navigate("/notifications");
+              }}
+              className="text-xs font-semibold text-primary hover:underline"
+            >
+              View all notifications →
+            </button>
           </div>
         </div>
       )}

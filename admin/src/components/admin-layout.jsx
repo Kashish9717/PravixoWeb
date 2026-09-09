@@ -45,6 +45,7 @@ const navLinks = [
   { to: "/client-reviews", label: "Client Reviews", icon: VideoIcon },
   { to: "/blogs", label: "Blogs", icon: FileText },
   { to: "/protips", label: "ProTips", icon: Lightbulb },
+  { to: "/notifications", label: "Notifications", icon: Megaphone },
   { to: "/settings", label: "Settings", icon: Settings },
 ];
 

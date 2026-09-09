@@ -295,20 +295,23 @@ export const updateVerificationStatus = async (req, res) => {
       { new: true }
     );
 
-    if (status === "rejected") {
-      await Notification.create({
-        recipientId: profile._id,
-        senderId: req.user.profileId,
-        type: "verification_rejected",
-        text: `Your verification request was rejected. Reason: ${rejectReason || "Does not meet guidelines."}`,
-      });
-    } else if (status === "verified") {
-      await Notification.create({
-        recipientId: profile._id,
-        senderId: req.user.profileId,
-        type: "verification_approved",
-        text: `Congratulations! Your profile has been verified.`,
-      });
+    if (profile) {
+      const senderId = req.user?.profileId || req.user?._id || req.user?.id || profile._id;
+      if (status === "rejected") {
+        await Notification.create({
+          recipientId: profile._id,
+          senderId,
+          type: "verification_rejected",
+          text: `Your verification request was rejected. Reason: ${rejectReason || "Does not meet guidelines."}`,
+        }).catch((e) => console.warn("Failed to create rejection notification:", e.message));
+      } else if (status === "verified") {
+        await Notification.create({
+          recipientId: profile._id,
+          senderId,
+          type: "verification_approved",
+          text: `Congratulations! Your profile has been verified.`,
+        }).catch((e) => console.warn("Failed to create approval notification:", e.message));
+      }
     }
 
     return res.status(200).json({
@@ -377,6 +380,7 @@ export const getPendingBrands = async (req, res) => {
 };
 
 // =====================================================
+// =====================================================
 // GET CREATOR VERIFICATION HISTORY
 // GET /api/admin/verification/creators/history
 // =====================================================
@@ -384,7 +388,7 @@ export const getCreatorVerificationHistory = async (req, res) => {
   try {
     const creators = await Profile.find({
       role: "creator",
-      verificationStatus: { $in: ["verified", "rejected"] },
+      verificationStatus: { $in: ["verified", "rejected", "unverified"] },
     }).lean();
 
     return res.status(200).json({
@@ -409,7 +413,7 @@ export const getBrandVerificationHistory = async (req, res) => {
   try {
     const brands = await Profile.find({
       role: "brand",
-      verificationStatus: { $in: ["verified", "rejected"] },
+      verificationStatus: { $in: ["verified", "rejected", "unverified"] },
     }).lean();
 
     return res.status(200).json({
@@ -1682,13 +1686,16 @@ export const getAdminActivityFeed = async (req, res) => {
 
     const signupEvents = newUsers.map((u) => ({
       _id: "signup_" + u._id,
+      id: "signup_" + u._id,
       type: "signup",
       role: u.role,
       title: "New " + u.role + " joined",
       text: u.fullName + (u.handle ? " (@" + u.handle + ")" : "") + " created an account",
+      body: u.fullName + (u.handle ? " (@" + u.handle + ")" : "") + " created an account",
       avatarUrl: u.avatarUrl || null,
       actorName: u.fullName,
       createdAt: new Date(u.createdAt).getTime(),
+      timestamp: new Date(u.createdAt).getTime(),
     }));
 
     const recentConversations = await Conversation.find(sinceFilter)
@@ -1698,12 +1705,15 @@ export const getAdminActivityFeed = async (req, res) => {
 
     const collaborationEvents = recentConversations.map((c) => ({
       _id: "collab_" + c._id,
+      id: "collab_" + c._id,
       type: "collaboration",
       title: "New collaboration started",
       text: (c.creatorId && c.creatorId.fullName ? c.creatorId.fullName : "A creator") + " connected with " + (c.brandId && c.brandId.fullName ? c.brandId.fullName : "a brand"),
+      body: (c.creatorId && c.creatorId.fullName ? c.creatorId.fullName : "A creator") + " connected with " + (c.brandId && c.brandId.fullName ? c.brandId.fullName : "a brand"),
       avatarUrl: c.creatorId ? c.creatorId.avatarUrl : null,
       actorName: c.creatorId ? c.creatorId.fullName : "Creator",
       createdAt: new Date(c.createdAt).getTime(),
+      timestamp: new Date(c.createdAt).getTime(),
     }));
 
     const recentPayments = await Payment.find(sinceFilter)
@@ -1711,12 +1721,15 @@ export const getAdminActivityFeed = async (req, res) => {
 
     const paymentEvents = recentPayments.map((p) => ({
       _id: "payment_" + p._id,
-      type: "payment_successful",
+      id: "payment_" + p._id,
+      type: "payment",
       title: "Payment processed",
       text: "A payment of ₹" + ((p.amount || 0) / 100).toLocaleString("en-IN") + " was recorded",
+      body: "A payment of ₹" + ((p.amount || 0) / 100).toLocaleString("en-IN") + " was recorded",
       avatarUrl: null,
       actorName: "Payment System",
       createdAt: new Date(p.createdAt).getTime(),
+      timestamp: new Date(p.createdAt).getTime(),
     }));
 
     const systemNotifications = await Notification.find({
@@ -1729,17 +1742,23 @@ export const getAdminActivityFeed = async (req, res) => {
       .populate("senderId", "fullName avatarUrl role")
       .populate("recipientId", "fullName avatarUrl role").lean();
 
-    const notifEvents = systemNotifications.map((n) => ({
-      _id: n._id,
-      type: n.type,
-      title: n.type === "campaign_pending_verification" ? "New Campaign Submitted" : "Platform Alert",
-      text: n.text,
-      targetUrl: n.targetUrl || "",
-      avatarUrl: n.senderId?.avatarUrl || null,
-      actorName: n.senderId?.fullName || "System",
-      createdAt: n.createdAt ? (typeof n.createdAt === "number" ? n.createdAt : new Date(n.createdAt).getTime()) : Date.now(),
-      read: n.read || false,
-    }));
+    const notifEvents = systemNotifications.map((n) => {
+      const time = n.createdAt ? (typeof n.createdAt === "number" ? n.createdAt : new Date(n.createdAt).getTime()) : Date.now();
+      return {
+        _id: String(n._id),
+        id: String(n._id),
+        type: n.type,
+        title: n.type === "campaign_pending_verification" ? "New Campaign Submitted" : "Platform Alert",
+        text: n.text,
+        body: n.text,
+        targetUrl: n.targetUrl || "",
+        avatarUrl: n.senderId?.avatarUrl || null,
+        actorName: n.senderId?.fullName || "System",
+        createdAt: time,
+        timestamp: time,
+        read: n.read || false,
+      };
+    });
 
     const allEvents = [...notifEvents, ...signupEvents, ...collaborationEvents, ...paymentEvents]
       .sort((a, b) => b.createdAt - a.createdAt)

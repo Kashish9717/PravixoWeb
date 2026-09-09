@@ -40,12 +40,12 @@ export default function ClientReviewsPage() {
     fetchData();
   }, [statusFilter]);
 
-  const fetchData = async () => {
+    const fetchData = async () => {
     setLoading(true);
     try {
       const [vRes, uRes] = await Promise.all([
         api.get("/admin/content/client-reviews").catch(() => ({ data: { data: [] } })),
-        api.get(`/api/reviews/admin/all?status=${statusFilter}`).catch(() => ({ data: { data: [] } })),
+        api.get(`/reviews/admin/all?status=${statusFilter}`).catch(() => ({ data: { data: [] } })),
       ]);
       setVideoReviews(vRes.data?.data || []);
       setUserReviews(uRes.data?.data || []);
@@ -58,7 +58,7 @@ export default function ClientReviewsPage() {
 
   const handleApprove = async (reviewId) => {
     try {
-      const res = await api.patch(`/api/reviews/admin/${reviewId}/approve`);
+      const res = await api.patch(`/reviews/admin/${reviewId}/approve`);
       toast.success(res.data?.message || "Review approved and now visible!");
       fetchData();
     } catch (err) {
@@ -68,7 +68,7 @@ export default function ClientReviewsPage() {
 
   const handleReject = async (reviewId) => {
     try {
-      const res = await api.patch(`/api/reviews/admin/${reviewId}/reject`);
+      const res = await api.patch(`/reviews/admin/${reviewId}/reject`);
       toast.info(res.data?.message || "Review rejected");
       fetchData();
     } catch (err) {
@@ -100,11 +100,11 @@ export default function ClientReviewsPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-full">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Reviews & Moderation</h1>
-          <p className="text-muted-foreground mt-1 text-sm">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Reviews & Moderation</h1>
+          <p className="text-muted-foreground mt-1 text-xs sm:text-sm">
             Approve, moderate, or reject Brand & Creator collaboration reviews before they appear on profiles.
           </p>
         </div>
@@ -112,11 +112,11 @@ export default function ClientReviewsPage() {
         {activeTab === "video_reviews" && (
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-              <Button className="rounded-full gradient-sunset border-0 text-white shadow-glow text-xs font-semibold">
+              <Button className="rounded-full gradient-sunset border-0 text-white shadow-glow text-xs font-semibold self-start sm:self-auto">
                 <Plus className="h-4 w-4 mr-2" /> Add Featured Video Review
               </Button>
             </DialogTrigger>
-            <DialogContent className="rounded-3xl">
+            <DialogContent className="rounded-3xl max-w-lg">
               <DialogHeader>
                 <DialogTitle>Add Featured Client Review</DialogTitle>
                 <DialogDescription className="hidden">Add a new client review</DialogDescription>
@@ -162,10 +162,10 @@ export default function ClientReviewsPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-border">
+      <div className="flex border-b border-border overflow-x-auto scrollbar-none">
         <button
           onClick={() => setActiveTab("user_reviews")}
-          className={`py-3 px-6 text-sm font-semibold border-b-2 transition-colors flex items-center gap-2 ${
+          className={`py-3 px-4 sm:px-6 text-xs sm:text-sm font-semibold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap shrink-0 ${
             activeTab === "user_reviews"
               ? "border-primary text-primary"
               : "border-transparent text-muted-foreground hover:text-foreground"
@@ -180,7 +180,7 @@ export default function ClientReviewsPage() {
         </button>
         <button
           onClick={() => setActiveTab("video_reviews")}
-          className={`py-3 px-6 text-sm font-semibold border-b-2 transition-colors flex items-center gap-2 ${
+          className={`py-3 px-4 sm:px-6 text-xs sm:text-sm font-semibold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap shrink-0 ${
             activeTab === "video_reviews"
               ? "border-primary text-primary"
               : "border-transparent text-muted-foreground hover:text-foreground"
@@ -209,133 +209,217 @@ export default function ClientReviewsPage() {
             </div>
           </div>
 
-          <div className="rounded-3xl border border-border bg-card overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead className="pl-6">Reviewer</TableHead>
-                  <TableHead>Target User</TableHead>
-                  <TableHead>Rating</TableHead>
-                  <TableHead>Feedback Title & Content</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead className="text-right pr-6">Admin Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loading ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="py-12 text-center text-muted-foreground text-xs">
-                      Loading user reviews...
-                    </TableCell>
+          {/* Mobile Card Layout (< md) */}
+          <div className="space-y-3 md:hidden">
+            {loading ? (
+              <div className="p-8 text-center text-xs text-muted-foreground">Loading user reviews...</div>
+            ) : userReviews.length === 0 ? (
+              <div className="p-8 text-center text-muted-foreground text-xs rounded-2xl border border-border bg-card">
+                <MessageSquare className="mx-auto h-8 w-8 text-muted-foreground/40 mb-2" />
+                No reviews found matching filter.
+              </div>
+            ) : (
+              userReviews.map((r) => (
+                <div key={r._id} className="p-4 rounded-2xl border border-border bg-card space-y-3 shadow-xs">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <img
+                        src={r.reviewerAvatar || `https://api.dicebear.com/9.x/avataaars/svg?seed=${encodeURIComponent(r.reviewerName)}`}
+                        alt=""
+                        className="h-8 w-8 rounded-full border object-cover shrink-0"
+                        onError={(e) => { e.target.onerror = null; e.target.src = "https://api.dicebear.com/9.x/avataaars/svg?seed=User"; }}
+                      />
+                      <div className="min-w-0">
+                        <span className="block font-semibold text-xs text-foreground truncate">{r.reviewerName}</span>
+                        <Badge variant="outline" className="text-[9px] uppercase font-bold px-1.5 py-0">
+                          {r.reviewerRole}
+                        </Badge>
+                      </div>
+                    </div>
+                    {r.status === "approved" ? (
+                      <Badge className="bg-emerald-500/15 text-emerald-600 border-emerald-500/30 text-[9px] font-bold rounded-full">
+                        ✓ Approved
+                      </Badge>
+                    ) : r.status === "rejected" ? (
+                      <Badge variant="destructive" className="text-[9px] font-bold rounded-full">
+                        ✕ Rejected
+                      </Badge>
+                    ) : (
+                      <Badge className="bg-amber-500/15 text-amber-600 border-amber-500/30 text-[9px] font-bold rounded-full">
+                        Pending
+                      </Badge>
+                    )}
+                  </div>
+
+                  <div className="text-xs bg-secondary/30 p-2.5 rounded-xl space-y-1">
+                    <div className="flex items-center gap-1 text-amber-500 font-bold">
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <Star key={i} className={`h-3 w-3 ${i < (r.rating || 5) ? "fill-amber-400 text-amber-400" : "text-muted-foreground/30"}`} />
+                      ))}
+                      <span className="text-[11px] text-foreground ml-1">{r.rating}/5</span>
+                    </div>
+                    {r.title && <p className="font-semibold text-foreground text-xs">{r.title}</p>}
+                    <p className="text-muted-foreground text-xs leading-relaxed">{r.content || r.feedback}</p>
+                  </div>
+
+                  <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1 border-t border-border/40">
+                    <span>Target: <strong>{r.targetUserName || "User"}</strong> ({r.targetUserRole})</span>
+                    <span>{r.createdAt ? format(new Date(r.createdAt), "MMM d, yyyy") : "Recent"}</span>
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-1">
+                    {r.status !== "approved" && (
+                      <Button
+                        size="sm"
+                        className="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold h-8"
+                        onClick={() => handleApprove(r._id)}
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Approve
+                      </Button>
+                    )}
+                    {r.status !== "rejected" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1 rounded-xl border-red-500/30 text-red-600 hover:bg-red-500/10 text-xs font-bold h-8"
+                        onClick={() => handleReject(r._id)}
+                      >
+                        <XCircle className="h-3.5 w-3.5 mr-1" /> Reject
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Desktop Table (md+) */}
+          <div className="hidden md:block rounded-3xl border border-border bg-card overflow-hidden">
+            <div className="overflow-x-auto">
+              <Table className="min-w-[750px]">
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="pl-6">Reviewer</TableHead>
+                    <TableHead>Target User</TableHead>
+                    <TableHead>Rating</TableHead>
+                    <TableHead>Feedback Title & Content</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead className="text-right pr-6">Admin Action</TableHead>
                   </TableRow>
-                ) : userReviews.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="py-16 text-center text-muted-foreground text-xs">
-                      <MessageSquare className="mx-auto h-8 w-8 text-muted-foreground/40 mb-2" />
-                      No reviews found matching filter.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  userReviews.map((r) => (
-                    <TableRow key={r._id}>
-                      <TableCell className="pl-6 py-4">
-                        <div className="flex items-center gap-2.5">
-                          <img
-                            src={r.reviewerAvatar || `https://api.dicebear.com/9.x/avataaars/svg?seed=${encodeURIComponent(r.reviewerName)}`}
-                            alt=""
-                            className="h-8 w-8 rounded-full border object-cover"
-                            onError={(e) => { e.target.onerror = null; e.target.src = "https://api.dicebear.com/9.x/avataaars/svg?seed=User"; }}
-                          />
-                          <div>
-                            <span className="block font-semibold text-xs text-foreground">{r.reviewerName}</span>
-                            <Badge variant="outline" className="text-[9px] uppercase font-bold px-1.5 py-0">
-                              {r.reviewerRole}
-                            </Badge>
-                          </div>
-                        </div>
-                      </TableCell>
-
-                      <TableCell>
-                        <div className="flex items-center gap-2.5">
-                          <img
-                            src={r.targetAvatar || `https://api.dicebear.com/9.x/avataaars/svg?seed=${encodeURIComponent(r.targetName)}`}
-                            alt=""
-                            className="h-8 w-8 rounded-full border object-cover"
-                            onError={(e) => { e.target.onerror = null; e.target.src = "https://api.dicebear.com/9.x/avataaars/svg?seed=Target"; }}
-                          />
-                          <div>
-                            <span className="block font-semibold text-xs text-foreground">{r.targetName}</span>
-                            <Badge variant="outline" className="text-[9px] uppercase font-bold px-1.5 py-0">
-                              {r.targetRole}
-                            </Badge>
-                          </div>
-                        </div>
-                      </TableCell>
-
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-                          <span className="font-bold text-xs">{r.rating}/5</span>
-                        </div>
-                      </TableCell>
-
-                      <TableCell className="max-w-xs">
-                        <span className="block font-bold text-xs text-foreground truncate">{r.title}</span>
-                        <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{r.text}</p>
-                        {r.campaignRef && (
-                          <span className="inline-block text-[9px] text-primary/80 font-mono mt-1">Ref: {r.campaignRef}</span>
-                        )}
-                      </TableCell>
-
-                      <TableCell>
-                        {r.status === "approved" ? (
-                          <Badge className="bg-emerald-500/15 text-emerald-600 border-emerald-500/30 text-[10px] font-bold rounded-full">
-                            ✓ Approved & Visible
-                          </Badge>
-                        ) : r.status === "rejected" ? (
-                          <Badge className="bg-red-500/15 text-red-600 border-red-500/30 text-[10px] font-bold rounded-full">
-                            ✕ Rejected
-                          </Badge>
-                        ) : (
-                          <Badge className="bg-amber-500/15 text-amber-600 border-amber-500/30 text-[10px] font-bold rounded-full">
-                            ⏳ Pending Admin Approval
-                          </Badge>
-                        )}
-                      </TableCell>
-
-                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                        {r.createdAt ? format(new Date(r.createdAt), "MMM d, yyyy") : "Recent"}
-                      </TableCell>
-
-                      <TableCell className="text-right pr-6">
-                        <div className="flex items-center justify-end gap-1.5">
-                          {r.status !== "approved" && (
-                            <Button
-                              size="sm"
-                              className="rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold h-8 px-3 shadow-sm flex items-center gap-1"
-                              onClick={() => handleApprove(r._id)}
-                            >
-                              <CheckCircle2 className="h-3.5 w-3.5" /> Approve
-                            </Button>
-                          )}
-                          {r.status !== "rejected" && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="rounded-full border-red-500/30 text-red-600 hover:bg-red-500/10 text-xs font-bold h-8 px-3 flex items-center gap-1"
-                              onClick={() => handleReject(r._id)}
-                            >
-                              <XCircle className="h-3.5 w-3.5" /> Reject
-                            </Button>
-                          )}
-                        </div>
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="py-12 text-center text-muted-foreground text-xs">
+                        Loading user reviews...
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                  ) : userReviews.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="py-16 text-center text-muted-foreground text-xs">
+                        <MessageSquare className="mx-auto h-8 w-8 text-muted-foreground/40 mb-2" />
+                        No reviews found matching filter.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    userReviews.map((r) => (
+                      <TableRow key={r._id}>
+                        <TableCell className="pl-6 py-4">
+                          <div className="flex items-center gap-2.5">
+                            <img
+                              src={r.reviewerAvatar || `https://api.dicebear.com/9.x/avataaars/svg?seed=${encodeURIComponent(r.reviewerName)}`}
+                              alt=""
+                              className="h-8 w-8 rounded-full border object-cover"
+                              onError={(e) => { e.target.onerror = null; e.target.src = "https://api.dicebear.com/9.x/avataaars/svg?seed=User"; }}
+                            />
+                            <div>
+                              <span className="block font-semibold text-xs text-foreground">{r.reviewerName}</span>
+                              <Badge variant="outline" className="text-[9px] uppercase font-bold px-1.5 py-0">
+                                {r.reviewerRole}
+                              </Badge>
+                            </div>
+                          </div>
+                        </TableCell>
+
+                        <TableCell>
+                          <div className="flex items-center gap-2.5">
+                            <img
+                              src={r.targetUserAvatar || `https://api.dicebear.com/9.x/avataaars/svg?seed=${encodeURIComponent(r.targetUserName || "User")}`}
+                              alt=""
+                              className="h-8 w-8 rounded-full border object-cover"
+                              onError={(e) => { e.target.onerror = null; e.target.src = "https://api.dicebear.com/9.x/avataaars/svg?seed=User"; }}
+                            />
+                            <div>
+                              <span className="block font-semibold text-xs text-foreground">{r.targetUserName}</span>
+                              <Badge variant="outline" className="text-[9px] uppercase font-bold px-1.5 py-0 text-muted-foreground">
+                                {r.targetUserRole}
+                              </Badge>
+                            </div>
+                          </div>
+                        </TableCell>
+
+                        <TableCell>
+                          <div className="flex items-center gap-1 text-amber-500 font-bold text-xs">
+                            <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+                            {r.rating}/5
+                          </div>
+                        </TableCell>
+
+                        <TableCell className="max-w-[280px]">
+                          <p className="font-semibold text-xs text-foreground truncate">{r.title || "Feedback"}</p>
+                          <p className="text-muted-foreground text-xs line-clamp-2">{r.content || r.feedback}</p>
+                        </TableCell>
+
+                        <TableCell>
+                          {r.status === "approved" ? (
+                            <Badge className="bg-emerald-500/15 text-emerald-600 border-emerald-500/30 text-[10px] font-bold rounded-full">
+                              ✓ Approved (Live)
+                            </Badge>
+                          ) : r.status === "rejected" ? (
+                            <Badge variant="destructive" className="text-[10px] font-bold rounded-full">
+                              ✕ Rejected
+                            </Badge>
+                          ) : (
+                            <Badge className="bg-amber-500/15 text-amber-600 border-amber-500/30 text-[10px] font-bold rounded-full">
+                              ⏳ Pending Admin Approval
+                            </Badge>
+                          )}
+                        </TableCell>
+
+                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                          {r.createdAt ? format(new Date(r.createdAt), "MMM d, yyyy") : "Recent"}
+                        </TableCell>
+
+                        <TableCell className="text-right pr-6">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {r.status !== "approved" && (
+                              <Button
+                                size="sm"
+                                className="rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold h-8 px-3 shadow-sm flex items-center gap-1"
+                                onClick={() => handleApprove(r._id)}
+                              >
+                                <CheckCircle2 className="h-3.5 w-3.5" /> Approve
+                              </Button>
+                            )}
+                            {r.status !== "rejected" && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="rounded-full border-red-500/30 text-red-600 hover:bg-red-500/10 text-xs font-bold h-8 px-3 flex items-center gap-1"
+                                onClick={() => handleReject(r._id)}
+                              >
+                                <XCircle className="h-3.5 w-3.5" /> Reject
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           </div>
         </div>
       )}
@@ -343,42 +427,44 @@ export default function ClientReviewsPage() {
       {/* TAB 2: Featured Video Reviews */}
       {activeTab === "video_reviews" && (
         <div className="rounded-3xl border border-border bg-card overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow className="hover:bg-transparent">
-                <TableHead className="pl-6">Reviewer</TableHead>
-                <TableHead>Media</TableHead>
-                <TableHead>Target</TableHead>
-                <TableHead>Rating</TableHead>
-                <TableHead className="text-right pr-6">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {videoReviews.map((r) => (
-                <TableRow key={r._id}>
-                  <TableCell className="pl-6 font-medium text-xs">{r.reviewerName}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      {r.thumbnailUrl && <img src={r.thumbnailUrl} alt="" className="w-8 h-8 rounded object-cover" onError={(e) => { e.target.style.display = 'none'; }} />}
-                      <a href={r.videoUrl} target="_blank" rel="noreferrer" className="text-primary flex items-center gap-1 hover:underline text-xs">
-                        <VideoIcon className="w-3.5 h-3.5" /> Watch Video
-                      </a>
-                    </div>
-                  </TableCell>
-                  <TableCell className="capitalize text-xs">{r.targetRole}</TableCell>
-                  <TableCell className="text-xs font-semibold">{r.rating}/5</TableCell>
-                  <TableCell className="text-right pr-6">
-                    <Button variant="ghost" size="icon" onClick={() => handleDeleteVideo(r._id)}>
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  </TableCell>
+          <div className="overflow-x-auto">
+            <Table className="min-w-[600px]">
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="pl-6">Reviewer</TableHead>
+                  <TableHead>Media</TableHead>
+                  <TableHead>Target</TableHead>
+                  <TableHead>Rating</TableHead>
+                  <TableHead className="text-right pr-6">Actions</TableHead>
                 </TableRow>
-              ))}
-              {videoReviews.length === 0 && (
-                <TableRow><TableCell colSpan={5} className="py-12 text-center text-xs text-muted-foreground">No featured reviews found.</TableCell></TableRow>
-              )}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {videoReviews.map((r) => (
+                  <TableRow key={r._id}>
+                    <TableCell className="pl-6 font-medium text-xs">{r.reviewerName}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        {r.thumbnailUrl && <img src={r.thumbnailUrl} alt="" className="w-8 h-8 rounded object-cover" onError={(e) => { e.target.style.display = 'none'; }} />}
+                        <a href={r.videoUrl} target="_blank" rel="noreferrer" className="text-primary flex items-center gap-1 hover:underline text-xs">
+                          <VideoIcon className="w-3.5 h-3.5" /> Watch Video
+                        </a>
+                      </div>
+                    </TableCell>
+                    <TableCell className="capitalize text-xs">{r.targetRole}</TableCell>
+                    <TableCell className="text-xs font-semibold">{r.rating}/5</TableCell>
+                    <TableCell className="text-right pr-6">
+                      <Button variant="ghost" size="icon" onClick={() => handleDeleteVideo(r._id)}>
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {videoReviews.length === 0 && (
+                  <TableRow><TableCell colSpan={5} className="py-12 text-center text-xs text-muted-foreground">No featured reviews found.</TableCell></TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </div>
       )}
     </div>

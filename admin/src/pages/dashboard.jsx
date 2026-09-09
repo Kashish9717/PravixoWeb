@@ -100,17 +100,17 @@ export function Dashboard() {
   const isLoading = !stats || !allProfiles || !allConversations;
 
   return (
-    <div className="p-6 lg:p-8 space-y-8">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8 max-w-full">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="font-display text-2xl font-bold sm:text-3xl">Dashboard</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
             Platform overview and analytics charts
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
+          <div className="hidden sm:flex items-center gap-2">
             <TrendingUp className="h-4 w-4 text-emerald-500" />
             <span className="text-xs font-medium text-emerald-600 animate-pulse">Live data</span>
           </div>
@@ -119,19 +119,19 @@ export function Dashboard() {
       </div>
 
       {/* Top Stat Cards */}
-      <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+      <div className="grid gap-3 sm:gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
         {statCards.map((card) => {
           const CardWrapper = card.href ? Link : "div";
           return (
             <CardWrapper
               key={card.label}
               to={card.href}
-              className={`rounded-2xl border border-border bg-card p-4 shadow-sm ${card.href ? "hover:bg-secondary/50 transition-colors" : ""}`}
+              className={`rounded-2xl border border-border bg-card p-3 sm:p-4 shadow-sm ${card.href ? "hover:bg-secondary/50 transition-colors" : ""}`}
             >
               <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                 {card.label}
               </span>
-              <div className="mt-1 font-display text-2xl font-bold">
+              <div className="mt-1 font-display text-xl sm:text-2xl font-bold">
                 {card.value !== undefined ? formatNumber(card.value) : <Skeleton className="h-8 w-16" />}
               </div>
             </CardWrapper>
@@ -140,9 +140,9 @@ export function Dashboard() {
       </div>
 
       {/* Donut Charts Section */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
         {/* Card 1: User Roles */}
-        <div className="rounded-3xl border border-border bg-card p-6 shadow-sm flex flex-col justify-between">
+        <div className="rounded-3xl border border-border bg-card p-4 sm:p-6 shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <h2 className="font-display text-base font-semibold flex items-center gap-2">
               <Users className="h-4 w-4 text-primary" /> User Roles
@@ -211,7 +211,7 @@ export function Dashboard() {
         </div>
 
         {/* Card 2: Verification Status */}
-        <div className="rounded-3xl border border-border bg-card p-6 shadow-sm flex flex-col justify-between">
+        <div className="rounded-3xl border border-border bg-card p-4 sm:p-6 shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <h2 className="font-display text-base font-semibold flex items-center gap-2">
               <ShieldCheck className="h-4 w-4 text-emerald-500" /> Verification Status
@@ -262,7 +262,7 @@ export function Dashboard() {
                 ) : (
                   <div className="flex flex-col items-center justify-center animate-in fade-in-50 duration-150">
                     <span className="text-2xl font-bold text-foreground">{totalVerification}</span>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Profiles</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Accounts</span>
                   </div>
                 )}
               </div>
@@ -280,10 +280,10 @@ export function Dashboard() {
         </div>
 
         {/* Card 3: Conversation Status */}
-        <div className="rounded-3xl border border-border bg-card p-6 shadow-sm flex flex-col justify-between">
+        <div className="rounded-3xl border border-border bg-card p-4 sm:p-6 shadow-sm flex flex-col justify-between md:col-span-2 lg:col-span-1">
           <div className="flex items-center justify-between">
             <h2 className="font-display text-base font-semibold flex items-center gap-2">
-              <CheckCircle className="h-4 w-4 text-violet" /> Connection Progress
+              <MessageSquare className="h-4 w-4 text-violet" /> Conversation Status
             </h2>
           </div>
           {isLoading ? (
@@ -352,9 +352,9 @@ export function Dashboard() {
       {/* Recent Activity Grid */}
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Recent Users */}
-        <div className="rounded-3xl border border-border bg-card p-6 shadow-sm">
+        <div className="rounded-3xl border border-border bg-card p-4 sm:p-6 shadow-sm">
           <div className="flex items-center justify-between">
-            <h2 className="font-display text-lg font-semibold">Recent Users</h2>
+            <h2 className="font-display text-base sm:text-lg font-semibold">Recent Users</h2>
             <Link to="/users" className="text-xs font-medium text-primary hover:underline">
               View all →
             </Link>
@@ -391,17 +391,17 @@ export function Dashboard() {
                       e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(u.fullName || "User")}&background=random`;
                     }}
                     alt=""
-                    className="h-10 w-10 rounded-full border border-border object-cover"
+                    className="h-10 w-10 rounded-full border border-border object-cover shrink-0"
                   />
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-semibold">{u.fullName}</div>
-                    <div className="text-xs text-muted-foreground">
+                    <div className="text-xs text-muted-foreground truncate">
                       {u.handle ? `@${u.handle}` : u.category || "—"}
                     </div>
                   </div>
                   <Badge
                     variant="secondary"
-                    className={`rounded-full text-[10px] ${
+                    className={`rounded-full text-[10px] shrink-0 ${
                       u.role === "creator" ? "bg-violet/10 text-violet" : "bg-amber/10 text-amber"
                     }`}
                   >
@@ -414,9 +414,9 @@ export function Dashboard() {
         </div>
 
         {/* Recent Conversations */}
-        <div className="rounded-3xl border border-border bg-card p-6 shadow-sm">
+        <div className="rounded-3xl border border-border bg-card p-4 sm:p-6 shadow-sm">
           <div className="flex items-center justify-between">
-            <h2 className="font-display text-lg font-semibold">Recent Conversations</h2>
+            <h2 className="font-display text-base sm:text-lg font-semibold">Recent Conversations</h2>
             <Link to="/conversations" className="text-xs font-medium text-primary hover:underline">
               View all →
             </Link>
@@ -438,10 +438,10 @@ export function Dashboard() {
               recentConvs.map((c) => (
                 <Link
                   key={c._id}
-                  to={`/messages/${c._id}`}
-                  className="flex items-center gap-3 rounded-2xl border border-border/50 p-3 transition-colors hover:bg-secondary/50"
+                  to={`/conversations`}
+                  className="flex items-center gap-3 rounded-2xl border border-border/50 p-3 transition-colors hover:bg-secondary/50 overflow-hidden"
                 >
-                  <div className="relative">
+                  <div className="relative shrink-0">
                     <img
                       src={resolveImageUrl(c.creator?.avatarUrl, c.creator?.fullName || "C")}
                       onError={(e) => {
@@ -458,22 +458,22 @@ export function Dashboard() {
                         e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(c.brand?.fullName || "B")}&background=random`;
                       }}
                       alt=""
-                      className="absolute -bottom-1 -right-1 h-6 w-6 rounded-full border-2 border-card object-cover"
+                      className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full border-2 border-card object-cover"
                     />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-semibold">
-                      {c.creator?.fullName || "Unknown"}{" "}
-                      <span className="font-normal text-muted-foreground">↔</span>{" "}
-                      {c.brand?.fullName || "Unknown"}
+                    <div className="truncate text-xs sm:text-sm font-semibold flex items-center gap-1.5">
+                      <span className="truncate">{c.creator?.fullName || "Creator"}</span>
+                      <span className="font-normal text-muted-foreground shrink-0">↔</span>
+                      <span className="truncate">{c.brand?.fullName || "Brand"}</span>
                     </div>
-                    <div className="truncate text-xs text-muted-foreground">
+                    <div className="truncate text-xs text-muted-foreground mt-0.5">
                       {c.lastMessage?.text || "No messages"}
                     </div>
                   </div>
                   <Badge
                     variant="secondary"
-                    className={`rounded-full text-[10px] ${
+                    className={`rounded-full text-[10px] shrink-0 ${
                       c.status === "active"
                         ? "bg-emerald-500/10 text-emerald-600"
                         : c.status === "pending"
@@ -481,7 +481,7 @@ export function Dashboard() {
                         : "bg-muted text-muted-foreground"
                     }`}
                   >
-                    {c.status}
+                    {c.status || "active"}
                   </Badge>
                 </Link>
               ))
