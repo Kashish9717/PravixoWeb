@@ -19,6 +19,7 @@ import Wallet from "../models/Wallet.js";
 import WalletTransaction from "../models/WalletTransaction.js";
 import Withdrawal from "../models/Withdrawal.js";
 import { creditCreatorWallet } from "./walletController.js";
+import { sendPushToUser, sendPushToUsers } from "../utils/webPush.js";
 
 // =====================================================
 // AGGREGATE STATS
@@ -1841,13 +1842,59 @@ export const verifyCampaign = async (req, res) => {
       ? `Great news! Your campaign "${campaign.title}" has been approved by Admin and is now live for Creators.`
       : `Your campaign "${campaign.title}" was not approved.${verificationFeedback ? ` Reason: ${verificationFeedback}` : ""}`;
 
+    const brandId = campaign.brandId._id || campaign.brandId;
+
     await Notification.create({
-      recipientId: campaign.brandId._id || campaign.brandId,
-      senderId: adminId || campaign.brandId._id || campaign.brandId,
+      recipientId: brandId,
+      senderId: adminId || brandId,
       type: notifType,
       text: notifText,
       createdAt: Date.now(),
     });
+
+    // Send Web Push to Brand about approval status
+    sendPushToUser(brandId, {
+      title: status === "APPROVED" ? "Campaign Approved! 🎉" : "Campaign Verification Update",
+      body: notifText,
+      url: `/dashboard/customer`,
+    }).catch((err) => console.error("Brand push error:", err.message));
+
+    // IF APPROVED -> Send Web Push & In-App Notification to ALL CREATORS
+    if (status === "APPROVED") {
+      const brand = await Profile.findById(brandId).select("fullName avatarUrl");
+      const brandName = brand?.fullName || "A Brand";
+
+      let matchingCreators = await Profile.find({
+        role: "creator",
+        $or: [
+          { category: campaign.category },
+          { prefNiches: { $regex: campaign.category || "", $options: "i" } },
+        ],
+      }).select("_id");
+
+      if (!matchingCreators || matchingCreators.length === 0) {
+        matchingCreators = await Profile.find({ role: "creator" }).select("_id");
+      }
+
+      const creatorIds = matchingCreators.map((c) => c._id);
+      if (creatorIds.length > 0) {
+        const inAppNotifs = creatorIds.map((creatorId) => ({
+          recipientId: creatorId,
+          senderId: brandId,
+          type: "new_campaign_available",
+          text: `${brandName} launched a new campaign: "${campaign.title}"`,
+          createdAt: Date.now(),
+        }));
+        await Notification.insertMany(inAppNotifs).catch((err) => console.error("In-app creator notif error:", err));
+
+        sendPushToUsers(creatorIds, {
+          title: `${brandName} launched a new campaign! 🚀`,
+          body: campaign.title,
+          icon: brand?.avatarUrl || "/logo192.png",
+          url: `/browse`,
+        }).catch((err) => console.error("Creator push error:", err.message));
+      }
+    }
 
     return res.status(200).json({
       success: true,
