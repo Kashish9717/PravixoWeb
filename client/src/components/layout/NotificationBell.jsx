@@ -293,23 +293,25 @@ export function NotificationBell({ profileId: propProfileId }) {
           </div>
 
           {/* Push Notification Permission Quick-Action */}
-          {pushStatus !== "granted" && pushStatus !== "unsupported" && (
-            <div className="bg-gradient-to-r from-blue-600/10 via-indigo-600/10 to-blue-600/10 border-b border-blue-500/20 px-3.5 py-2.5 flex items-center justify-between gap-2 shrink-0">
-              <div className="flex items-center gap-2 text-xs">
-                <BellRing className="h-4 w-4 text-blue-500 shrink-0 animate-bounce" />
-                <span className="text-[11px] font-medium text-foreground">
-                  Get instant mobile/desktop alerts for campaigns & payments
-                </span>
-              </div>
-              <button
-                onClick={handleEnableWebPush}
-                disabled={enablingPush}
-                className="shrink-0 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] px-3 py-1 shadow-sm transition-all"
-              >
-                {enablingPush ? "Enabling..." : "Enable"}
-              </button>
+          <div className="bg-gradient-to-r from-blue-600/10 via-indigo-600/10 to-blue-600/10 border-b border-blue-500/20 px-3.5 py-2.5 flex items-center justify-between gap-2 shrink-0">
+            <div className="flex items-center gap-2 text-xs">
+              <BellRing className={`h-4 w-4 shrink-0 ${pushStatus === "granted" ? "text-emerald-500" : "text-blue-500 animate-bounce"}`} />
+              <span className="text-[11px] font-medium text-foreground">
+                {pushStatus === "granted" ? "Web Push Alerts: Active ✓" : "Enable Web Push Notifications"}
+              </span>
             </div>
-          )}
+            <button
+              onClick={handleEnableWebPush}
+              disabled={enablingPush}
+              className={`shrink-0 rounded-full font-bold text-[10px] px-3 py-1 shadow-sm transition-all ${
+                pushStatus === "granted"
+                  ? "bg-emerald-500/15 text-emerald-600 border border-emerald-500/30 hover:bg-emerald-500/20"
+                  : "bg-blue-600 hover:bg-blue-700 text-white"
+              }`}
+            >
+              {enablingPush ? "Enabling..." : pushStatus === "granted" ? "Re-sync Push" : "Enable"}
+            </button>
+          </div>
 
           {/* Bulk actions */}
           {visibleEvents.length > 0 && (
