@@ -43,6 +43,7 @@ const notificationSchema = new mongoose.Schema(
         "campaign_pending_verification",
         "campaign_approved",
         "campaign_rejected",
+        "new_campaign_available",
         "campaign_request_received",
         "campaign_request_approved",
         "campaign_request_rejected",

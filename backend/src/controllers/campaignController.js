@@ -4,6 +4,7 @@ import Profile from "../models/Profile.js";
 import Connection from "../models/Connection.js";
 import Notification from "../models/Notification.js";
 import Review from "../models/Review.js";
+import { sendPushToUsers } from "../utils/webPush.js";
 
 // Helper: Calculate remaining budget for a campaign
 const calculateCampaignRemainingBudget = async (campaign) => {
@@ -126,6 +127,43 @@ export const createCampaign = async (req, res) => {
         createdAt: Date.now(),
       }));
       await Notification.insertMany(notifications);
+    }
+
+    // If campaign is created as APPROVED (or if instant creator notify is desired)
+    if (campaign.status === "APPROVED") {
+      const brand = await Profile.findById(brandId).select("fullName avatarUrl");
+      const brandName = brand?.fullName || "A Brand";
+
+      let matchingCreators = await Profile.find({
+        role: "creator",
+        $or: [
+          { category: campaign.category },
+          { prefNiches: { $regex: campaign.category || "", $options: "i" } },
+        ],
+      }).select("_id");
+
+      if (!matchingCreators || matchingCreators.length === 0) {
+        matchingCreators = await Profile.find({ role: "creator" }).select("_id");
+      }
+
+      const creatorIds = matchingCreators.map((c) => c._id);
+      if (creatorIds.length > 0) {
+        const inAppNotifs = creatorIds.map((creatorId) => ({
+          recipientId: creatorId,
+          senderId: brandId,
+          type: "new_campaign_available",
+          text: `${brandName} launched a new campaign: "${campaign.title}"`,
+          createdAt: Date.now(),
+        }));
+        await Notification.insertMany(inAppNotifs);
+
+        await sendPushToUsers(creatorIds, {
+          title: `${brandName} launched a new campaign! 🚀`,
+          body: campaign.title,
+          icon: brand?.avatarUrl || "/logo192.png",
+          url: `/campaigns/${campaign._id}`,
+        });
+      }
     }
 
     return res.status(201).json({
@@ -490,6 +528,10 @@ export const getCampaignById = async (req, res) => {
 };
 
 // =====================================================
+// 7. UPDATE CAMPAIGN : with web push notification
+// PATCH /api/campaigns/:id
+// =====================================================
+// =====================================================
 // 7. UPDATE CAMPAIGN
 // PATCH /api/campaigns/:id
 // =====================================================
@@ -501,6 +543,15 @@ export const updateCampaign = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: "Invalid campaign ID.",
+      });
+    }
+
+    // Pehle purana campaign fetch karo — status compare karne ke liye
+    const existingCampaign = await Campaign.findById(id);
+    if (!existingCampaign) {
+      return res.status(404).json({
+        success: false,
+        message: "Campaign not found.",
       });
     }
 
@@ -519,6 +570,8 @@ export const updateCampaign = async (req, res) => {
       budget,
       duration,
       active,
+      status,
+      verificationFeedback,
     } = req.body;
 
     const updates = { updatedAt: Date.now() };
@@ -535,6 +588,8 @@ export const updateCampaign = async (req, res) => {
     if (budget) updates.budget = budget;
     if (duration) updates.duration = duration;
     if (active !== undefined) updates.active = active;
+    if (status) updates.status = status; // admin isse "APPROVED"/"REJECTED" set karega
+    if (verificationFeedback !== undefined) updates.verificationFeedback = verificationFeedback;
 
     const campaign = await Campaign.findByIdAndUpdate(
       id,
@@ -542,11 +597,50 @@ export const updateCampaign = async (req, res) => {
       { new: true, runValidators: true }
     );
 
-    if (!campaign) {
-      return res.status(404).json({
-        success: false,
-        message: "Campaign not found.",
-      });
+    // ==========================================
+    // NAYA CAMPAIGN APPROVED HUA — NOTIFY CREATORS
+    // ==========================================
+    const gotApprovedJustNow =
+      existingCampaign.status !== "APPROVED" && campaign.status === "APPROVED";
+
+    if (gotApprovedJustNow) {
+      const brand = await Profile.findById(campaign.brandId).select("fullName avatarUrl");
+      const brandName = brand?.fullName || "A Brand";
+
+      // Matching creators dhundo (same category/niche or all active creators)
+      let matchingCreators = await Profile.find({
+        role: "creator",
+        $or: [
+          { category: campaign.category },
+          { prefNiches: { $regex: campaign.category || "", $options: "i" } },
+        ],
+      }).select("_id");
+
+      if (!matchingCreators || matchingCreators.length === 0) {
+        matchingCreators = await Profile.find({ role: "creator" }).select("_id");
+      }
+
+      const creatorIds = matchingCreators.map((c) => c._id);
+
+      if (creatorIds.length > 0) {
+        // 1. In-app Notification (jo already ban chuka hai) mein bhi daalo
+        const inAppNotifs = creatorIds.map((creatorId) => ({
+          recipientId: creatorId,
+          senderId: campaign.brandId,
+          type: "new_campaign_available",
+          text: `${brandName} launched a new campaign: "${campaign.title}"`,
+          createdAt: Date.now(),
+        }));
+        await Notification.insertMany(inAppNotifs);
+
+        // 2. Web Push (phone/desktop pe bhi jaye)
+        await sendPushToUsers(creatorIds, {
+          title: `${brandName} launched a new campaign! 🚀`,
+          body: campaign.title,
+          icon: brand?.avatarUrl || "/logo192.png",
+          url: `/campaigns/${campaign._id}`,
+        });
+      }
     }
 
     return res.status(200).json({

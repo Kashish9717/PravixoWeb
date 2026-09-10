@@ -984,7 +984,7 @@ const [submittingVerification, setSubmittingVerification] =
   const displayName = profile?.fullName || user?.email?.split("@")[0] || "";
 
   return (
-    <div>
+    <div className="w-full max-w-full overflow-x-hidden">
       {/* Sticky Top Promo Banner */}
       {activeOffer && !dismissedBanner && (
         <div className="bg-gradient-to-r from-red-600 via-amber-500 to-red-600 text-white py-2 px-4 shadow-md sticky top-[64px] z-40">
@@ -1053,10 +1053,10 @@ const [submittingVerification, setSubmittingVerification] =
                   {fullName || "Company Name"}
                 </h1>
                 {profile?.verificationStatus === "verified" && (
-  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-green-500 shadow-sm">
-    <Check className="h-3 w-3 text-white" />
-  </span>
-)}
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-green-500 shadow-sm">
+                    <Check className="h-3 w-3 text-white" />
+                  </span>
+                )}
               </div>
               <p className="text-lg font-medium text-muted-foreground/90">
                 {handle ? `@${handle.replace("@", "")}` : "@handle"}
@@ -1673,11 +1673,11 @@ const [submittingVerification, setSubmittingVerification] =
         </div>
 
         {/* MAIN TAB CONTENT */}
-        <div className="mt-6">
+        <div className="mt-6 w-full min-w-0">
           {activeTab === "dashboard" ? (
-            <div className="grid gap-6 lg:grid-cols-3 items-start">
+            <div className="grid gap-6 grid-cols-1 lg:grid-cols-3 items-start w-full min-w-0">
               {/* LEFT COLUMN: EDIT SECTIONS */}
-              <div className="space-y-6 lg:col-span-2">
+              <div className="space-y-6 lg:col-span-2 w-full min-w-0">
             {/* STATS PREVIEW CARDS */}
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
               {stats.map((s) => (
@@ -2817,7 +2817,7 @@ const [submittingVerification, setSubmittingVerification] =
           </div>
 
           {/* RIGHT COLUMN: SIDEBAR */}
-          <div className="space-y-6">
+          <div className="space-y-6 w-full min-w-0">
             {/* HIRING PREFERENCES PANEL */}
             <div className="rounded-3xl border border-border bg-card p-6 shadow-sm">
               <h2 className="font-display text-lg font-semibold mb-4 flex items-center gap-2">
@@ -3056,9 +3056,9 @@ const [submittingVerification, setSubmittingVerification] =
 
       {/* CAMPAIGN DIALOG (CREATE/EDIT) */}
       <Dialog open={isCampaignModalOpen} onOpenChange={setIsCampaignModalOpen}>
-        <DialogContent className="sm:max-w-xl rounded-3xl border border-border bg-card p-6">
+        <DialogContent className="w-[95vw] sm:max-w-xl max-h-[90vh] overflow-hidden rounded-3xl border border-border bg-card p-4 sm:p-6 flex flex-col">
           <DialogHeader>
-            <DialogTitle className="font-display text-xl font-bold">
+            <DialogTitle className="font-display text-lg sm:text-xl font-bold">
               {editingCampaign ? "Edit Campaign" : "Create New Campaign"}
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
@@ -3066,7 +3066,7 @@ const [submittingVerification, setSubmittingVerification] =
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleSaveCampaign} className="space-y-4 mt-2 max-h-[72vh] overflow-y-auto pr-1">
+          <form onSubmit={handleSaveCampaign} className="space-y-4 mt-2 overflow-y-auto pr-1 flex-1">
             <div className="space-y-1.5">
               <Label htmlFor="campTitle">Campaign Name *</Label>
               <Input

@@ -31,6 +31,8 @@ import adminRoutes from "./routes/adminRoutes.js";
 import submissionRoutes from "./routes/submissionRoutes.js";
 import walletRoutes from "./routes/walletRoutes.js";
 import agreementRoutes from "./routes/agreementRoutes.js";
+import pushRouter from "./routes/push.js";
+// const { router: pushRouter } = require('./routes/push');
 
 const app = express();
 
@@ -112,5 +114,9 @@ app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
 
 app.use("/api/submissions", submissionRoutes);
+
+app.use("/api/push", pushRouter );
+
+
 
 export default app;

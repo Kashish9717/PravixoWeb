@@ -1,5 +1,6 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useEffect, useRef, useState, useMemo } from "react";
+import { subscribeToPush } from "../utils/pushNotification";
 
 import {
   FaInstagram,
@@ -293,6 +294,34 @@ export function DashboardInfluencer() {
 
   const profileKey = mongoProfileId || "none";
   const [portfolioRefreshKey, setPortfolioRefreshKey] = useState(0);
+  const [showPushBanner, setShowPushBanner] = useState(false);
+  const [enablingPush, setEnablingPush] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && "Notification" in window) {
+      if (Notification.permission === "default") {
+        setShowPushBanner(true);
+      }
+    }
+  }, []);
+
+  const handleEnablePush = async () => {
+    setEnablingPush(true);
+    try {
+      const res = await subscribeToPush();
+      if (res.success) {
+        setShowPushBanner(false);
+        toast.success("Push notifications enabled! You'll receive alerts for new campaigns.");
+      } else if (res.reason === "denied") {
+        setShowPushBanner(false);
+        toast.info("Notifications are blocked in browser settings.");
+      }
+    } catch (err) {
+      console.error("Push subscription error:", err);
+    } finally {
+      setEnablingPush(false);
+    }
+  };
 
   console.log("DASHBOARD PROFILE:", profile);
   console.log("DASHBOARD MONGO PROFILE ID:", mongoProfileId);
@@ -1162,7 +1191,7 @@ const CAMPAIGNS_PER_PAGE = 6;
   console.log("Verification Status:", status);
 
   return (
-    <div>
+    <div className="w-full max-w-full overflow-x-hidden">
       {/* Sticky Top Promo Banner */}
       {activeOffer && !dismissedBanner && (
         <div className="bg-gradient-to-r from-red-600 via-amber-500 to-red-600 text-white py-2 px-4 shadow-md sticky top-[64px] z-40">
@@ -1186,6 +1215,35 @@ const CAMPAIGNS_PER_PAGE = 6;
               <button
                 className="hover:opacity-80 p-1"
                 onClick={() => setDismissedBanner(true)}
+                aria-label="Dismiss banner"
+              >
+                <X className="h-4.5 w-4.5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Push Notification Permission Banner */}
+      {showPushBanner && (
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white py-2.5 px-4 shadow-md sticky top-[64px] z-40">
+          <div className="mx-auto max-w-7xl flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="bg-white/20 px-2 py-0.5 rounded-full text-[10px] font-bold">🔔 NEW</span>
+              <span>Turn on notifications to get instant alerts whenever brands launch new campaigns!</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                disabled={enablingPush}
+                className="bg-white text-blue-700 hover:bg-slate-100 font-bold text-xs h-7 px-3 rounded-full"
+                onClick={handleEnablePush}
+              >
+                {enablingPush ? "Enabling..." : "Enable Notifications"}
+              </Button>
+              <button
+                className="hover:opacity-80 p-1"
+                onClick={() => setShowPushBanner(false)}
                 aria-label="Dismiss banner"
               >
                 <X className="h-4.5 w-4.5" />
