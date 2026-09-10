@@ -1,7 +1,8 @@
 const VAPID_PUBLIC_KEY =
   (typeof import.meta !== "undefined" && import.meta.env?.VITE_VAPID_PUBLIC_KEY) ||
   process.env.REACT_APP_VAPID_PUBLIC_KEY ||
-  process.env.VAPID_PUBLIC_KEY;
+  process.env.VAPID_PUBLIC_KEY ||
+  "BIBxNBq6SgBz8dGRmx-83HInUGR-n4nP8jymsAe2P9eYGvbXCVnIiht0CUKUFlawdMWm9b-_RbHNdQD-zUvSlhE";
 
 function urlBase64ToUint8Array(base64String) {
   if (!base64String) return new Uint8Array(0);
@@ -72,4 +73,8 @@ export async function subscribeToPush(apiBaseUrl, authToken) {
   });
 
   return { success: true };
+}
+
+if (typeof window !== "undefined") {
+  window.subscribeToPush = subscribeToPush;
 }
