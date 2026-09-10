@@ -4,7 +4,7 @@ import Profile from "../models/Profile.js";
 import Connection from "../models/Connection.js";
 import Notification from "../models/Notification.js";
 import Review from "../models/Review.js";
-import { sendPushToUsers } from "../utils/webPush.js";
+import { sendPushToUsers, sendPushToUser } from "../utils/webPush.js";
 
 // Helper: Calculate remaining budget for a campaign
 const calculateCampaignRemainingBudget = async (campaign) => {
@@ -407,13 +407,21 @@ export const joinCampaignRequest = async (req, res) => {
     });
 
     // Notify brand of incoming campaign join request
+    const joinNotifText = `${req.user.fullName || "A Creator"} requested to join your campaign "${campaign.title}".`;
     await Notification.create({
       recipientId: campaign.brandId,
       senderId: creatorId,
       type: "campaign_request_received",
-      text: `${req.user.fullName || "A Creator"} requested to join your campaign "${campaign.title}".`,
+      text: joinNotifText,
+      targetUrl: "/dashboard/customer",
       createdAt: Date.now(),
     });
+
+    sendPushToUser(campaign.brandId, {
+      title: "New Campaign Join Request! 📩",
+      body: joinNotifText,
+      url: "/dashboard/customer",
+    }).catch((err) => console.error("Campaign join request push error:", err.message));
 
     return res.status(201).json({
       success: true,

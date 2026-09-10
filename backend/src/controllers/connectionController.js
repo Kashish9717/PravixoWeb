@@ -7,6 +7,7 @@ import Message from "../models/Message.js";
 import SocialConnection from "../models/SocialConnection.js";
 import Notification from "../models/Notification.js";
 import Review from "../models/Review.js";
+import { sendPushToUser } from "../utils/webPush.js";
 
 // 1. Send connection request
 export const sendRequest = async (req, res) => {
@@ -270,15 +271,21 @@ export const acceptRequest = async (req, res) => {
     // Notify Creator
     const brandProfile = await Profile.findById(connection.brandId).select("fullName").lean();
     const brandName = brandProfile?.fullName || "A Brand";
-    const campaignTitle = campaign?.title || "campaign";
-
+    const approveText = `${brandName} approved your request for "${campaignTitle}".`;
     await Notification.create({
       recipientId: connection.creatorId,
       senderId: connection.brandId,
       type: "campaign_request_approved",
-      text: `${brandName} approved your request for "${campaignTitle}".`,
+      text: approveText,
+      targetUrl: `/messages?conversationId=${conversation._id}`,
       createdAt: Date.now(),
     });
+
+    sendPushToUser(connection.creatorId, {
+      title: "Campaign Request Approved! 🎉",
+      body: approveText,
+      url: `/messages?conversationId=${conversation._id}`,
+    }).catch((err) => console.error("Request approval push error:", err.message));
 
     res.status(200).json({
       success: true,
@@ -356,15 +363,21 @@ export const rejectRequest = async (req, res) => {
     }
     const brandProfile = await Profile.findById(connection.brandId).select("fullName").lean();
     const brandName = brandProfile?.fullName || "A Brand";
-    const campaignTitle = campaign?.title || "campaign";
-
+    const rejectText = `${brandName} declined your request for "${campaignTitle}".`;
     await Notification.create({
       recipientId: connection.creatorId,
       senderId: connection.brandId,
       type: "campaign_request_rejected",
-      text: `${brandName} declined your request for "${campaignTitle}".`,
+      text: rejectText,
+      targetUrl: "/dashboard/influencer",
       createdAt: Date.now(),
     });
+
+    sendPushToUser(connection.creatorId, {
+      title: "Campaign Request Update",
+      body: rejectText,
+      url: "/dashboard/influencer",
+    }).catch((err) => console.error("Request rejection push error:", err.message));
 
     res.status(200).json({
       success: true,

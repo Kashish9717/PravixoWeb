@@ -5,8 +5,30 @@ import Campaign from "../models/Campaign.js";
 import Payment from "../models/Payment.js";
 import PaymentAuditLog from "../models/PaymentAuditLog.js";
 import Notification from "../models/Notification.js";
+import { sendPushToUser } from "../utils/webPush.js";
 
 const isValidId = (id) => mongoose.Types.ObjectId.isValid(id);
+
+const notifyAndPush = async ({ recipientId, senderId, type, text, taskId, targetUrl, pushTitle }) => {
+  await Notification.create({
+    recipientId,
+    senderId,
+    type,
+    text,
+    taskId,
+    targetUrl: targetUrl || "/dashboard",
+    read: false,
+    createdAt: Date.now(),
+  }).catch((err) => console.error("Task notif create error:", err.message));
+
+  if (recipientId) {
+    sendPushToUser(recipientId, {
+      title: pushTitle || "Campaign Task Update 📋",
+      body: text,
+      url: targetUrl || "/dashboard",
+    }).catch((err) => console.error("Task push error:", err.message));
+  }
+};
 
 const parseAmount = (budgetStr) => {
   const clean = String(budgetStr || "").replace(/[^\d]/g, "");
@@ -99,14 +121,14 @@ export const createTask = async (req, res) => {
     });
 
     // Notify Creator
-    await Notification.create({
+    await notifyAndPush({
       recipientId: creatorId,
       senderId: brandId,
       type: "task_assigned",
       text: `Brand has assigned a new task: "${title}"`,
       taskId: task._id,
-      read: false,
-      createdAt: now,
+      targetUrl: "/dashboard/influencer",
+      pushTitle: "New Task Assigned! 📋",
     });
 
     return res.status(201).json({
@@ -235,14 +257,14 @@ export const submitTask = async (req, res) => {
     await task.save();
 
     // Notify Brand
-    await Notification.create({
+    await notifyAndPush({
       recipientId: task.brandId,
       senderId: task.creatorId,
       type: "task_completed",
       text: `Creator has completed the assigned task: "${task.title}"`,
       taskId: task._id,
-      read: false,
-      createdAt: now,
+      targetUrl: "/dashboard/customer",
+      pushTitle: "Task Completed! 🚀",
     });
 
     return res.status(200).json({
@@ -372,14 +394,14 @@ export const reviewTask = async (req, res) => {
       }
 
       // Notify Creator
-      await Notification.create({
+      await notifyAndPush({
         recipientId: task.creatorId,
         senderId: task.brandId,
         type: "task_approved",
         text: `Brand has approved your task: "${task.title}"`,
         taskId: task._id,
-        read: false,
-        createdAt: now,
+        targetUrl: "/dashboard/influencer",
+        pushTitle: "Task Approved! 🎉",
       });
 
       return res.status(200).json({
@@ -398,14 +420,14 @@ export const reviewTask = async (req, res) => {
     await task.save();
 
     // Notify Creator
-    await Notification.create({
+    await notifyAndPush({
       recipientId: task.creatorId,
       senderId: task.brandId,
       type: "revision_requested",
       text: `Brand has requested a revision on your task: "${task.title}"`,
       taskId: task._id,
-      read: false,
-      createdAt: now,
+      targetUrl: "/dashboard/influencer",
+      pushTitle: "Revision Requested 🔄",
     });
 
     return res.status(200).json({

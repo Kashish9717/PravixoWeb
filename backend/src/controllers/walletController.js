@@ -5,6 +5,7 @@ import Withdrawal from "../models/Withdrawal.js";
 import CreatorBankDetails from "../models/CreatorBankDetails.js";
 import Notification from "../models/Notification.js";
 import Profile from "../models/Profile.js";
+import { sendPushToUser, sendPushToUsers } from "../utils/webPush.js";
 
 /**
  * Helper to credit a creator's wallet atomically and idempotently upon admin payout release.
@@ -300,16 +301,25 @@ export const requestWithdrawal = async (req, res) => {
 
     // 2. Notify Admins
     const admins = await Profile.find({ role: "admin" }).select("_id").lean();
-    for (const admin of admins) {
-      await Notification.create({
-        recipientId: admin._id,
-        senderId: creatorId,
-        type: "withdrawal_requested",
-        text: `Creator ${creatorName} requested a withdrawal of ₹${withdrawAmount.toLocaleString("en-IN")} (Ref: ${referenceId}).`,
-        targetUrl: "/admin/payments",
-        metadata: { withdrawalId: withdrawal._id, amount: withdrawAmount, referenceId },
-        createdAt: Date.now(),
-      });
+    if (admins && admins.length > 0) {
+      const adminIds = admins.map((a) => a._id);
+      for (const adminId of adminIds) {
+        await Notification.create({
+          recipientId: adminId,
+          senderId: creatorId,
+          type: "withdrawal_requested",
+          text: `Creator ${creatorName} requested a withdrawal of ₹${withdrawAmount.toLocaleString("en-IN")} (Ref: ${referenceId}).`,
+          targetUrl: "/admin/payments",
+          metadata: { withdrawalId: withdrawal._id, amount: withdrawAmount, referenceId },
+          createdAt: Date.now(),
+        });
+      }
+
+      sendPushToUsers(adminIds, {
+        title: "New Withdrawal Request 💸",
+        body: `Creator ${creatorName} requested ₹${withdrawAmount.toLocaleString("en-IN")}.`,
+        url: "/admin/payments",
+      }).catch((err) => console.error("Admin withdrawal push error:", err.message));
     }
 
     return res.status(201).json({

@@ -6,6 +6,7 @@ import Submission from "../models/Submission.js";
 import Notification from "../models/Notification.js";
 import Conversation from "../models/Conversation.js";
 import Message from "../models/Message.js";
+import { sendPushToUser, sendPushToUsers } from "../utils/webPush.js";
 
 const getFileUrl = (file) => {
   if (!file) return null;
@@ -161,8 +162,15 @@ export const submitDeliverableContent = async (req, res) => {
       senderId: connection.creatorId,
       type: "deliverable_submitted",
       text: `${creatorName} submitted a ${deliverableType} for "${campaignTitle}".`,
+      targetUrl: "/dashboard/customer",
       createdAt: now,
     });
+
+    sendPushToUser(connection.brandId, {
+      title: "Deliverable Submitted! 🎬",
+      body: `${creatorName} submitted a ${deliverableType} for "${campaignTitle}".`,
+      url: "/dashboard/customer",
+    }).catch((err) => console.error("Deliverable submission push error:", err.message));
 
     // Notify Admin
     const admins = await Profile.find({ role: "admin" }).select("_id").lean();
@@ -172,6 +180,7 @@ export const submitDeliverableContent = async (req, res) => {
         senderId: connection.creatorId,
         type: "deliverable_submitted",
         text: `Creator ${creatorName} submitted campaign work (${deliverableType}) for "${campaignTitle}".`,
+        targetUrl: "/admin/tasks",
         createdAt: now,
       });
     }
@@ -413,13 +422,21 @@ export const approveDeliverableSubmission = async (req, res) => {
     }
 
     // 1. Send Deliverable Approval Notification to Creator
+    const approvalText = `${brandName} approved your submitted ${submission.deliverableType} (v${submission.version || 1}) for "${campaignTitle}".`;
     await Notification.create({
       recipientId: connection.creatorId,
       senderId: connection.brandId,
       type: "deliverable_approved",
-      text: `${brandName} approved your submitted ${submission.deliverableType} (v${submission.version || 1}) for "${campaignTitle}".`,
+      text: approvalText,
+      targetUrl: "/dashboard/influencer",
       createdAt: now,
     });
+
+    sendPushToUser(connection.creatorId, {
+      title: "Deliverable Approved! ✅",
+      body: approvalText,
+      url: "/dashboard/influencer",
+    }).catch((err) => console.error("Deliverable approval push error:", err.message));
 
     // 2. Send Deliverable Approval Notification to Admins
     const admins = await Profile.find({ role: "admin" }).select("_id").lean();
@@ -429,6 +446,7 @@ export const approveDeliverableSubmission = async (req, res) => {
         senderId: connection.brandId,
         type: "deliverable_approved",
         text: `${brandName} approved ${submission.deliverableType} (v${submission.version || 1}) by ${creatorName} for "${campaignTitle}".`,
+        targetUrl: "/admin/tasks",
         createdAt: now,
       });
     }
@@ -436,22 +454,38 @@ export const approveDeliverableSubmission = async (req, res) => {
     // 3. If ALL deliverables are completed, send All Deliverables Approved Notification & Chat message
     if (allApproved && !wasAlreadyCompleted) {
       // Notify Creator that entire campaign work is completed and 72-hour review period has begun
+      const creatorAllDoneText = `🎉 Congratulations! All required campaign deliverables for "${campaignTitle}" have been approved by ${brandName}. 72-hour review period has started.`;
       await Notification.create({
         recipientId: connection.creatorId,
         senderId: connection.brandId,
         type: "all_deliverables_approved",
-        text: `🎉 Congratulations! All required campaign deliverables for "${campaignTitle}" have been approved by ${brandName}. 72-hour review period has started.`,
+        text: creatorAllDoneText,
+        targetUrl: "/dashboard/influencer",
         createdAt: now,
       });
 
+      sendPushToUser(connection.creatorId, {
+        title: "All Deliverables Approved! 🎉",
+        body: creatorAllDoneText,
+        url: "/dashboard/influencer",
+      }).catch((err) => console.error("All deliverables push error:", err.message));
+
       // Notify Brand that work is fully completed
+      const brandAllDoneText = `All deliverables for "${campaignTitle}" with ${creatorName} are now fully approved. 72-hour review period is now active.`;
       await Notification.create({
         recipientId: connection.brandId,
         senderId: connection.creatorId,
         type: "all_deliverables_approved",
-        text: `All deliverables for "${campaignTitle}" with ${creatorName} are now fully approved. 72-hour review period is now active.`,
+        text: brandAllDoneText,
+        targetUrl: "/dashboard/customer",
         createdAt: now,
       });
+
+      sendPushToUser(connection.brandId, {
+        title: "Campaign Work Complete! 🌟",
+        body: brandAllDoneText,
+        url: "/dashboard/customer",
+      }).catch((err) => console.error("Brand all deliverables push error:", err.message));
 
       // Notify Admins that collaboration work is completed
       for (const admin of admins) {
@@ -635,13 +669,21 @@ export const rejectDeliverableSubmission = async (req, res) => {
       if (camp) campaignTitle = camp.title;
     }
 
+    const rejectText = `${brandName} requested changes on your ${submission.deliverableType} (v${submission.version || 1}) for "${campaignTitle}". Reason: ${reason.trim()}`;
     await Notification.create({
       recipientId: connection.creatorId,
       senderId: connection.brandId,
       type: "deliverable_rejected",
-      text: `${brandName} requested changes on your ${submission.deliverableType} (v${submission.version || 1}) for "${campaignTitle}". Reason: ${reason.trim()}`,
+      text: rejectText,
+      targetUrl: "/dashboard/influencer",
       createdAt: now,
     });
+
+    sendPushToUser(connection.creatorId, {
+      title: "Deliverable Feedback / Changes Requested ⚠️",
+      body: rejectText,
+      url: "/dashboard/influencer",
+    }).catch((err) => console.error("Deliverable rejection push error:", err.message));
 
     // Post review status message in conversation chat
     try {

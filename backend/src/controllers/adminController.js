@@ -935,26 +935,40 @@ export const releaseCreatorPayout = async (req, res) => {
     }
 
     // Send Notification to Creator
+    const creatorPayoutText = `₹${creatorAmount.toLocaleString("en-IN")} has been added to your wallet from your completed collaboration for "${campaignTitle}" (Ref: ${transactionReference}).`;
     await Notification.create({
       recipientId: connection.creatorId,
       senderId: adminId || connection.brandId,
       type: "payment_released",
-      text: `₹${creatorAmount.toLocaleString("en-IN")} has been added to your wallet from your completed collaboration for "${campaignTitle}" (Ref: ${transactionReference}).`,
-      targetUrl: "/dashboard/creator/wallet",
+      text: creatorPayoutText,
+      targetUrl: "/dashboard/influencer",
       metadata: { collaborationId: connection._id, amount: creatorAmount, reference: transactionReference },
       createdAt: now,
     });
 
+    sendPushToUser(connection.creatorId, {
+      title: "Payout Received in Wallet! 💰🎉",
+      body: creatorPayoutText,
+      url: "/dashboard/influencer",
+    }).catch((err) => console.error("Creator payout push error:", err.message));
+
     // Send Notification to Brand
+    const brandPayoutText = `Creator payout of ₹${creatorAmount.toLocaleString("en-IN")} for "${campaignTitle}" has been released and completed.`;
     await Notification.create({
       recipientId: connection.brandId,
       senderId: adminId || connection.creatorId,
       type: "payment_released",
-      text: `Creator payout of ₹${creatorAmount.toLocaleString("en-IN")} for "${campaignTitle}" has been released and completed.`,
-      targetUrl: "/dashboard/brand/campaigns",
+      text: brandPayoutText,
+      targetUrl: "/dashboard/customer",
       metadata: { collaborationId: connection._id, amount: creatorAmount, reference: transactionReference },
       createdAt: now,
     });
+
+    sendPushToUser(connection.brandId, {
+      title: "Collaboration Payout Released ✅",
+      body: brandPayoutText,
+      url: "/dashboard/customer",
+    }).catch((err) => console.error("Brand payout push error:", err.message));
 
     // Post update in conversation chat if exists
     try {

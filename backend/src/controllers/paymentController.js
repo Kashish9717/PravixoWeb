@@ -18,6 +18,7 @@ import {
   verifyWebhookSignature,
   createPayout,
 } from "../services/paymentServices.js";
+import { sendPushToUser } from "../utils/webPush.js";
 
 const HOLDING_DURATION = 72 * 60 * 60 * 1000;
 
@@ -52,7 +53,7 @@ const createAuditLog = async ({
 
 /*
 |--------------------------------------------------------------------------
-| Helper: Create Notification
+| Helper: Create Notification & Dispatch Web Push
 |--------------------------------------------------------------------------
 */
 
@@ -62,16 +63,35 @@ const createNotification = async ({
   type,
   text,
   taskId,
+  targetUrl,
 }) => {
-  return Notification.create({
+  // 1. In-App Notification
+  const notif = await Notification.create({
     recipientId,
     senderId,
     type,
     text,
     taskId,
+    targetUrl: targetUrl || "/dashboard",
     read: false,
     createdAt: Date.now(),
   });
+
+  // 2. Web Push Notification
+  if (recipientId) {
+    let pushTitle = "Pravixo Payment Update 💳";
+    if (type === "payment_successful" || type === "new_payment") pushTitle = "Payment Received! 💰";
+    else if (type === "payment_released") pushTitle = "Funds Released! 🎉";
+    else if (type === "dispute_raised") pushTitle = "Dispute Flagged ⚠️";
+
+    sendPushToUser(recipientId, {
+      title: pushTitle,
+      body: text,
+      url: targetUrl || "/dashboard",
+    }).catch((err) => console.error("Payment push error:", err.message));
+  }
+
+  return notif;
 };
 
 /*
