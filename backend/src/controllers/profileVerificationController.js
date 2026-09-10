@@ -1,7 +1,6 @@
 import Profile from "../models/Profile.js";
 import Notification from "../models/Notification.js";
-import { sendPushToUsers } from "../utils/webPush.js"; 
-
+import { sendPushToUsers } from "../utils/webPush.js";
 
 export const submitVerification = async (req, res) => {
   try {
@@ -176,49 +175,14 @@ export const submitBrandVerification = async (req, res) => {
       }).catch((err) => console.error("Verification push error:", err.message));
     }
 
-    const missingFields = [];
-    if (!brandProfile.handle) missingFields.push("Handle / Username");
-    if (!brandProfile.category) missingFields.push("Category");
-    if (!brandProfile.website) missingFields.push("Website");
-    if (!brandProfile.location) missingFields.push("Location");
-    if (!brandProfile.companySize) missingFields.push("Company Size");
-
-    if (missingFields.length > 0) {
-      return res.status(400).json({
-        success: false,
-        message: `Missing required information for verification: ${missingFields.join(", ")}`,
-      });
-    }
-
-    const profile = await Profile.findByIdAndUpdate(
-      profileId,
-      {
-        verificationStatus: "pending",
-        gstNumber,
-        gstCertificateStorageId,
-        gstCertificateUrl: req.body.gstCertificateUrl,
-      },
-      {
-        new: true,
-        runValidators: true,
-      }
-    );
-
-    if (!profile) {
-      return res.status(404).json({
-        success: false,
-        message: "Profile not found.",
-      });
-    }
-
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       data: profile,
     });
   } catch (error) {
     console.error("Brand verification error:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Failed to submit brand verification.",
     });
