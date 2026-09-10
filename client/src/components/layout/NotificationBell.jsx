@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import {
   Bell,
+  BellRing,
   CheckCircle,
   X,
   Trash2,
@@ -20,6 +21,7 @@ import {
 import api from "@/lib/api";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { toast } from "sonner";
+import { subscribeToPush } from "@/utils/pushNotification";
 
 function getNotificationIcon(type) {
   switch (type) {
@@ -94,7 +96,33 @@ export function NotificationBell({ profileId: propProfileId }) {
   });
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [pushStatus, setPushStatus] = useState(() => {
+    if (typeof window !== "undefined" && "Notification" in window) {
+      return Notification.permission;
+    }
+    return "unsupported";
+  });
+  const [enablingPush, setEnablingPush] = useState(false);
   const panelRef = useRef(null);
+
+  const handleEnableWebPush = async () => {
+    setEnablingPush(true);
+    try {
+      const res = await subscribeToPush();
+      if (res.success) {
+        setPushStatus("granted");
+        toast.success("Push notifications enabled! You will get instant alerts.");
+      } else if (res.reason === "denied") {
+        setPushStatus("denied");
+        toast.error("Notification permission denied in browser settings.");
+      }
+    } catch (err) {
+      console.error("Push subscribe error:", err);
+      toast.error("Failed to enable notifications.");
+    } finally {
+      setEnablingPush(false);
+    }
+  };
 
   const saveDeletedIds = (ids) => {
     setDeletedIds(ids);
@@ -263,6 +291,25 @@ export function NotificationBell({ profileId: propProfileId }) {
               </button>
             </div>
           </div>
+
+          {/* Push Notification Permission Quick-Action */}
+          {pushStatus !== "granted" && pushStatus !== "unsupported" && (
+            <div className="bg-gradient-to-r from-blue-600/10 via-indigo-600/10 to-blue-600/10 border-b border-blue-500/20 px-3.5 py-2.5 flex items-center justify-between gap-2 shrink-0">
+              <div className="flex items-center gap-2 text-xs">
+                <BellRing className="h-4 w-4 text-blue-500 shrink-0 animate-bounce" />
+                <span className="text-[11px] font-medium text-foreground">
+                  Get instant mobile/desktop alerts for campaigns & payments
+                </span>
+              </div>
+              <button
+                onClick={handleEnableWebPush}
+                disabled={enablingPush}
+                className="shrink-0 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] px-3 py-1 shadow-sm transition-all"
+              >
+                {enablingPush ? "Enabling..." : "Enable"}
+              </button>
+            </div>
+          )}
 
           {/* Bulk actions */}
           {visibleEvents.length > 0 && (
