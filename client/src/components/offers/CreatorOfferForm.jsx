@@ -315,4 +315,6 @@ export function MultiRoleOfferForm({ profileId, role = "creator", onOfferCreated
   );
 }
 
+export const CreatorOfferForm = MultiRoleOfferForm;
+
 export default MultiRoleOfferForm;
