@@ -1,5 +1,7 @@
 import Profile from "../models/Profile.js";
 import Notification from "../models/Notification.js";
+import { sendPushToUsers } from "../utils/webPush.js"; 
+
 
 export const submitVerification = async (req, res) => {
   try {
@@ -74,16 +76,23 @@ export const submitVerification = async (req, res) => {
         text: `${profile.fullName} has submitted their profile for verification.`,
       }));
       await Notification.insertMany(notifications);
+
+      const adminIds = admins.map((admin) => admin._id);
+      sendPushToUsers(adminIds, {
+        title: `New Verification Request 🪪`,
+        body: `${profile.fullName} has submitted their profile for verification.`,
+        url: `/admin/users`,
+      }).catch((err) => console.error("Verification push error:", err.message));
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       data: profile,
     });
   } catch (error) {
     console.error("Submit verification error:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Failed to submit verification.",
     });
@@ -96,6 +105,7 @@ export const submitBrandVerification = async (req, res) => {
       profileId,
       gstNumber,
       gstCertificateStorageId,
+      gstCertificateUrl,
     } = req.body;
 
     if (!profileId || !gstNumber || !gstCertificateStorageId) {
@@ -113,6 +123,41 @@ export const submitBrandVerification = async (req, res) => {
       });
     }
 
+    const missingFields = [];
+    if (!brandProfile.handle) missingFields.push("Handle / Username");
+    if (!brandProfile.category) missingFields.push("Category");
+    if (!brandProfile.website) missingFields.push("Website");
+    if (!brandProfile.location) missingFields.push("Location");
+    if (!brandProfile.companySize) missingFields.push("Company Size");
+
+    if (missingFields.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Missing required information for verification: ${missingFields.join(", ")}`,
+      });
+    }
+
+    const profile = await Profile.findByIdAndUpdate(
+      profileId,
+      {
+        verificationStatus: "pending",
+        gstNumber,
+        gstCertificateStorageId,
+        gstCertificateUrl,
+      },
+      {
+        new: true,
+        runValidators: true,
+      }
+    );
+
+    if (!profile) {
+      return res.status(404).json({
+        success: false,
+        message: "Profile not found.",
+      });
+    }
+
     const admins = await Profile.find({ role: "admin" });
     if (admins.length > 0) {
       const notifications = admins.map((admin) => ({
@@ -122,6 +167,13 @@ export const submitBrandVerification = async (req, res) => {
         text: `${brandProfile.fullName} has submitted their brand profile for verification.`,
       }));
       await Notification.insertMany(notifications);
+
+      const adminIds = admins.map((admin) => admin._id);
+      sendPushToUsers(adminIds, {
+        title: `New Brand Verification Request 🏢`,
+        body: `${brandProfile.fullName} has submitted their brand profile for verification.`,
+        url: `/admin/users`,
+      }).catch((err) => console.error("Verification push error:", err.message));
     }
 
     const missingFields = [];

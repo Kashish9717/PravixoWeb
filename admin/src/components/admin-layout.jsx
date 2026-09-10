@@ -17,6 +17,7 @@ import {
   VideoIcon,
   Lightbulb,
   Megaphone,
+  Tag,
 } from "lucide-react";
 import { useState } from "react";
 import { useTheme } from "./theme-provider";
@@ -46,6 +47,7 @@ const navLinks = [
   { to: "/blogs", label: "Blogs", icon: FileText },
   { to: "/protips", label: "ProTips", icon: Lightbulb },
   { to: "/notifications", label: "Notifications", icon: Megaphone },
+  { to: "/offers", label: "Creator Offers", icon: Tag },
   { to: "/settings", label: "Settings", icon: Settings },
 ];
 

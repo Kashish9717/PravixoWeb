@@ -41,6 +41,8 @@ import {
 } from "react-icons/fa";
 
 import { Button } from "@/components/ui/Button";
+import { CreatorOffersSidebarWidget } from "@/components/offers/CreatorOffersSidebarWidget";
+import { MultiRoleOfferForm } from "@/components/offers/CreatorOfferForm";
 
 const QuoraIcon = (props) => (
   <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
@@ -2503,6 +2505,9 @@ const [submittingVerification, setSubmittingVerification] =
               )}
             </div>
 
+            {/* BRAND OFFERS & INCENTIVES LAUNCH */}
+            <MultiRoleOfferForm profileId={profile?._id} role="brand" />
+
             {/* ESCROW PAYMENTS */}
             <div className="rounded-3xl border border-border bg-card p-6 shadow-sm">
               <div>
@@ -2818,6 +2823,9 @@ const [submittingVerification, setSubmittingVerification] =
 
           {/* RIGHT COLUMN: SIDEBAR */}
           <div className="space-y-6 w-full min-w-0">
+            {/* LIMITED-TIME OFFERS SIDEBAR WIDGET */}
+            <CreatorOffersSidebarWidget />
+
             {/* HIRING PREFERENCES PANEL */}
             <div className="rounded-3xl border border-border bg-card p-6 shadow-sm">
               <h2 className="font-display text-lg font-semibold mb-4 flex items-center gap-2">

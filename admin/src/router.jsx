@@ -16,6 +16,7 @@ import BlogsPage from "./pages/blogs";
 import ProTipsPage from "./pages/protips";
 import { CampaignsPage } from "./pages/campaigns";
 import { NotificationsPage } from "./pages/notifications";
+import { OffersPage } from "./pages/offers";
 
 export const router = createBrowserRouter([
   {
@@ -72,6 +73,10 @@ export const router = createBrowserRouter([
       {
         path: "/notifications",
         element: <NotificationsPage />,
+      },
+      {
+        path: "/offers",
+        element: <OffersPage />,
       },
       {
         path: "/settings",

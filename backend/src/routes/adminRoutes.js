@@ -158,4 +158,8 @@ router.get("/webhooks/logs", getWebhookLogs);
 // Admin activity feed (for notification bell)
 router.get("/activity", getAdminActivityFeed);
 
+// Admin festival / sweet message broadcast
+import { sendBroadcast } from "../controllers/broadcastController.js";
+router.post("/broadcast", sendBroadcast);
+
 export default router;

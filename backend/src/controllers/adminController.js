@@ -298,20 +298,37 @@ export const updateVerificationStatus = async (req, res) => {
 
     if (profile) {
       const senderId = req.user?.profileId || req.user?._id || req.user?.id || profile._id;
+      const userDashboardUrl = profile.role === "creator" ? "/dashboard/influencer" : "/dashboard/customer";
+
       if (status === "rejected") {
+        const rejText = `Your verification request was rejected. Reason: ${rejectReason || "Does not meet guidelines."}`;
         await Notification.create({
           recipientId: profile._id,
           senderId,
           type: "verification_rejected",
-          text: `Your verification request was rejected. Reason: ${rejectReason || "Does not meet guidelines."}`,
+          text: rejText,
         }).catch((e) => console.warn("Failed to create rejection notification:", e.message));
+
+        sendPushToUser(profile._id, {
+          title: "Verification Update ⚠️",
+          body: rejText,
+          url: userDashboardUrl,
+        }).catch((err) => console.error("Verification reject push error:", err.message));
+
       } else if (status === "verified") {
+        const appText = `Congratulations! Your ${profile.role === "creator" ? "Creator" : "Brand"} profile has been verified. 🎉`;
         await Notification.create({
           recipientId: profile._id,
           senderId,
           type: "verification_approved",
-          text: `Congratulations! Your profile has been verified.`,
+          text: appText,
         }).catch((e) => console.warn("Failed to create approval notification:", e.message));
+
+        sendPushToUser(profile._id, {
+          title: "Profile Verified! 🎖️",
+          body: appText,
+          url: userDashboardUrl,
+        }).catch((err) => console.error("Verification approve push error:", err.message));
       }
     }
 

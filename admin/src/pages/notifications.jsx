@@ -15,10 +15,23 @@ import {
   CheckCircle,
   Wallet,
   Search,
+  Send,
+  Sparkles,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/axios";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 function getEventIcon(type) {
   switch (type) {
@@ -87,6 +100,49 @@ export function NotificationsPage() {
       return new Set();
     }
   });
+
+  // Broadcast modal state
+  const [showBroadcastModal, setShowBroadcastModal] = useState(false);
+  const [broadcastTitle, setBroadcastTitle] = useState("");
+  const [broadcastMessage, setBroadcastMessage] = useState("");
+  const [broadcastAudience, setBroadcastAudience] = useState("all");
+  const [broadcastTargetUrl, setBroadcastTargetUrl] = useState("/");
+  const [sendingBroadcast, setSendingBroadcast] = useState(false);
+
+  const handleSendBroadcast = async (e) => {
+    e.preventDefault();
+    if (!broadcastTitle.trim() || !broadcastMessage.trim()) {
+      toast.error("Please provide both title and message.");
+      return;
+    }
+
+    setSendingBroadcast(true);
+    try {
+      const res = await api.post("/admin/broadcast", {
+        title: broadcastTitle.trim(),
+        message: broadcastMessage.trim(),
+        audience: broadcastAudience,
+        targetUrl: broadcastTargetUrl.trim() || "/",
+      });
+
+      if (res.data?.success) {
+        toast.success(res.data.message || "Broadcast sent successfully!");
+        setShowBroadcastModal(false);
+        setBroadcastTitle("");
+        setBroadcastMessage("");
+        setBroadcastAudience("all");
+        setBroadcastTargetUrl("/");
+        fetchActivity(true);
+      } else {
+        toast.error(res.data?.message || "Failed to send broadcast.");
+      }
+    } catch (err) {
+      console.error("Broadcast error:", err);
+      toast.error(err?.response?.data?.message || "Failed to send broadcast.");
+    } finally {
+      setSendingBroadcast(false);
+    }
+  };
 
   const [deletedIds, setDeletedIds] = useState(() => {
     try {
@@ -253,6 +309,15 @@ export function NotificationsPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            onClick={() => setShowBroadcastModal(true)}
+            className="flex items-center gap-1.5 rounded-xl text-xs sm:text-sm font-semibold bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm"
+          >
+            <Send className="h-3.5 w-3.5" />
+            Send Announcement
+          </Button>
+
           <Button
             variant="outline"
             size="sm"
@@ -449,6 +514,93 @@ export function NotificationsPage() {
           })}
         </div>
       )}
+
+      {/* BROADCAST / ANNOUNCEMENT MODAL */}
+      <Dialog open={showBroadcastModal} onOpenChange={setShowBroadcastModal}>
+        <DialogContent className="sm:max-w-lg rounded-2xl p-6 bg-card border-border">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-2 text-foreground">
+              <Sparkles className="h-5 w-5 text-amber-500" />
+              Send Platform Announcement / Greeting
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Send a one-off festival greeting, sweet message, or platform update to creators and brands via In-App Bell and Web Push notification.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleSendBroadcast} className="space-y-4 mt-2">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-foreground">Target Audience *</label>
+              <select
+                value={broadcastAudience}
+                onChange={(e) => setBroadcastAudience(e.target.value)}
+                className="w-full h-10 px-3 py-2 text-xs rounded-xl border border-border bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+              >
+                <option value="all">🌍 All Users (Creators + Brands)</option>
+                <option value="creators">🎨 Creators Only</option>
+                <option value="brands">🏢 Brands Only</option>
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-foreground">Announcement Title *</label>
+              <Input
+                placeholder="e.g. 🎉 Happy Diwali from Pravixo! / Important Update"
+                value={broadcastTitle}
+                onChange={(e) => setBroadcastTitle(e.target.value)}
+                className="text-xs rounded-xl"
+                required
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-foreground">Message / Greeting *</label>
+              <Textarea
+                placeholder="Write your sweet message, festival greeting, or announcement here..."
+                value={broadcastMessage}
+                onChange={(e) => setBroadcastMessage(e.target.value)}
+                className="text-xs min-h-[110px] rounded-xl resize-none"
+                required
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-foreground">Target URL / Redirect Link</label>
+              <Input
+                placeholder="e.g. /browse, /dashboard, /blog (default: /)"
+                value={broadcastTargetUrl}
+                onChange={(e) => setBroadcastTargetUrl(e.target.value)}
+                className="text-xs rounded-xl"
+              />
+              <span className="text-[10px] text-muted-foreground">
+                Recipients will open this URL when clicking the push notification popup.
+              </span>
+            </div>
+
+            <DialogFooter className="pt-3 flex gap-2 sm:justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setShowBroadcastModal(false)}
+                disabled={sendingBroadcast}
+                className="rounded-xl text-xs"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                disabled={sendingBroadcast || !broadcastTitle.trim() || !broadcastMessage.trim()}
+                className="rounded-xl text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground flex items-center gap-1.5"
+              >
+                <Send className="h-3.5 w-3.5" />
+                {sendingBroadcast ? "Broadcasting..." : "Send Broadcast Now"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

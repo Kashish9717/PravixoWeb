@@ -51,6 +51,8 @@ import { Button } from "@/components/ui/Button";
 import { CATEGORY_OPTIONS } from "@/data/influencer";
 import { Switch } from "@/components/ui/Switch";
 import { SubscriptionTab } from "../components/subscription/SubscriptionTab";
+import { CreatorOfferForm } from "../components/offers/CreatorOfferForm";
+import { CreatorOffersSidebarWidget } from "../components/offers/CreatorOffersSidebarWidget";
 import { profileService } from "@/services/profileService";
 const { submitVerification } = profileService;
 
@@ -2506,6 +2508,12 @@ const CAMPAIGNS_PER_PAGE = 6;
                 )}
               </div>
             </div>
+
+            {/* LIVE BRAND OPPORTUNITIES & INCENTIVES (Visible to creators) */}
+            <CreatorOffersSidebarWidget audience="creator" />
+
+            {/* LIMITED-TIME OFFERS LAUNCH & MANAGEMENT */}
+            <CreatorOfferForm profileId={profile?._id} role="creator" />
 
             {/* PRICING */}
             <div className="rounded-3xl border border-border bg-card p-6">
