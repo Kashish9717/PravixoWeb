@@ -2393,7 +2393,7 @@ const [submittingVerification, setSubmittingVerification] =
                 <Button
                   size="sm"
                   className="btn-bouncy rounded-full gradient-sunset border-0 text-white shadow-glow text-xs h-9 px-4 font-bold flex items-center gap-1.5"
-                  onClick={openNewCampaignModal}
+                  onClick={openAddCampaignModal}
                 >
                   <Plus className="h-4 w-4" /> Create Campaign
                 </Button>
@@ -2418,7 +2418,7 @@ const [submittingVerification, setSubmittingVerification] =
                   <Button
                     size="sm"
                     className="btn-bouncy mt-4 rounded-full gradient-sunset border-0 text-white shadow-glow text-xs font-bold px-4"
-                    onClick={openNewCampaignModal}
+                    onClick={openAddCampaignModal}
                   >
                     Create Campaign
                   </Button>
