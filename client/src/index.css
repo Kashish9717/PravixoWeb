@@ -426,3 +426,40 @@
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* Premium Sonner Toast Styling */
+[data-sonner-toaster] {
+  --normal-bg: var(--card);
+  --normal-border: var(--border);
+  --normal-text: var(--foreground);
+}
+
+[data-sonner-toaster] [data-sonner-toast] {
+  border-radius: 1rem !important;
+  font-family: var(--font-sans) !important;
+  font-size: 0.8125rem !important;
+  box-shadow: 0 16px 36px -8px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.08) !important;
+  backdrop-filter: blur(12px) !important;
+}
+
+.dark [data-sonner-toaster] [data-sonner-toast][data-type="success"] {
+  background: #131722 !important;
+  border-color: rgba(16, 185, 129, 0.35) !important;
+  color: #f1f5f9 !important;
+}
+
+.dark [data-sonner-toaster] [data-sonner-toast][data-type="success"] svg {
+  color: #10b981 !important;
+}
+
+.dark [data-sonner-toaster] [data-sonner-toast][data-type="error"] {
+  background: #1a1317 !important;
+  border-color: rgba(239, 68, 68, 0.35) !important;
+  color: #f1f5f9 !important;
+}
+
+.dark [data-sonner-toaster] [data-sonner-toast][data-type="info"] {
+  background: #131722 !important;
+  border-color: rgba(59, 130, 246, 0.35) !important;
+  color: #f1f5f9 !important;
+}

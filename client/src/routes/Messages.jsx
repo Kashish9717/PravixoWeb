@@ -58,7 +58,7 @@ const resolveImageUrl = (url) => {
 };
 
 export default function Messages() {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const queryConversationId = searchParams.get("conversationId");
@@ -1594,14 +1594,16 @@ export default function Messages() {
                   </div>
                 ) : (
                   messages.map((item) => {
-                    const isMine = item.senderId?.toString() === profile._id?.toString();
+                    const itemSenderId = (item.senderId?._id || item.senderId)?.toString();
+                    const currentProfileId = (profile?._id || user?._id)?.toString();
+                    const isMine = Boolean(itemSenderId && currentProfileId && itemSenderId === currentProfileId);
 
                     return (
                       <div
                         key={item._id}
                         className={`flex ${isMine ? "justify-end" : "justify-start"}`}
                       >
-                        {item.unsent || item.deletedByAdmin || (profile.role === "creator" && item.deletedForCreator) || (profile.role === "brand" && item.deletedForBrand) ? (
+                        {item.unsent || item.deletedByAdmin || (profile?.role === "creator" && item.deletedForCreator) || (profile?.role === "brand" && item.deletedForBrand) ? (
                           <div className={`flex max-w-[75%] flex-col ${isMine ? "items-end" : "items-start"}`}>
                             <div className="flex items-center gap-1 rounded-2xl bg-slate-100 px-4 py-2 text-sm italic text-slate-500 dark:bg-slate-800 dark:text-slate-400">
                               <Ban className="h-4 w-4" />
@@ -1614,11 +1616,12 @@ export default function Messages() {
                             {isMine && !item.messageType && (
                               <button
                                 type="button"
-                                onClick={() => {
+                                onClick={(e) => {
+                                  e.stopPropagation();
                                   setSelectedMessageForAction(item);
                                   setUnsendModalOpen(true);
                                 }}
-                                className="p-1.5 rounded-full text-slate-400 hover:text-foreground hover:bg-secondary transition opacity-75 sm:opacity-0 sm:group-hover:opacity-100"
+                                className="p-1.5 rounded-full text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition opacity-80 sm:opacity-0 sm:group-hover:opacity-100 shrink-0"
                                 title="Message options (Unsend / Delete)"
                               >
                                 <MoreVertical className="h-3.5 w-3.5" />

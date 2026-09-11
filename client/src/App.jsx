@@ -150,6 +150,10 @@ function Layout() {
   );
 }
 
+function ThemedToaster() {
+  return <Toaster position="top-center" closeButton richColors={false} />;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -157,7 +161,7 @@ export default function App() {
       <ThemeProvider>
         <AuthProvider>
           <Layout />
-          <Toaster position="top-center" richColors />
+          <ThemedToaster />
         </AuthProvider>
       </ThemeProvider>
     </BrowserRouter>
