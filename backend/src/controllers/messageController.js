@@ -87,20 +87,21 @@ export const sendMessage = async (req, res) => {
       } else if (conversation.adminId && conversation.adminId.toString() !== actualSenderStr) {
         recipientId = conversation.adminId;
       }
-if (recipientId) {
-  const senderProfile = await Profile.findById(actualSenderId).select("fullName role").lean();
-  const senderName = senderProfile?.fullName || (senderProfile?.role === "admin" ? "Pravixo Admin" : "User");
-  const preview = text.trim().length > 60 ? `${text.trim().slice(0, 60)}...` : text.trim();
+    if (recipientId) {
+      const senderProfile = await Profile.findById(actualSenderId).select("fullName role").lean();
+      const senderName = senderProfile?.fullName || (senderProfile?.role === "admin" ? "Pravixo Admin" : "User");
+      const safeText = (text && typeof text === "string" ? text.trim() : "") || messageText || "Sent an attachment";
+      const preview = safeText.length > 60 ? `${safeText.slice(0, 60)}...` : safeText;
 
-  // 1. In-App Notification (bell dropdown ke liye)
-  await Notification.create({
-    recipientId,
-    senderId: actualSenderId,
-    type: "new_message",
-    text: `New message from ${senderName}: "${preview}"`,
-    targetUrl: `/messages?conversationId=${conversationId}`,
-    createdAt: Date.now(),
-  }).catch((notifErr) => console.warn("Could not dispatch message notification:", notifErr));
+      // 1. In-App Notification (bell dropdown ke liye)
+      await Notification.create({
+        recipientId,
+        senderId: actualSenderId,
+        type: "new_message",
+        text: `New message from ${senderName}: "${preview}"`,
+        targetUrl: `/messages?conversationId=${conversationId}`,
+        createdAt: Date.now(),
+      }).catch((notifErr) => console.warn("Could not dispatch message notification:", notifErr));
 
   // 2. Web Push Notification (popup ke liye)
   sendPushToUser(recipientId, {
