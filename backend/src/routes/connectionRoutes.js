@@ -17,11 +17,14 @@ import {
   agreeCollaborationAmount,
   getCollaborationDetails,
   getCollaborationDeliverables,
+  deleteConnection,
 } from "../controllers/connectionController.js";
 
 const router = express.Router();
 
 router.post("/request", protect, sendRequest);
+
+router.delete("/:connectionId", protect, deleteConnection);
 
 router.patch("/:connectionId/accept", protect, acceptRequest);
 

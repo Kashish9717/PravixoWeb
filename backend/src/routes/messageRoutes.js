@@ -6,10 +6,11 @@ import {
   unsendMessage,
 } from "../controllers/messageController.js";
 import { optionalAuth } from "../middleware/auth.js";
+import upload from "../middleware/upload.js";
 
 const router = express.Router();
 
-router.post("/", optionalAuth, sendMessage);
+router.post("/", optionalAuth, upload.single("file"), sendMessage);
 
 router.get("/:conversationId", optionalAuth, getMessages);
 

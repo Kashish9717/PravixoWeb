@@ -27,9 +27,11 @@ import {
   Eye,
   Paperclip,
   ExternalLink,
-  X,
   MoreVertical,
   CheckCheck,
+  Image as ImageIcon,
+  Video as VideoIcon,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/Badge";
@@ -97,6 +99,12 @@ export default function Messages() {
   const [loading, setLoading] = useState(false);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [sending, setSending] = useState(false);
+
+  // Media Attachment States (Photos & Videos for every chat: Brand, Creator, Admin)
+  const [attachedMedia, setAttachedMedia] = useState(null);
+  const [attachedMediaPreview, setAttachedMediaPreview] = useState(null);
+  const [attachedMediaType, setAttachedMediaType] = useState(null);
+  const mediaFileInputRef = useRef(null);
 
   // Modal states for Unsend / Delete Message and Delete Chat
   const [unsendModalOpen, setUnsendModalOpen] = useState(false);
@@ -661,9 +669,36 @@ export default function Messages() {
     }
   };
 
+  const handleMediaFileSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 50 * 1024 * 1024) {
+      toast.error("File size cannot exceed 50MB.");
+      return;
+    }
+
+    setAttachedMedia(file);
+    const isVid = file.type.startsWith("video/");
+    setAttachedMediaType(isVid ? "video" : "image");
+    setAttachedMediaPreview(URL.createObjectURL(file));
+  };
+
+  const removeAttachedMedia = () => {
+    if (attachedMediaPreview) {
+      URL.revokeObjectURL(attachedMediaPreview);
+    }
+    setAttachedMedia(null);
+    setAttachedMediaPreview(null);
+    setAttachedMediaType(null);
+    if (mediaFileInputRef.current) {
+      mediaFileInputRef.current.value = "";
+    }
+  };
+
   /*
    * ----------------------------------------------------
-   * SEND MESSAGE
+   * SEND MESSAGE (Supports text and photo/video attachments)
    * ----------------------------------------------------
    */
   const sendMessage = async (e) => {
@@ -671,21 +706,34 @@ export default function Messages() {
 
     const text = message.trim();
 
-    if (!text || sending || !activeConversation || !profile?._id) {
+    if ((!text && !attachedMedia) || sending || !activeConversation || !profile?._id) {
       return;
     }
 
     try {
       setSending(true);
 
-      const response = await api("/api/messages", {
-        method: "POST",
-        data: {
-          conversationId: activeConversation._id,
-          senderId: profile._id,
-          text,
-        },
-      });
+      let response;
+      if (attachedMedia) {
+        const formData = new FormData();
+        formData.append("conversationId", activeConversation._id);
+        formData.append("senderId", profile._id);
+        if (text) formData.append("text", text);
+        formData.append("file", attachedMedia);
+
+        response = await api.post("/api/messages", formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+      } else {
+        response = await api("/api/messages", {
+          method: "POST",
+          data: {
+            conversationId: activeConversation._id,
+            senderId: profile._id,
+            text,
+          },
+        });
+      }
 
       const newMessage =
         response?.data?.data ||
@@ -699,6 +747,7 @@ export default function Messages() {
       }
 
       setMessage("");
+      removeAttachedMedia();
 
       // Refresh conversation list so lastMessage updates
       await fetchConversations();
@@ -1595,8 +1644,14 @@ export default function Messages() {
                 ) : (
                   messages.map((item) => {
                     const itemSenderId = (item.senderId?._id || item.senderId)?.toString();
-                    const currentProfileId = (profile?._id || user?._id)?.toString();
-                    const isMine = Boolean(itemSenderId && currentProfileId && itemSenderId === currentProfileId);
+                    const currentProfileId = profile?._id?.toString();
+                    const currentUserId = (user?._id || user?.id || user?.userId || profile?.userId)?.toString();
+                    const isMine = Boolean(
+                      itemSenderId && (
+                        (currentProfileId && itemSenderId === currentProfileId) ||
+                        (currentUserId && itemSenderId === currentUserId)
+                      )
+                    );
 
                     return (
                       <div
@@ -1616,7 +1671,7 @@ export default function Messages() {
                         ) : (
                           <div className="flex items-end gap-1.5 group relative max-w-[85%] sm:max-w-[75%]">
                             {/* MESSAGE ACTION BUTTON (More / Unsend options) */}
-                            {isMine && !item.messageType && (
+                            {isMine && item.messageType !== "system" && item.messageType !== "agreement_document" && (
                               <button
                                 type="button"
                                 onClick={(e) => {
@@ -1631,7 +1686,7 @@ export default function Messages() {
                               </button>
                             )}
 
-                            {/* DELIVERABLE SUBMISSION INTERACTIVE CARD IN CHAT and can send */}
+                            {/* DELIVERABLE SUBMISSION INTERACTIVE CARD IN CHAT */}
                             {item.messageType === "deliverable_submission" && item.metadata ? (
                               <div
                                 className={cn(
@@ -1747,6 +1802,63 @@ export default function Messages() {
                                   )}
                                 </div>
                               </div>
+                            ) : item.messageType === "media" || (item.metadata && item.metadata.contentUrl) ? (
+                              /* MEDIA MESSAGE BUBBLE (PHOTOS & VIDEOS FOR ADMIN, BRAND, CREATOR) */
+                              <div
+                                onTouchStart={() => isMine && handleTouchStartMessage(item._id)}
+                                onTouchEnd={handleTouchEnd}
+                                onTouchCancel={handleTouchEnd}
+                                className={`rounded-2xl p-2.5 text-sm shadow-md space-y-2 max-w-[320px] sm:max-w-[420px] ${
+                                  isMine
+                                    ? "rounded-br-md gradient-sunset text-white"
+                                    : "rounded-bl-md bg-secondary/90 text-foreground border border-border/60"
+                                }`}
+                              >
+                                {item.metadata?.contentUrl && (
+                                  <div className="rounded-xl overflow-hidden bg-black/60 border border-border/40 flex items-center justify-center">
+                                    {item.metadata.mediaType === "video" || item.metadata.contentUrl?.match(/\.(mp4|mov|webm|avi|mkv|m4v)$/i) ? (
+                                      <video
+                                        src={resolveImageUrl(item.metadata.contentUrl)}
+                                        controls
+                                        playsInline
+                                        preload="metadata"
+                                        className="w-full max-h-[300px] object-contain rounded-xl"
+                                      />
+                                    ) : (
+                                      <img
+                                        src={resolveImageUrl(item.metadata.contentUrl)}
+                                        alt={item.metadata.fileName || "Chat media"}
+                                        className="w-full max-h-[300px] object-cover rounded-xl cursor-pointer hover:opacity-95 transition"
+                                        onClick={() => window.open(resolveImageUrl(item.metadata.contentUrl), "_blank")}
+                                      />
+                                    )}
+                                  </div>
+                                )}
+                                {item.text && item.text !== "📷 Photo" && item.text !== "🎥 Video" && (
+                                  <p className="whitespace-pre-wrap leading-relaxed px-1 text-xs">{item.text}</p>
+                                )}
+                                <div
+                                  className={`flex items-center gap-1.5 text-[10px] px-1 ${
+                                    isMine ? "text-white/80 justify-end" : "text-muted-foreground justify-start"
+                                  }`}
+                                >
+                                  <span>
+                                    {item.createdAt
+                                      ? new Date(item.createdAt).toLocaleTimeString([], {
+                                          hour: "2-digit",
+                                          minute: "2-digit",
+                                        })
+                                      : ""}
+                                  </span>
+                                  {isMine && (
+                                    item.read ? (
+                                      <CheckCheck className="h-3 w-3 text-cyan-200" title="Read" />
+                                    ) : (
+                                      <Check className="h-3 w-3 text-white/60" title="Sent" />
+                                    )
+                                  )}
+                                </div>
+                              </div>
                             ) : (
                               /* STANDARD TEXT MESSAGE BUBBLE */
                               <div
@@ -1793,10 +1905,66 @@ export default function Messages() {
               </div>
 
               {/* MESSAGE INPUT BAR WITH ATTACH / SHARE WORK BUTTON */}
-              <form onSubmit={sendMessage} className="border-t border-border p-3 bg-card/60 backdrop-blur-md">
+              <form onSubmit={sendMessage} className="border-t border-border p-3 bg-card/60 backdrop-blur-md space-y-2">
+                {/* Media Attachment Preview before sending */}
+                {attachedMediaPreview && (
+                  <div className="flex items-center gap-3 p-2 rounded-2xl bg-secondary/70 border border-border/80 max-w-sm">
+                    <div className="relative h-14 w-14 rounded-xl overflow-hidden bg-black/80 shrink-0 border border-border flex items-center justify-center">
+                      {attachedMediaType === "video" ? (
+                        <video src={attachedMediaPreview} className="h-full w-full object-cover" />
+                      ) : (
+                        <img src={attachedMediaPreview} alt="Preview" className="h-full w-full object-cover" />
+                      )}
+                      <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
+                        {attachedMediaType === "video" ? (
+                          <VideoIcon className="h-4 w-4 text-white drop-shadow" />
+                        ) : (
+                          <ImageIcon className="h-4 w-4 text-white drop-shadow" />
+                        )}
+                      </div>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-semibold truncate text-foreground">{attachedMedia?.name}</p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {attachedMedia?.size ? `${(attachedMedia.size / (1024 * 1024)).toFixed(2)} MB` : ""}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={removeAttachedMedia}
+                      className="p-1 rounded-full hover:bg-secondary text-muted-foreground hover:text-foreground shrink-0 transition"
+                      title="Remove attachment"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                )}
+
                 <div className="flex items-center gap-2 rounded-2xl border border-input bg-background p-1.5 shadow-sm">
-                  {/* Creator Direct Work Upload Action */}
-                  {profile.role === "creator" && activeConversation.connection && (
+                  {/* Hidden media file input for photos/videos */}
+                  <input
+                    ref={mediaFileInputRef}
+                    type="file"
+                    accept="image/*,video/*"
+                    onChange={handleMediaFileSelect}
+                    className="hidden"
+                  />
+
+                  {/* Photo & Video Attachment Button for All Users (Brand, Creator, Admin) */}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => mediaFileInputRef.current?.click()}
+                    disabled={sending}
+                    className="h-8 w-8 p-0 rounded-xl text-muted-foreground hover:text-primary hover:bg-primary/10 shrink-0 transition"
+                    title="Send Photo or Video"
+                  >
+                    <Paperclip className="h-4 w-4" />
+                  </Button>
+
+                  {/* Creator Direct Work Submission Action (For verified deliverables) */}
+                  {profile?.role === "creator" && activeConversation.connection && (
                     <Button
                       type="button"
                       variant="ghost"
@@ -1808,7 +1976,7 @@ export default function Messages() {
                         setShareWorkModalOpen(true);
                       }}
                       className="h-8 w-8 p-0 rounded-xl text-muted-foreground hover:text-primary hover:bg-primary/10 shrink-0"
-                      title="Share Deliverable / Work (Photo or Video)"
+                      title="Submit Deliverable (Reel/Post)"
                     >
                       <Film className="h-4 w-4" />
                     </Button>
@@ -1817,18 +1985,18 @@ export default function Messages() {
                   <input
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
-                    placeholder="Type a message..."
+                    placeholder={attachedMedia ? "Add a caption..." : "Type a message..."}
                     disabled={sending}
                     className="min-w-0 flex-1 bg-transparent px-3 py-2 text-sm outline-none placeholder:text-muted-foreground"
                   />
 
                   <button
                     type="submit"
-                    disabled={!message.trim() || sending}
+                    disabled={(!message.trim() && !attachedMedia) || sending}
                     className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl gradient-sunset text-white disabled:cursor-not-allowed disabled:opacity-50 transition-all hover:scale-105 active:scale-95 shadow-glow"
                     aria-label="Send message"
                   >
-                    <Send className="h-4 w-4" />
+                    {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                   </button>
                 </div>
               </form>

@@ -4,7 +4,7 @@ import Profile from "../models/Profile.js";
 import Notification from "../models/Notification.js";
 import { sendPushToUser } from "../utils/webPush.js"; 
 
-// Send message
+// Send message (text or image/video media)
 export const sendMessage = async (req, res) => {
   try {
     const { conversationId, senderId, text } = req.body;
@@ -23,18 +23,41 @@ export const sendMessage = async (req, res) => {
       }
     }
 
-    if (!conversationId || !actualSenderId || !text || !text.trim()) {
+    const hasFile = Boolean(req.file);
+    const messageText = (text && text.trim()) || (hasFile ? (req.file.mimetype?.startsWith("video/") ? "🎥 Video" : "📷 Photo") : "");
+
+    if (!conversationId || !actualSenderId || (!messageText && !hasFile)) {
       return res.status(400).json({
         success: false,
         message: "Required fields are missing.",
       });
     }
 
+    let fileUrl = null;
+    let fileType = null;
+    if (hasFile) {
+      if (req.file.path && (req.file.path.startsWith("http://") || req.file.path.startsWith("https://"))) {
+        fileUrl = req.file.path;
+      } else {
+        fileUrl = `/uploads/${req.file.filename}`;
+      }
+      fileType = req.file.mimetype?.startsWith("video/") ? "video" : "image";
+    }
+
     const message = await Message.create({
       conversationId,
       senderId: actualSenderId,
-      text: text.trim(),
+      text: messageText,
       read: false,
+      messageType: hasFile ? "media" : "text",
+      metadata: hasFile
+        ? {
+            contentUrl: fileUrl,
+            mediaType: fileType,
+            fileName: req.file.originalname,
+            fileSize: req.file.size,
+          }
+        : null,
     });
 
     const conversation = await Conversation.findById(conversationId);

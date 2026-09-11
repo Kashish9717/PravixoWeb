@@ -1145,3 +1145,54 @@ export const getCollaborationDeliverables = async (req, res) => {
     });
   }
 };
+
+// Delete / Dismiss connection request
+export const deleteConnection = async (req, res) => {
+  try {
+    const { connectionId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(connectionId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid connection ID.",
+      });
+    }
+
+    const connection = await Connection.findById(connectionId);
+    if (!connection) {
+      return res.status(404).json({
+        success: false,
+        message: "Connection request not found.",
+      });
+    }
+
+    // Permission check: Brand owner, Creator owner, or Admin
+    if (req.user && req.user.role !== "admin") {
+      const userProfileId = String(req.user._id);
+      const isBrandOwner = String(connection.brandId) === userProfileId;
+      const isCreatorOwner = String(connection.creatorId) === userProfileId;
+
+      if (!isBrandOwner && !isCreatorOwner) {
+        return res.status(403).json({
+          success: false,
+          message: "Unauthorized to delete this connection request.",
+        });
+      }
+    }
+
+    await Connection.findByIdAndDelete(connectionId);
+
+    return res.status(200).json({
+      success: true,
+      message: "Connection request deleted successfully.",
+      deletedId: connectionId,
+    });
+  } catch (error) {
+    console.error("Delete connection error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to delete connection request.",
+      error: error.message,
+    });
+  }
+};

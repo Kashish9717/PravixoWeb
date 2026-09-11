@@ -11,6 +11,7 @@ import {
   X,
   MessageSquare,
   Clock,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import api from "../lib/api";
@@ -134,6 +135,29 @@ export default function Connections() {
     } catch (error) {
       console.error("Reject connection error:", error);
       toast.error(error?.response?.data?.message || "Failed to reject connection request.");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // --------------------------------------------------
+  // DELETE CONNECTION REQUEST
+  // --------------------------------------------------
+
+  const handleDeleteConnection = async (connectionId) => {
+    if (!window.confirm("Are you sure you want to delete this connection request?")) {
+      return;
+    }
+
+    try {
+      setActionLoading(connectionId);
+      await api.delete(`/connections/${connectionId}`);
+      toast.success("Connection request deleted.");
+
+      setConnections((prev) => prev.filter((c) => c._id !== connectionId));
+    } catch (error) {
+      console.error("Delete connection error:", error);
+      toast.error(error?.response?.data?.message || "Failed to delete connection request.");
     } finally {
       setActionLoading(null);
     }
@@ -326,19 +350,32 @@ export default function Connections() {
                       </div>
                     </div>
 
-                    {/* STATUS */}
+                    {/* STATUS & DELETE */}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <Badge
+                        className={`rounded-full border-0 px-2 py-0.5 text-[9px] font-medium tracking-wide capitalize ${
+                          connection.status === "accepted"
+                            ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400"
+                            : connection.status === "rejected"
+                            ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
+                            : "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400"
+                        }`}
+                      >
+                        {connection.status}
+                      </Badge>
 
-                    <Badge
-                      className={`rounded-full border-0 px-2 py-0.5 text-[9px] font-medium tracking-wide capitalize ${
-                        connection.status === "accepted"
-                          ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400"
-                          : connection.status === "rejected"
-                          ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
-                          : "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400"
-                      }`}
-                    >
-                      {connection.status}
-                    </Badge>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        disabled={isActionLoading}
+                        onClick={() => handleDeleteConnection(connection._id)}
+                        className="h-7 w-7 p-0 rounded-full text-muted-foreground hover:text-red-600 hover:bg-red-500/10 transition"
+                        title="Delete connection request"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </div>
 
                   {/* PITCH */}
