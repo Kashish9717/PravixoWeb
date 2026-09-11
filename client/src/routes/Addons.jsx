@@ -10,6 +10,13 @@ import {
   Trash2,
   Calendar,
   ShoppingBag,
+  ClipboardList,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  Check,
+  User,
+  AlertCircle,
 } from "lucide-react";
 
 import {
@@ -27,14 +34,19 @@ import { addonApi } from "../services/addonServices";
 import { useAuth } from "../components/auth/AuthProvider";
 
 export default function Addons() {
-  const { profile } = useAuth();
+  const { user, profile } = useAuth();
 
   // =====================================================
   // STATE
   // =====================================================
 
+  const [activeTab, setActiveTab] = useState("services"); // "services" | "bookings"
   const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  const [bookings, setBookings] = useState([]);
+  const [bookingsLoading, setBookingsLoading] = useState(false);
+  const [updatingBookingId, setUpdatingBookingId] = useState(null);
 
   const [showManageModal, setShowManageModal] = useState(false);
   const [editingService, setEditingService] = useState(null);
@@ -57,14 +69,13 @@ export default function Addons() {
   // ADMIN CHECK
   // =====================================================
 
-  // This line hides the buttons on the client since only the admin panel should manage these:
-  const isAdmin = false;
-  
-  // This line is active so ONLY the Admin can see the buttons:
-  // const isAdmin = profile?.role === "brand" && profile?.fullName === "Admin";
+  const isAdmin =
+    profile?.role === "admin" ||
+    user?.role === "admin" ||
+    (profile?.role === "brand" && profile?.fullName?.toLowerCase() === "admin");
 
   // =====================================================
-  // LOAD SERVICES
+  // LOAD SERVICES & BOOKINGS
   // =====================================================
 
   const fetchServices = async () => {
@@ -92,9 +103,75 @@ export default function Addons() {
     }
   };
 
+  const fetchBookings = async () => {
+    try {
+      setBookingsLoading(true);
+      // If admin, fetch all bookings; otherwise, filter by caller profile._id
+      const profileIdParam = isAdmin ? undefined : profile?._id;
+      const response = await addonApi.getBookings(profileIdParam);
+
+      if (response?.success) {
+        setBookings(response.data || []);
+      }
+    } catch (error) {
+      console.error("Fetch addon bookings error:", error);
+    } finally {
+      setBookingsLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchServices();
   }, []);
+
+  useEffect(() => {
+    if (profile?._id || isAdmin) {
+      fetchBookings();
+    }
+  }, [profile?._id, isAdmin]);
+
+  // Status update for bookings (Confirm / Cancel / Pending)
+  const handleUpdateBookingStatus = async (bookingId, newStatus) => {
+    try {
+      setUpdatingBookingId(bookingId);
+      const res = await addonApi.updateBookingStatus(bookingId, newStatus);
+      if (res?.success) {
+        toast.success(res.message || `Booking status updated to ${newStatus}`);
+        setBookings((prev) =>
+          prev.map((b) => (b._id === bookingId ? { ...b, status: newStatus } : b))
+        );
+      } else {
+        toast.error(res?.message || "Failed to update booking status");
+      }
+    } catch (err) {
+      console.error("Status update error:", err);
+      toast.error(err?.response?.data?.message || "Failed to update status");
+    } finally {
+      setUpdatingBookingId(null);
+    }
+  };
+
+  // Delete booking request
+  const handleDeleteBooking = async (bookingId) => {
+    if (!window.confirm("Are you sure you want to delete this booking request?")) {
+      return;
+    }
+    try {
+      setUpdatingBookingId(bookingId);
+      const res = await addonApi.deleteBooking(bookingId);
+      if (res?.success) {
+        toast.success("Booking request deleted successfully.");
+        setBookings((prev) => prev.filter((b) => b._id !== bookingId));
+      } else {
+        toast.error(res?.message || "Failed to delete booking.");
+      }
+    } catch (err) {
+      console.error("Delete booking error:", err);
+      toast.error(err?.response?.data?.message || "Failed to delete booking.");
+    } finally {
+      setUpdatingBookingId(null);
+    }
+  };
 
   // =====================================================
   // OPEN CREATE MODAL
@@ -303,6 +380,7 @@ export default function Addons() {
 
       setBookingService(null);
       setBookingNotes("");
+      fetchBookings();
     } catch (error) {
       console.error(
         "Create addon booking error:",
@@ -363,178 +441,356 @@ export default function Addons() {
             </div>
 
             <h1 className="font-display text-4xl font-extrabold tracking-tight mt-2 text-foreground">
-
               Add-on Services &{" "}
-
               <span className="text-gradient-sunset">
                 Rentals
               </span>
-
             </h1>
 
             <p className="text-sm text-muted-foreground mt-2 max-w-xl">
-
-              Rent high-end equipment, podcast recording
-              studios, hire videographers, video editors, or
-              dedicated support staff for your next campaign.
-
+              Rent high-end equipment, podcast recording studios, hire videographers, video editors, or dedicated support staff for your next campaign.
             </p>
-
           </div>
 
-          {isAdmin && (
-            <Button
-              onClick={handleOpenCreate}
-              className="rounded-full gradient-sunset border-0 text-white font-semibold shadow-glow"
-            >
-              <Plus className="h-4.5 w-4.5 mr-2" />
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Tab switch */}
+            <div className="flex rounded-full bg-secondary/30 p-1 border border-border/40 text-xs font-semibold">
+              <button
+                type="button"
+                onClick={() => setActiveTab("services")}
+                className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all ${
+                  activeTab === "services"
+                    ? "bg-primary text-white shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <ShoppingBag className="h-3.5 w-3.5" />
+                Services & Rentals
+              </button>
 
-              Add Service
-            </Button>
-          )}
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab("bookings");
+                  fetchBookings();
+                }}
+                className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all relative ${
+                  activeTab === "bookings"
+                    ? "bg-primary text-white shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <ClipboardList className="h-3.5 w-3.5" />
+                {isAdmin ? "Booking Requests" : "My Bookings"}
+                {bookings.length > 0 && (
+                  <span
+                    className={`ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                      activeTab === "bookings"
+                        ? "bg-white/20 text-white"
+                        : "bg-primary/20 text-primary"
+                    }`}
+                  >
+                    {bookings.length}
+                  </span>
+                )}
+              </button>
+            </div>
+
+            {isAdmin && activeTab === "services" && (
+              <Button
+                onClick={handleOpenCreate}
+                className="rounded-full gradient-sunset border-0 text-white font-semibold shadow-glow"
+              >
+                <Plus className="h-4.5 w-4.5 mr-2" />
+                Add Service
+              </Button>
+            )}
+          </div>
 
         </div>
 
         {/* =====================================================
-            SERVICES
+            SERVICES OR BOOKINGS
         ===================================================== */}
 
-        {services.length === 0 ? (
+        {activeTab === "services" ? (
+          services.length === 0 ? (
+            <div className="rounded-3xl border border-dashed border-border p-12 text-center bg-card">
+              <ShoppingBag className="mx-auto h-8 w-8 text-muted-foreground/30 mb-2" />
+              <p className="font-semibold text-sm text-muted-foreground">
+                No add-on services or rentals available yet
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {services.map((service) => (
+                <div
+                  key={service._id}
+                  className="rounded-3xl border border-border bg-card flex flex-col justify-between overflow-hidden relative shadow-sm hover:shadow-elevated transition-all duration-200"
+                >
+                  {/* Image */}
+                  <div className="space-y-4">
+                    <div className="h-48 w-full bg-secondary/50 relative overflow-hidden">
+                      <img
+                        src={
+                          service.imageUrl ||
+                          "https://images.unsplash.com/photo-1590608897129-79da98d15969?w=800"
+                        }
+                        alt={service.name}
+                        className="h-full w-full object-cover"
+                      />
+                    </div>
 
-          <div className="rounded-3xl border border-dashed border-border p-12 text-center bg-card">
+                    {/* Details */}
+                    <div className="p-6 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-display text-base font-bold text-foreground">
+                          {service.name}
+                        </h4>
+                        <span className="text-sm font-bold text-primary">
+                          ₹
+                          {Number(
+                            service.price || 0
+                          ).toLocaleString("en-IN")}
+                        </span>
+                      </div>
 
-            <ShoppingBag className="mx-auto h-8 w-8 text-muted-foreground/30 mb-2" />
+                      <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">
+                        {service.description}
+                      </p>
+                    </div>
+                  </div>
 
-            <p className="font-semibold text-sm text-muted-foreground">
-              No add-on services or rentals available yet
-            </p>
+                  {/* Actions */}
+                  <div className="p-6 pt-0 flex justify-between items-center">
+                    <Button
+                      size="sm"
+                      className="rounded-full font-semibold px-5"
+                      disabled={!service.enabled}
+                      onClick={() => {
+                        if (!profile) {
+                          toast.error(
+                            "Please login to proceed with booking."
+                          );
+                          return;
+                        }
+                        setBookingService(service);
+                      }}
+                    >
+                      {service.enabled
+                        ? "Book Now"
+                        : "Currently Unavailable"}
+                    </Button>
 
-          </div>
+                    {isAdmin && (
+                      <div className="flex gap-2">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8 rounded-full"
+                          onClick={() =>
+                            handleOpenEdit(service)
+                          }
+                        >
+                          <Calendar className="h-3.5 w-3.5" />
+                        </Button>
 
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          disabled={
+                            deletingId === service._id
+                          }
+                          className="h-8 w-8 rounded-full text-red-500 hover:text-red-500 hover:bg-red-500/10"
+                          onClick={() =>
+                            handleDelete(service._id)
+                          }
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
         ) : (
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-
-            {services.map((service) => (
-
-              <div
-                key={service._id}
-                className="rounded-3xl border border-border bg-card flex flex-col justify-between overflow-hidden relative shadow-sm hover:shadow-elevated transition-all duration-200"
-              >
-
-                {/* Image */}
-
-                <div className="space-y-4">
-
-                  <div className="h-48 w-full bg-secondary/50 relative overflow-hidden">
-
-                    <img
-                      src={
-                        service.imageUrl ||
-                        "https://images.unsplash.com/photo-1590608897129-79da98d15969?w=800"
-                      }
-                      alt={service.name}
-                      className="h-full w-full object-cover"
-                    />
-
-                  </div>
-
-                  {/* Details */}
-
-                  <div className="p-6 space-y-2">
-
-                    <div className="flex items-center justify-between">
-
-                      <h4 className="font-display text-base font-bold text-foreground">
-                        {service.name}
-                      </h4>
-
-                      <span className="text-sm font-bold text-primary">
-                        ₹
-                        {Number(
-                          service.price || 0
-                        ).toLocaleString("en-IN")}
-                      </span>
-
-                    </div>
-
-                    <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">
-                      {service.description}
-                    </p>
-
-                  </div>
-
-                </div>
-
-                {/* Actions */}
-
-                <div className="p-6 pt-0 flex justify-between items-center">
-
-                  <Button
-                    size="sm"
-                    className="rounded-full font-semibold px-5"
-                    disabled={!service.enabled}
-                    onClick={() => {
-
-                      if (!profile) {
-
-                        toast.error(
-                          "Please login to proceed with booking."
-                        );
-
-                        return;
-                      }
-
-                      setBookingService(service);
-
-                    }}
-                  >
-                    {service.enabled
-                      ? "Book Now"
-                      : "Currently Unavailable"}
-                  </Button>
-
-                  {isAdmin && (
-
-                    <div className="flex gap-2">
-
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-8 w-8 rounded-full"
-                        onClick={() =>
-                          handleOpenEdit(service)
-                        }
-                      >
-                        <Calendar className="h-3.5 w-3.5" />
-                      </Button>
-
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        disabled={
-                          deletingId === service._id
-                        }
-                        className="h-8 w-8 rounded-full text-red-500 hover:text-red-500 hover:bg-red-500/10"
-                        onClick={() =>
-                          handleDelete(service._id)
-                        }
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-
-                    </div>
-
-                  )}
-
-                </div>
-
+          /* =====================================================
+              BOOKINGS LIST
+          ===================================================== */
+          <div>
+            {bookingsLoading ? (
+              <div className="rounded-3xl border border-border p-12 text-center bg-card">
+                <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent mx-auto mb-3" />
+                <p className="text-xs text-muted-foreground font-medium">
+                  Loading bookings...
+                </p>
               </div>
+            ) : bookings.length === 0 ? (
+              <div className="rounded-3xl border border-dashed border-border p-12 text-center bg-card">
+                <ClipboardList className="mx-auto h-8 w-8 text-muted-foreground/30 mb-2" />
+                <p className="font-semibold text-sm text-muted-foreground">
+                  {isAdmin ? "No booking requests found" : "You have not made any booking requests yet"}
+                </p>
+                <p className="text-xs text-muted-foreground/70 mt-1 max-w-sm mx-auto">
+                  Browse available Add-ons and rentals above to submit a booking request.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between text-xs text-muted-foreground px-2">
+                  <span>
+                    Showing {bookings.length} {isAdmin ? "booking request(s)" : "of your booking(s)"}
+                  </span>
+                </div>
 
-            ))}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {bookings.map((booking) => {
+                    const service = booking.serviceId;
+                    const requester = booking.profileId;
+                    const isPending = booking.status === "pending";
+                    const isConfirmed = booking.status === "confirmed";
+                    const isCancelled = booking.status === "cancelled";
 
+                    return (
+                      <div
+                        key={booking._id}
+                        className="rounded-2xl border border-border/80 bg-card p-5 shadow-sm space-y-4 transition-all hover:border-border"
+                      >
+                        {/* Header: Service Name & Status Badge */}
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="space-y-1">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-primary">
+                              {service?.name ? "Add-on Request" : "Service"}
+                            </span>
+                            <h3 className="font-display text-base font-bold text-foreground">
+                              {service?.name || "Add-on Service"}
+                            </h3>
+                            {service?.price && (
+                              <span className="inline-block text-xs font-semibold text-muted-foreground">
+                                ₹{Number(service.price).toLocaleString("en-IN")}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full capitalize ${
+                                isConfirmed
+                                  ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
+                                  : isCancelled
+                                  ? "bg-red-500/10 text-red-500 border border-red-500/20"
+                                  : "bg-amber-500/10 text-amber-500 border border-amber-500/20"
+                              }`}
+                            >
+                              {isConfirmed && <CheckCircle2 className="h-3 w-3" />}
+                              {isCancelled && <XCircle className="h-3 w-3" />}
+                              {isPending && <Clock className="h-3 w-3" />}
+                              {booking.status}
+                            </span>
+
+                            {/* Delete button */}
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              disabled={updatingBookingId === booking._id}
+                              className="h-7 w-7 rounded-full text-muted-foreground hover:text-red-500 hover:bg-red-500/10"
+                              title="Delete booking request"
+                              onClick={() => handleDeleteBooking(booking._id)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+
+                        {/* Customer / Requester Details (Especially for Admin) */}
+                        {requester && (
+                          <div className="rounded-xl bg-secondary/20 p-2.5 flex items-center gap-2.5 text-xs">
+                            <div className="h-7 w-7 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">
+                              {requester.fullName?.[0] || "U"}
+                            </div>
+                            <div className="truncate">
+                              <p className="font-semibold text-foreground truncate">
+                                {requester.fullName}
+                              </p>
+                              <p className="text-[11px] text-muted-foreground truncate">
+                                {requester.email} {requester.role ? `• ${requester.role}` : ""}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Notes */}
+                        {booking.notes && (
+                          <div className="text-xs bg-background/50 rounded-xl p-3 border border-border/40 text-foreground/90">
+                            <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">
+                              Requester Notes:
+                            </p>
+                            <p className="italic leading-relaxed">"{booking.notes}"</p>
+                          </div>
+                        )}
+
+                        {/* Date and actions */}
+                        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border/40 text-[11px] text-muted-foreground">
+                          <span>
+                            {new Date(booking.createdAt).toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                            })}
+                          </span>
+
+                          {/* Admin action buttons */}
+                          {isAdmin && (
+                            <div className="flex items-center gap-1.5">
+                              {booking.status !== "confirmed" && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={updatingBookingId === booking._id}
+                                  className="h-7 text-xs rounded-full px-2.5 text-emerald-500 border-emerald-500/30 hover:bg-emerald-500/10 hover:text-emerald-400"
+                                  onClick={() => handleUpdateBookingStatus(booking._id, "confirmed")}
+                                >
+                                  <Check className="h-3 w-3 mr-1" />
+                                  Confirm
+                                </Button>
+                              )}
+
+                              {booking.status !== "cancelled" && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={updatingBookingId === booking._id}
+                                  className="h-7 text-xs rounded-full px-2.5 text-red-500 border-red-500/30 hover:bg-red-500/10 hover:text-red-400"
+                                  onClick={() => handleUpdateBookingStatus(booking._id, "cancelled")}
+                                >
+                                  <XCircle className="h-3 w-3 mr-1" />
+                                  Cancel
+                                </Button>
+                              )}
+
+                              {booking.status !== "pending" && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  disabled={updatingBookingId === booking._id}
+                                  className="h-7 text-xs rounded-full px-2 text-muted-foreground"
+                                  onClick={() => handleUpdateBookingStatus(booking._id, "pending")}
+                                >
+                                  Reset
+                                </Button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
-
         )}
 
       </div>

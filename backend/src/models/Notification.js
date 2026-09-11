@@ -64,6 +64,7 @@ const notificationSchema = new mongoose.Schema(
         "withdrawal_requested",
         "withdrawal_completed",
         "withdrawal_failed",
+        "addon_booking",
       ],
       required: true,
     },

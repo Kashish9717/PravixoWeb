@@ -32,6 +32,7 @@ import {
   Image as ImageIcon,
   Video as VideoIcon,
   Loader2,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/Badge";

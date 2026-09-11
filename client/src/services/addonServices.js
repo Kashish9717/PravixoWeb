@@ -52,4 +52,16 @@ export const addonApi = {
 
     return response.data;
   },
+
+  // Update booking status
+  updateBookingStatus: async (id, status) => {
+    const response = await api.patch(`/addons/bookings/${id}`, { status });
+    return response.data;
+  },
+
+  // Delete booking
+  deleteBooking: async (id) => {
+    const response = await api.delete(`/addons/bookings/${id}`);
+    return response.data;
+  },
 };
