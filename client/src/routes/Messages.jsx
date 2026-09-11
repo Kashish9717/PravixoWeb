@@ -1610,6 +1610,9 @@ export default function Messages() {
                               <span>This message was {item.unsent ? "unsent" : item.deletedByAdmin ? "deleted by Admin" : "deleted"}</span>
                             </div>
                           </div>
+
+
+    
                         ) : (
                           <div className="flex items-end gap-1.5 group relative max-w-[85%] sm:max-w-[75%]">
                             {/* MESSAGE ACTION BUTTON (More / Unsend options) */}
@@ -1628,7 +1631,7 @@ export default function Messages() {
                               </button>
                             )}
 
-                            {/* DELIVERABLE SUBMISSION INTERACTIVE CARD IN CHAT */}
+                            {/* DELIVERABLE SUBMISSION INTERACTIVE CARD IN CHAT and can send */}
                             {item.messageType === "deliverable_submission" && item.metadata ? (
                               <div
                                 className={cn(
