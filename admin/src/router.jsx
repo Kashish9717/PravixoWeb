@@ -15,6 +15,7 @@ import ClientReviewsPage from "./pages/client-reviews";
 import BlogsPage from "./pages/blogs";
 import ProTipsPage from "./pages/protips";
 import { CampaignsPage } from "./pages/campaigns";
+import { BookingsPage } from "./pages/bookings";
 import { NotificationsPage } from "./pages/notifications";
 import { OffersPage } from "./pages/offers";
 
@@ -33,6 +34,10 @@ export const router = createBrowserRouter([
       {
         path: "/campaigns",
         element: <CampaignsPage />,
+      },
+      {
+        path: "/bookings",
+        element: <BookingsPage />,
       },
       {
         path: "/users",
