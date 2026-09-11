@@ -13,17 +13,19 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const url = event.notification.data?.url || '/';
+  const rawUrl = event.notification.data?.url || '/';
+  const targetUrl = /^https?:\/\//i.test(rawUrl) ? rawUrl : new URL(rawUrl, self.location.origin).href;
 
   event.waitUntil(
-    clients.matchAll({ type: 'window' }).then((clientsList) => {
-      // agar tab already khula hai toh usi pe focus karo
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientsList) => {
       for (const client of clientsList) {
-        if (client.url.includes(url) && 'focus' in client) {
+        if (client.url === targetUrl && 'focus' in client) {
           return client.focus();
         }
       }
-      return clients.openWindow(url);
+      if (clients.openWindow) {
+        return clients.openWindow(targetUrl);
+      }
     })
   );
 });

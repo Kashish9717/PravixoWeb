@@ -834,24 +834,9 @@ export default function InfluencerDetails() {
   ] = useState(false);
 
   // ===================================================
-  // LOGIN
+  // PUBLIC PROFILE VIEW (Login is NOT required to view profiles)
   // ===================================================
 
-  useEffect(() => {
-    if (!authLoading && !user) {
-      navigate("/login", {
-        state: {
-          from: `/influencer/${inf?.id || profileId}`,
-        },
-      });
-    }
-  }, [
-    user,
-    authLoading,
-    navigate,
-    inf?.id,
-    profileId,
-  ]);
 
   // ===================================================
   // LOAD PORTFOLIO
@@ -1868,6 +1853,19 @@ export default function InfluencerDetails() {
                   </>
                 )}
 
+              {!user && (
+                <Button
+                  className="rounded-full gradient-sunset border-0 text-white shadow-glow px-5 h-9 flex items-center gap-1.5 text-xs font-semibold"
+                  onClick={() =>
+                    navigate("/login", {
+                      state: { from: `/influencer/${inf?.id || profileId}` },
+                    })
+                  }
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  Sign In to Connect
+                </Button>
+              )}
             </div>
           </div>
         </div>

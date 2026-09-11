@@ -217,7 +217,12 @@ export default function Notifications() {
     }
 
     if (event.targetUrl) {
-      navigate(event.targetUrl);
+      const url = event.targetUrl.trim();
+      if (/^https?:\/\//i.test(url)) {
+        window.open(url, "_blank", "noopener,noreferrer");
+      } else {
+        navigate(url.startsWith("/") ? url : `/${url}`);
+      }
       return;
     }
 

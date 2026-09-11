@@ -474,6 +474,9 @@ export function DashboardInfluencer() {
 
   // Tab State
   const [activeTab, setActiveTab] = useState("dashboard");
+  // Sub-section quick selector to eliminate excessive scrolling
+  const [creatorSubSection, setCreatorSubSection] = useState("all");
+
 
   // Popup & Banner State
   const [showOfferPopup, setShowOfferPopup] = useState(false);
@@ -1350,101 +1353,130 @@ const CAMPAIGNS_PER_PAGE = 6;
   </Dialog>
 </div>
 
-        <div className="mt-8 grid gap-4 grid-cols-2 md:grid-cols-3">
+        <div className="mt-8 grid gap-4 grid-cols-2 md:grid-cols-3 font-jakarta">
           {[
             {
               icon: Eye,
               label: "Profile views",
               value: profile?.profileViews?.toLocaleString() || "0",
-              // delta: "+18%",
             },
             {
               icon: MousePointerClick,
               label: "Clicks",
               value: profile?.clicks?.toLocaleString() || "0",
-              // delta: "+9%",
             },
             {
               icon: TrendingUp,
               label: "Bookings",
               value: profile?.bookings?.toLocaleString() || "0",
-              // delta: "+4",
             },
           ].map(
               (s, idx) => (
               <div
                 key={s.label}
                 className={cn(
-                  "rounded-3xl border border-border bg-card p-6",
+                  "stat-card-3d rounded-3xl border border-border/60 bg-gradient-to-b from-card to-card/70 p-6 shadow-soft transition-all",
                   idx === 2 && "col-span-2 md:col-span-1",
                 )}
               >
                 <div className="flex items-start justify-between">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent text-accent-foreground">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-inner">
                     <s.icon className="h-5 w-5" />
                   </div>
                   {s.delta && (
                     <Badge
                       variant="secondary"
-                      className="rounded-full text-xs text-emerald-600"
+                      className="rounded-full text-xs text-emerald-600 font-bold"
                     >
                       {s.delta}
                     </Badge>
                   )}
                 </div>
-                <div className="mt-4 font-display text-3xl font-bold">
+                <div className="mt-4 font-outfit text-3xl font-black text-foreground">
                   {s.value}
                 </div>
-                <div className="text-sm text-muted-foreground">{s.label}</div>
+                <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mt-1">{s.label}</div>
               </div>
             ),
           )}
         </div>
 
         {/* TAB NAVIGATION PILLS */}
-        <div className="mt-8 flex flex-wrap items-center gap-2 border-b border-border/50 pb-4">
-          <button
-            onClick={() => setActiveTab("dashboard")}
-            className={`flex items-center gap-2 rounded-full px-5 py-2 text-xs font-semibold transition-all duration-200 ${
-              activeTab === "dashboard"
-                ? "gradient-sunset text-white shadow-glow"
-                : "bg-secondary/40 text-muted-foreground hover:bg-secondary hover:text-foreground border border-border/40"
-            }`}
-          >
-            <Building2 className="h-4 w-4" />
-            Dashboard
-          </button>
-          <button
-            onClick={() => setActiveTab("wallet")}
-            className={`flex items-center gap-2 rounded-full px-5 py-2 text-xs font-semibold transition-all duration-200 ${
-              activeTab === "wallet"
-                ? "gradient-sunset text-white shadow-glow"
-                : "bg-secondary/40 text-muted-foreground hover:bg-secondary hover:text-foreground border border-border/40"
-            }`}
-          >
-            <Wallet className="h-4 w-4" />
-            Wallet & Earnings
-          </button>
-          <button
-            onClick={() => setActiveTab("subscription")}
-            className={`flex items-center gap-2 rounded-full px-5 py-2 text-xs font-semibold transition-all duration-200 ${
-              activeTab === "subscription"
-                ? "gradient-sunset text-white shadow-glow"
-                : "bg-secondary/40 text-muted-foreground hover:bg-secondary hover:text-foreground border border-border/40"
-            }`}
-          >
-            <Star className="h-4 w-4" />
-            ⭐ Packages
-          </button>
+        <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-b border-border/50 pb-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setActiveTab("dashboard")}
+              className={`btn-bouncy flex items-center gap-2 rounded-full px-5 py-2.5 text-xs font-bold transition-all duration-200 ${
+                activeTab === "dashboard"
+                  ? "gradient-sunset text-white shadow-glow"
+                  : "bg-secondary/40 text-muted-foreground hover:bg-secondary hover:text-foreground border border-border/40"
+              }`}
+            >
+              <Building2 className="h-4 w-4" />
+              Dashboard
+            </button>
+            <button
+              onClick={() => setActiveTab("wallet")}
+              className={`btn-bouncy flex items-center gap-2 rounded-full px-5 py-2.5 text-xs font-bold transition-all duration-200 ${
+                activeTab === "wallet"
+                  ? "gradient-sunset text-white shadow-glow"
+                  : "bg-secondary/40 text-muted-foreground hover:bg-secondary hover:text-foreground border border-border/40"
+              }`}
+            >
+              <Wallet className="h-4 w-4" />
+              Wallet & Earnings
+            </button>
+            <button
+              onClick={() => setActiveTab("subscription")}
+              className={`btn-bouncy flex items-center gap-2 rounded-full px-5 py-2.5 text-xs font-bold transition-all duration-200 ${
+                activeTab === "subscription"
+                  ? "gradient-sunset text-white shadow-glow"
+                  : "bg-secondary/40 text-muted-foreground hover:bg-secondary hover:text-foreground border border-border/40"
+              }`}
+            >
+              <Star className="h-4 w-4" />
+              ⭐ Packages
+            </button>
+          </div>
+
+          {/* Sub-Section Quick Navigator to prevent long scrolling */}
+          {activeTab === "dashboard" && (
+            <div className="flex items-center gap-1.5 overflow-x-auto py-1 px-1 rounded-2xl bg-secondary/30 border border-border/40 no-scrollbar">
+              <span className="text-[10px] font-bold text-muted-foreground/80 px-2.5 uppercase tracking-wider hidden sm:inline">
+                Jump to:
+              </span>
+              {[
+                { id: "all", label: "✨ All" },
+                { id: "profile", label: "🎨 Profile & Portfolio" },
+                { id: "collaborations", label: "🤝 Deals & Tasks" },
+                { id: "discover", label: "🔍 Find Campaigns" },
+                { id: "payments", label: "💰 Escrow & Bank" },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setCreatorSubSection(tab.id)}
+                  className={cn(
+                    "pill-cute px-3 py-1.5 text-xs font-semibold whitespace-nowrap",
+                    creatorSubSection === tab.id
+                      ? "bg-primary text-primary-foreground shadow-sm ring-2 ring-primary/30"
+                      : "text-muted-foreground hover:text-foreground hover:bg-secondary/70"
+                  )}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
-        <div className="mt-6">
+        <div className="mt-6 font-jakarta">
           <div className="w-full">
             {activeTab === "dashboard" ? (
               <>
                 <div className="grid gap-6 lg:grid-cols-3 items-start">
-          <div className="rounded-3xl border border-border bg-card p-6 lg:col-span-2">
-            <h2 className="font-display text-lg font-semibold">Edit profile</h2>
+          {(creatorSubSection === "all" || creatorSubSection === "profile") && (
+          <div className="card-3d rounded-3xl border border-border/60 bg-card p-6 lg:col-span-2 shadow-sm">
+            <h2 className="font-outfit text-xl font-bold">Edit Profile</h2>
             <div className="mt-5">
               <div className="flex flex-col sm:flex-row items-center gap-4">
                 <img src={
@@ -2066,33 +2098,33 @@ const CAMPAIGNS_PER_PAGE = 6;
               </div>
             )}
 
-            <h3 className="mt-8 font-display text-base font-semibold">
+            <h3 className="mt-8 font-outfit text-lg font-bold">
               Portfolio
             </h3>
             <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
               {portfolioImages?.map((img) => (
                 <div
                   key={img._id}
-                  className="group relative aspect-square overflow-hidden rounded-2xl border border-border"
+                  className="group relative aspect-square overflow-hidden rounded-2xl border border-border/70 hover:shadow-md transition-all"
                 >
                   {img.url && (
                     <img
                       src={resolveImageUrl(img.url)}
                       alt=""
-                      className="h-full w-full object-cover"
+                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                       onError={(e) => { e.target.onerror = null; e.target.style.display = 'none'; }}
                     />
                   )}
                   <button
                     onClick={() => removeImage(img._id)}
-                    className="absolute right-2 top-2 rounded-full bg-background/90 p-1.5 opacity-0 shadow-soft transition-opacity group-hover:opacity-100"
+                    className="absolute right-2 top-2 rounded-full bg-background/90 p-1.5 opacity-0 shadow-soft transition-opacity group-hover:opacity-100 hover:scale-110"
                   >
                     <Trash2 className="h-3.5 w-3.5 text-destructive" />
                   </button>
                 </div>
               ))}
-              <label className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded-2xl border border-dashed border-border text-xs text-muted-foreground hover:bg-secondary">
-                <Upload className="h-5 w-5" />
+              <label className="btn-bouncy flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded-2xl border border-dashed border-border/80 text-xs font-semibold text-muted-foreground hover:bg-secondary/70 hover:border-primary/50 transition-all">
+                <Upload className="h-5 w-5 text-primary" />
                 {uploading ? "Uploading…" : "Upload"}
                 <input
                   ref={fileRef}
@@ -2109,13 +2141,15 @@ const CAMPAIGNS_PER_PAGE = 6;
               <Button
                 onClick={saveProfile}
                 disabled={saving}
-                className="rounded-full gradient-sunset border-0 text-white shadow-glow"
+                className="btn-bouncy rounded-full gradient-sunset border-0 text-white shadow-glow px-7 font-bold text-xs h-10"
               >
                 {saving ? "Saving..." : "Save Profile"}
               </Button>
             </div>
           </div>
+          )}
 
+          {(creatorSubSection === "all" || creatorSubSection === "collaborations") && (
           <div className="space-y-6 lg:col-span-1">
             {/* ASSIGNED TASKS */}
             <div className="rounded-3xl border border-border bg-card p-6">
@@ -2572,19 +2606,21 @@ const CAMPAIGNS_PER_PAGE = 6;
               <Button
                 onClick={savePricing}
                 variant="secondary"
-                className="mt-5 w-full rounded-full"
+                className="btn-bouncy mt-5 w-full rounded-full font-bold text-xs h-9"
               >
                 Update pricing
               </Button>
             </div>
           </div>
+          )}
         </div>
 
         {/* CAMPAIGN DISCOVERY SECTION FOR CREATORS */}
-        <div className="mt-8 rounded-3xl border border-border bg-card p-6 shadow-sm">
+        {(creatorSubSection === "all" || creatorSubSection === "discover") && (
+        <div className="card-3d mt-8 rounded-3xl border border-border/60 bg-card p-6 shadow-sm">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6">
             <div>
-              <h2 className="font-display text-lg font-semibold flex items-center gap-2">
+              <h2 className="font-outfit text-xl font-bold flex items-center gap-2">
                 <Megaphone className="h-5 w-5 text-primary" /> Discover Campaigns
               </h2>
               <p className="text-xs text-muted-foreground mt-0.5">
@@ -2797,7 +2833,7 @@ const CAMPAIGNS_PER_PAGE = 6;
                       variant="outline"
                       disabled={discoverPage >= Math.ceil(discoverableCampaigns.length / CAMPAIGNS_PER_PAGE)}
                       onClick={() => setDiscoverPage((p) => p + 1)}
-                      className="rounded-full h-8 px-3 text-xs"
+                      className="rounded-full h-8 px-3 text-xs font-bold"
                     >
                       Next
                     </Button>
@@ -2807,11 +2843,14 @@ const CAMPAIGNS_PER_PAGE = 6;
             </>
           )}
         </div>
+        )}
 
         {/* Payments Section */}
-        <div className="mt-8 rounded-3xl border border-border bg-card p-6">
+        {(creatorSubSection === "all" || creatorSubSection === "payments") && (
+        <>
+        <div className="card-3d mt-8 rounded-3xl border border-border/60 bg-card p-6 shadow-sm">
           <div className="mb-6">
-            <h2 className="font-display text-lg font-semibold">
+            <h2 className="font-outfit text-xl font-bold">
               My Escrow Payments
             </h2>
             <p className="text-xs text-muted-foreground mt-0.5">
@@ -3110,17 +3149,20 @@ const CAMPAIGNS_PER_PAGE = 6;
             <Button
               type="submit"
               disabled={savingBank}
-              className="rounded-full px-8 gradient-sunset border-0 text-white shadow-glow text-xs h-9 font-semibold"
+              className="btn-bouncy rounded-full px-8 gradient-sunset border-0 text-white shadow-glow text-xs h-10 font-bold"
             >
               {savingBank ? "Saving Settings..." : "Save Payment Details"}
             </Button>
           </form>
         </div>
+        </>
+        )}
 
         {/* Reviews Section */}
-        <div className="mt-8 rounded-3xl border border-border bg-card p-6">
+        {(creatorSubSection === "all" || creatorSubSection === "profile") && (
+        <div className="card-3d mt-8 rounded-3xl border border-border/60 bg-card p-6 shadow-sm">
           <div className="mb-6">
-            <h2 className="font-display text-lg font-semibold">
+            <h2 className="font-outfit text-xl font-bold">
               Reviews & Feedback
             </h2>
             <p className="text-xs text-muted-foreground mt-0.5">
@@ -3135,7 +3177,7 @@ const CAMPAIGNS_PER_PAGE = 6;
           ) : reviews.length === 0 ? (
             <div className="py-12 text-center border border-dashed border-border rounded-2xl">
               <Star className="mx-auto h-8 w-8 text-muted-foreground/30 mb-2" />
-              <p className="font-semibold text-sm text-muted-foreground">
+              <p className="font-semibold text-sm text-muted-foreground font-outfit">
                 No reviews received yet
               </p>
               <p className="text-xs text-muted-foreground mt-1">
@@ -3147,7 +3189,7 @@ const CAMPAIGNS_PER_PAGE = 6;
               {reviews.map((review) => (
                 <div
                   key={review._id}
-                  className="flex flex-col md:flex-row md:items-center justify-between gap-4 border border-border rounded-2xl p-4 transition-colors hover:bg-accent/10"
+                  className="card-3d flex flex-col md:flex-row md:items-center justify-between gap-4 border border-border/60 bg-background/70 rounded-2xl p-4 transition-all hover:border-primary/40"
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-3">
@@ -3160,13 +3202,13 @@ const CAMPAIGNS_PER_PAGE = 6;
                        onError={(e) => { e.target.onerror = null; e.target.src = "https://api.dicebear.com/9.x/avataaars/svg?seed=Fallback"; }} />
                       <div>
                         <div className="flex items-center gap-2">
-                          <h4 className="font-display text-sm font-semibold text-foreground">
+                          <h4 className="font-outfit text-sm font-bold text-foreground">
                             {review.brandName}
                           </h4>
                           {review.campaignRef && (
                             <Badge
                               variant="secondary"
-                              className="text-[10px] rounded-full"
+                              className="text-[10px] rounded-full font-bold"
                             >
                               Campaign: {review.campaignRef}
                             </Badge>
@@ -3199,11 +3241,13 @@ const CAMPAIGNS_PER_PAGE = 6;
                       </div>
                     </div>
 
-                    <div className="mt-3 pl-0 md:pl-13">
-                      <h5 className="text-sm font-semibold text-foreground">
-                        {review.title}
-                      </h5>
-                      <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap leading-relaxed">
+                    <div className="mt-3 text-xs text-foreground/90">
+                      {review.comment && (
+                        <p className="font-medium text-foreground">
+                          "{review.comment}"
+                        </p>
+                      )}
+                      <p className="text-muted-foreground mt-1">
                         {review.text}
                       </p>
                     </div>
@@ -3230,6 +3274,7 @@ const CAMPAIGNS_PER_PAGE = 6;
             </div>
           )}
         </div>
+        )}
       </>
           ) : activeTab === "wallet" ? (
             <div className="space-y-6">

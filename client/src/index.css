@@ -321,3 +321,80 @@
 @utility animate-blob {
   animation: blob 18s ease-in-out infinite;
 }
+
+/* 3D and Cute Premium Interactive Utilities */
+.font-outfit {
+  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.font-jakarta {
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.font-poppins {
+  font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* 3D Depth Card with smooth lifting & shine */
+.card-3d {
+  transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  will-change: transform, box-shadow;
+  transform: translateZ(0);
+}
+
+.card-3d:hover {
+  transform: translateY(-5px) scale(1.015);
+  box-shadow: 0 16px 36px -12px rgba(236, 72, 153, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+.dark .card-3d:hover {
+  box-shadow: 0 20px 40px -15px rgba(244, 63, 94, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.16);
+}
+
+/* Interactive Stat Card 3D Feel */
+.stat-card-3d {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transform: translateZ(0);
+}
+
+.stat-card-3d:hover {
+  transform: translateY(-4px) scale(1.025);
+  box-shadow: 0 14px 30px -10px rgba(236, 72, 153, 0.35);
+}
+
+.stat-card-3d:active {
+  transform: translateY(-1px) scale(0.99);
+}
+
+/* Button click tactile feedback & bouncy hover */
+.btn-bouncy {
+  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.btn-bouncy:hover {
+  transform: translateY(-2px) scale(1.03);
+}
+
+.btn-bouncy:active {
+  transform: translateY(1px) scale(0.96);
+}
+
+/* Cute pill badges */
+.pill-cute {
+  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.pill-cute:hover {
+  transform: scale(1.06);
+}
+
+/* Smooth hidden scrollbar for horizontal sections */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

@@ -248,6 +248,9 @@ export function DashboardCustomer() {
 
   // Tab State
   const [activeTab, setActiveTab] = useState("dashboard");
+  // Sub-section quick selector to eliminate excessive scrolling
+  const [brandSubSection, setBrandSubSection] = useState("all");
+
 
   // Popup & Banner State
   const [showOfferPopup, setShowOfferPopup] = useState(false);
@@ -1649,59 +1652,93 @@ const [submittingVerification, setSubmittingVerification] =
         )}
 
         {/* TAB NAVIGATION PILLS */}
-        <div className="mt-8 flex flex-wrap items-center gap-2 border-b border-border/50 pb-4">
-          <button
-            onClick={() => setActiveTab("dashboard")}
-            className={`flex items-center gap-2 rounded-full px-5 py-2 text-xs font-semibold transition-all duration-200 ${
-              activeTab === "dashboard"
-                ? "gradient-sunset text-white shadow-glow"
-                : "bg-secondary/40 text-muted-foreground hover:bg-secondary hover:text-foreground border border-border/40"
-            }`}
-          >
-            <Building2 className="h-4 w-4" />
-            Dashboard
-          </button>
-          <button
-            onClick={() => setActiveTab("subscription")}
-            className={`flex items-center gap-2 rounded-full px-5 py-2 text-xs font-semibold transition-all duration-200 ${
-              activeTab === "subscription"
-                ? "gradient-sunset text-white shadow-glow"
-                : "bg-secondary/40 text-muted-foreground hover:bg-secondary hover:text-foreground border border-border/40"
-            }`}
-          >
-            <Star className="h-4 w-4" />
-            ⭐ Packages
-          </button>
+        <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-b border-border/50 pb-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setActiveTab("dashboard")}
+              className={`btn-bouncy flex items-center gap-2 rounded-full px-5 py-2.5 text-xs font-bold transition-all duration-200 ${
+                activeTab === "dashboard"
+                  ? "gradient-sunset text-white shadow-glow"
+                  : "bg-secondary/40 text-muted-foreground hover:bg-secondary hover:text-foreground border border-border/40"
+              }`}
+            >
+              <Building2 className="h-4 w-4" />
+              Dashboard
+            </button>
+            <button
+              onClick={() => setActiveTab("subscription")}
+              className={`btn-bouncy flex items-center gap-2 rounded-full px-5 py-2.5 text-xs font-bold transition-all duration-200 ${
+                activeTab === "subscription"
+                  ? "gradient-sunset text-white shadow-glow"
+                  : "bg-secondary/40 text-muted-foreground hover:bg-secondary hover:text-foreground border border-border/40"
+              }`}
+            >
+              <Star className="h-4 w-4" />
+              ⭐ Packages
+            </button>
+          </div>
+
+          {/* Quick Sub-Section Navigator to eliminate scrolling */}
+          {activeTab === "dashboard" && (
+            <div className="flex items-center gap-1.5 overflow-x-auto py-1 px-1 rounded-2xl bg-secondary/30 border border-border/40 no-scrollbar">
+              <span className="text-[10px] font-bold text-muted-foreground/80 px-2.5 uppercase tracking-wider hidden sm:inline">
+                Jump to:
+              </span>
+              {[
+                { id: "all", label: "✨ All" },
+                { id: "profile", label: "🏢 Profile" },
+                { id: "campaigns", label: "📢 Campaigns" },
+                { id: "escrow", label: "💳 Escrow & Pay" },
+                { id: "preferences", label: "🎯 Preferences" },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setBrandSubSection(tab.id)}
+                  className={cn(
+                    "pill-cute px-3 py-1.5 text-xs font-semibold whitespace-nowrap",
+                    brandSubSection === tab.id
+                      ? "bg-primary text-primary-foreground shadow-sm ring-2 ring-primary/30"
+                      : "text-muted-foreground hover:text-foreground hover:bg-secondary/70"
+                  )}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* MAIN TAB CONTENT */}
         <div className="mt-6 w-full min-w-0">
           {activeTab === "dashboard" ? (
-            <div className="grid gap-6 grid-cols-1 lg:grid-cols-3 items-start w-full min-w-0">
+            <div className="grid gap-6 grid-cols-1 lg:grid-cols-3 items-start w-full min-w-0 font-jakarta">
               {/* LEFT COLUMN: EDIT SECTIONS */}
               <div className="space-y-6 lg:col-span-2 w-full min-w-0">
             {/* STATS PREVIEW CARDS */}
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-              {stats.map((s) => (
-                <div
-                  key={s.label}
-                  className="flex h-28 flex-col items-center justify-center rounded-3xl border border-border bg-card p-4 text-center shadow-sm"
-                >
-                  <div className="font-display text-2xl font-bold text-foreground">
-                    {s.value}
+            {(brandSubSection === "all" || brandSubSection === "profile") && (
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                {stats.map((s) => (
+                  <div
+                    key={s.label}
+                    className="stat-card-3d flex h-28 flex-col items-center justify-center rounded-3xl border border-border/60 bg-gradient-to-b from-card to-card/70 p-4 text-center shadow-soft"
+                  >
+                    <div className="font-outfit text-2xl font-black tracking-tight text-foreground">
+                      {s.value}
+                    </div>
+                    <div className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground mt-1.5 font-jakarta">
+                      {s.label}
+                    </div>
                   </div>
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground mt-1">
-                    {s.label}
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
 
             {/* BRAND PROFILE FORM */}
-            <div className="rounded-3xl border border-border bg-card p-6 shadow-sm">
-              <h2 className="font-display text-lg font-semibold mb-5 flex items-center gap-2">
-                <Building2 className="h-5 w-5 text-primary" /> Edit Brand
-                Details
+            {(brandSubSection === "all" || brandSubSection === "profile") && (
+            <>
+            <div className="card-3d rounded-3xl border border-border/60 bg-card p-6 shadow-sm">
+              <h2 className="font-outfit text-xl font-bold mb-5 flex items-center gap-2">
+                <Building2 className="h-5 w-5 text-primary" /> Edit Brand Details
               </h2>
 
               <div className="mb-6">
@@ -2218,7 +2255,7 @@ const [submittingVerification, setSubmittingVerification] =
                   <Button
                     type="submit"
                     disabled={savingProfile}
-                    className="rounded-full gradient-sunset border-0 text-white shadow-glow px-6"
+                    className="btn-bouncy rounded-full gradient-sunset border-0 text-white shadow-glow px-7 font-bold text-xs h-10"
                   >
                     {savingProfile ? "Saving Details..." : "Save Details"}
                   </Button>
@@ -2227,8 +2264,8 @@ const [submittingVerification, setSubmittingVerification] =
             </div>
 
             {/* BRAND GALLERY */}
-            <div className="rounded-3xl border border-border bg-card p-6 shadow-sm">
-              <h2 className="font-display text-lg font-semibold mb-2">
+            <div className="card-3d rounded-3xl border border-border/60 bg-card p-6 shadow-sm">
+              <h2 className="font-outfit text-xl font-bold mb-2">
                 Brand Gallery
               </h2>
               <p className="text-xs text-muted-foreground mb-4">
@@ -2240,13 +2277,13 @@ const [submittingVerification, setSubmittingVerification] =
                   return (
                     <div
                       key={img._id}
-                      className="group relative aspect-square overflow-hidden rounded-2xl border border-border bg-secondary/10"
+                      className="group relative aspect-square overflow-hidden rounded-2xl border border-border/70 hover:shadow-md transition-all"
                     >
                       {imageSrc && (
                         <img
                           src={imageSrc}
-                          alt="Brand Gallery"
-                          className="h-full w-full object-cover"
+                          alt="Gallery"
+                          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                           onError={(e) => {
                             e.currentTarget.style.display = "none";
                           }}
@@ -2255,7 +2292,7 @@ const [submittingVerification, setSubmittingVerification] =
                       <button
                         type="button"
                         onClick={() => handleRemoveGalleryImage(img._id)}
-                        className="absolute right-2 top-2 rounded-full bg-background/90 p-1.5 opacity-0 shadow-soft transition-opacity group-hover:opacity-100"
+                        className="absolute right-2 top-2 rounded-full bg-background/90 p-1.5 opacity-0 shadow-soft transition-opacity group-hover:opacity-100 hover:scale-110"
                         title="Delete image"
                       >
                         <Trash2 className="h-3.5 w-3.5 text-destructive" />
@@ -2263,8 +2300,8 @@ const [submittingVerification, setSubmittingVerification] =
                     </div>
                   );
                 })}
-                <label className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded-2xl border border-dashed border-border text-xs text-muted-foreground hover:bg-secondary">
-                  <Upload className="h-5 w-5" />
+                <label className="btn-bouncy flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded-2xl border border-dashed border-border/80 text-xs font-semibold text-muted-foreground hover:bg-secondary/70 hover:border-primary/50 transition-all">
+                  <Upload className="h-5 w-5 text-primary" />
                   {uploadingGallery ? "Uploading…" : "Add Image"}
                   <input
                     ref={fileRef}
@@ -2279,9 +2316,9 @@ const [submittingVerification, setSubmittingVerification] =
             </div>
 
             {/* RECOMMENDED CREATORS */}
-            <div className="rounded-3xl border border-border bg-card p-6 shadow-sm mb-6">
+            <div className="card-3d rounded-3xl border border-border/60 bg-card p-6 shadow-sm mb-6">
               <div className="mb-4">
-                <h2 className="font-display text-lg font-semibold flex items-center gap-2">
+                <h2 className="font-outfit text-xl font-bold flex items-center gap-2">
                   <Star className="h-5 w-5 text-yellow-500 fill-current" /> Recommended Creators
                 </h2>
                 <p className="text-xs text-muted-foreground mt-0.5">
@@ -2298,7 +2335,7 @@ const [submittingVerification, setSubmittingVerification] =
                   {recommendedCreators.map((creator) => (
                     <div
                       key={creator.id}
-                      className="flex items-center justify-between rounded-2xl border border-border bg-background p-3 hover:bg-accent/5 transition-all"
+                      className="card-3d flex items-center justify-between rounded-2xl border border-border/60 bg-background/80 p-3.5 hover:border-primary/40 transition-all"
                     >
                       <div className="flex items-center gap-3">
                         <div className="h-10 w-10 overflow-hidden rounded-full border border-border">
@@ -2317,7 +2354,7 @@ const [submittingVerification, setSubmittingVerification] =
                            onError={(e) => { e.target.onerror = null; e.target.src = "https://api.dicebear.com/9.x/avataaars/svg?seed=Fallback"; }} />
                         </div>
                         <div>
-                          <p className="font-display text-sm font-bold text-foreground">
+                          <p className="font-outfit text-sm font-bold text-foreground">
                             {creator.name}
                           </p>
                           <p className="text-[10px] text-muted-foreground">
@@ -2328,7 +2365,7 @@ const [submittingVerification, setSubmittingVerification] =
                       <Button
                         size="sm"
                         variant="outline"
-                        className="h-7 rounded-full text-[10px] px-3"
+                        className="btn-bouncy h-7 rounded-full text-[10px] px-3 font-bold"
                         onClick={() => navigate(`/influencer/${creator.id}`)}
                       >
                         View
@@ -2338,125 +2375,164 @@ const [submittingVerification, setSubmittingVerification] =
                 </div>
               )}
             </div>
+          </>
+        )}
 
             {/* OPEN CAMPAIGNS */}
-            <div className="rounded-3xl border border-border bg-card p-6 shadow-sm">
+            {(brandSubSection === "all" || brandSubSection === "campaigns") && (
+            <div className="card-3d rounded-3xl border border-border/60 bg-card p-6 shadow-sm">
               <div className="flex items-center justify-between mb-2">
                 <div>
-                  <h2 className="font-display text-lg font-semibold">
+                  <h2 className="font-outfit text-xl font-bold">
                     Open Campaigns
                   </h2>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Create and manage active campaign listings visible to
-                    creators.
+                    Create and manage active campaign listings visible to creators.
                   </p>
                 </div>
                 <Button
                   size="sm"
-                  className="rounded-full gradient-sunset border-0 text-white shadow-glow px-4 h-9 flex items-center gap-1.5"
-                  onClick={openAddCampaignModal}
+                  className="btn-bouncy rounded-full gradient-sunset border-0 text-white shadow-glow text-xs h-9 px-4 font-bold flex items-center gap-1.5"
+                  onClick={openNewCampaignModal}
                 >
-                  <Plus className="h-4 w-4" /> Add Campaign
+                  <Plus className="h-4 w-4" /> Create Campaign
                 </Button>
               </div>
+              <p className="text-[11px] text-muted-foreground/80 mb-5">
+                Note: Created campaigns undergo a short Admin Verification before becoming visible to creators.
+              </p>
 
-              {!campaigns ? (
-                <div className="py-8 text-center text-sm text-muted-foreground">
+              {!brandCampaigns ? (
+                <div className="py-8 text-center text-xs text-muted-foreground">
                   Loading campaigns...
                 </div>
-              ) : campaigns.length === 0 ? (
-                <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border py-12 text-center">
-                  <p className="font-display font-semibold text-sm">
-                    No campaigns listed yet
+              ) : brandCampaigns.length === 0 ? (
+                <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border py-10 text-center">
+                  <Megaphone className="mx-auto h-8 w-8 text-muted-foreground/30 mb-2" />
+                  <p className="font-semibold text-sm text-foreground font-outfit">
+                    No campaigns created yet
                   </p>
-                  <p className="mt-1 text-xs text-muted-foreground max-w-[280px]">
-                    Add campaign listings to invite pitches and applications
-                    from top creators.
+                  <p className="text-xs text-muted-foreground mt-1 max-w-[280px]">
+                    Create your first campaign listing to attract creators and receive proposals.
                   </p>
                   <Button
                     size="sm"
-                    className="mt-4 rounded-full"
-                    onClick={openAddCampaignModal}
+                    className="btn-bouncy mt-4 rounded-full gradient-sunset border-0 text-white shadow-glow text-xs font-bold px-4"
+                    onClick={openNewCampaignModal}
                   >
-                    Create your first campaign
+                    Create Campaign
                   </Button>
                 </div>
               ) : (
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {campaigns.map((camp) => (
+                <div className="space-y-4">
+                  {brandCampaigns.map((camp) => (
                     <div
                       key={camp._id}
-                      className="rounded-2xl border border-border p-4 bg-background hover:bg-accent/5 transition-all flex flex-col justify-between"
+                      className="card-3d rounded-2xl border border-border/60 bg-background/70 p-4 transition-all hover:border-primary/40"
                     >
-                      <div className="space-y-1.5">
-                        <div className="flex items-center justify-between gap-2">
-                          <h4 className="font-display text-sm font-bold text-foreground line-clamp-1">
-                            {camp.title}
-                          </h4>
-                          {camp.status === "APPROVED" ? (
-                            <Badge variant="outline" className="rounded-full text-[9px] px-2 py-0 bg-emerald-500/10 text-emerald-600 border-emerald-500/20 font-semibold">
-                              Approved
+                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="font-outfit text-base font-bold text-foreground">
+                              {camp.title}
+                            </h3>
+                            <Badge
+                              variant="secondary"
+                              className={cn(
+                                "rounded-full text-[10px] uppercase px-2 py-0.5 font-bold",
+                                camp.status === "APPROVED" && "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20",
+                                camp.status === "PENDING_VERIFICATION" && "bg-amber/10 text-amber border border-amber/20",
+                                camp.status === "REJECTED" && "bg-red-500/10 text-red-500 border border-red-500/20"
+                              )}
+                            >
+                              {camp.status === "PENDING_VERIFICATION"
+                                ? "Under Review"
+                                : camp.status}
                             </Badge>
-                          ) : camp.status === "REJECTED" ? (
-                            <Badge variant="outline" className="rounded-full text-[9px] px-2 py-0 bg-red-500/10 text-red-500 border-red-500/20 font-semibold">
-                              Rejected
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="rounded-full text-[9px] px-2 py-0 bg-amber/10 text-amber border-amber/20 font-semibold">
-                              Pending Verification
-                            </Badge>
-                          )}
-                        </div>
-
-                        {camp.description && (
-                          <p className="text-xs text-muted-foreground line-clamp-2">
+                            {camp.active ? (
+                              <Badge variant="outline" className="rounded-full text-[10px] text-emerald-600 border-emerald-600/30">
+                                Active
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="rounded-full text-[10px] text-muted-foreground">
+                                Inactive
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
                             {camp.description}
                           </p>
-                        )}
-
-                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground mt-1">
-                          <span className="font-bold text-gradient-sunset">
-                            ₹{Number(camp.totalBudget || 0).toLocaleString("en-IN")}
-                          </span>
-                          <span>·</span>
-                          <span>₹{Number(camp.minBudgetPerCreator || 0).toLocaleString("en-IN")} - ₹{Number(camp.maxBudgetPerCreator || 0).toLocaleString("en-IN")}/creator</span>
-                          <span>·</span>
-                          <span>{camp.category}</span>
-                          <span>·</span>
-                          <span>{camp.location || "Pan India"}</span>
                         </div>
+                        <div className="text-left sm:text-right shrink-0">
+                          <span className="text-xs font-bold text-primary font-outfit">
+                            ₹{camp.totalBudget?.toLocaleString()}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground block">
+                            Total Budget
+                          </span>
+                        </div>
+                      </div>
 
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3 pt-3 border-t border-border/40 text-[11px] text-muted-foreground">
+                        <div>
+                          <span className="block font-semibold text-foreground font-outfit">
+                            {camp.category || "General"}
+                          </span>
+                          Category
+                        </div>
+                        <div>
+                          <span className="block font-semibold text-foreground font-outfit">
+                            {camp.location || "Pan India"}
+                          </span>
+                          Location
+                        </div>
+                        <div>
+                          <span className="block font-semibold text-foreground font-outfit">
+                            ₹{camp.minBudgetPerCreator?.toLocaleString()} - ₹{camp.maxBudgetPerCreator?.toLocaleString()}
+                          </span>
+                          Per Creator
+                        </div>
+                        <div>
+                          <span className="block font-semibold text-foreground font-outfit">
+                            {camp.endDate ? new Date(camp.endDate).toLocaleDateString() : "No deadline"}
+                          </span>
+                          End Date
+                        </div>
+                      </div>
+
+                      {/* Deliverables summary */}
+                      <div className="mt-2.5 pt-2 border-t border-border/30">
                         {camp.deliverables && (
-                          <div className="flex flex-wrap gap-1.5 pt-1">
+                          <div className="flex flex-wrap gap-1.5 text-[10px]">
                             {camp.deliverables.reels > 0 && (
-                              <span className="text-[10px] bg-secondary/40 text-foreground px-2 py-0.5 rounded-md font-medium">
-                                🎬 {camp.deliverables.reels} Reels
+                              <span className="bg-secondary/60 px-2 py-0.5 rounded-full border border-border/40">
+                                {camp.deliverables.reels} Reels
                               </span>
                             )}
                             {camp.deliverables.posts > 0 && (
-                              <span className="text-[10px] bg-secondary/40 text-foreground px-2 py-0.5 rounded-md font-medium">
-                                📸 {camp.deliverables.posts} Posts
+                              <span className="bg-secondary/60 px-2 py-0.5 rounded-full border border-border/40">
+                                {camp.deliverables.posts} Posts
                               </span>
                             )}
                             {camp.deliverables.stories > 0 && (
-                              <span className="text-[10px] bg-secondary/40 text-foreground px-2 py-0.5 rounded-md font-medium">
-                                📱 {camp.deliverables.stories} Stories
+                              <span className="bg-secondary/60 px-2 py-0.5 rounded-full border border-border/40">
+                                {camp.deliverables.stories} Stories
                               </span>
                             )}
                             {camp.deliverables.videos > 0 && (
-                              <span className="text-[10px] bg-secondary/40 text-foreground px-2 py-0.5 rounded-md font-medium">
-                                🎥 {camp.deliverables.videos} Videos
+                              <span className="bg-secondary/60 px-2 py-0.5 rounded-full border border-border/40">
+                                {camp.deliverables.videos} Videos
                               </span>
                             )}
                           </div>
                         )}
-
                         {camp.status === "REJECTED" && camp.verificationFeedback && (
-                          <p className="text-[11px] text-red-500 bg-red-500/10 p-2 rounded-lg mt-1">
+                          <p className="text-[11px] text-red-500 bg-red-500/10 p-2 rounded-lg mt-2">
                             Reason: {camp.verificationFeedback}
                           </p>
                         )}
                       </div>
+
                       <div className="flex items-center gap-2 mt-4 pt-2 border-t border-border/40 justify-between">
                         {(() => {
                           const reqsCount = (pendingRequests || []).filter(
@@ -2467,7 +2543,7 @@ const [submittingVerification, setSubmittingVerification] =
                               size="sm"
                               variant={reqsCount > 0 ? "default" : "outline"}
                               className={cn(
-                                "h-8 rounded-full text-xs px-3 flex items-center gap-1.5 font-semibold",
+                                "btn-bouncy h-8 rounded-full text-xs px-3.5 flex items-center gap-1.5 font-bold",
                                 reqsCount > 0
                                   ? "gradient-sunset border-0 text-white shadow-glow"
                                   : "border-border text-muted-foreground hover:text-foreground"
@@ -2484,7 +2560,7 @@ const [submittingVerification, setSubmittingVerification] =
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="h-8 rounded-full text-xs hover:bg-secondary px-3 flex items-center gap-1.5"
+                            className="btn-bouncy h-8 rounded-full text-xs hover:bg-secondary px-3 flex items-center gap-1.5 font-semibold"
                             onClick={() => openEditCampaignModal(camp)}
                           >
                             <Edit2 className="h-3 w-3" /> Edit
@@ -2492,7 +2568,7 @@ const [submittingVerification, setSubmittingVerification] =
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="h-8 rounded-full text-xs text-destructive hover:bg-destructive/10 hover:text-destructive px-3 flex items-center gap-1.5"
+                            className="btn-bouncy h-8 rounded-full text-xs text-destructive hover:bg-destructive/10 hover:text-destructive px-3 flex items-center gap-1.5 font-semibold"
                             onClick={() => handleDeleteCampaign(camp._id)}
                           >
                             <Trash2 className="h-3 w-3" /> Delete
@@ -2504,14 +2580,18 @@ const [submittingVerification, setSubmittingVerification] =
                 </div>
               )}
             </div>
+            )}
 
             {/* BRAND OFFERS & INCENTIVES LAUNCH */}
-            <MultiRoleOfferForm profileId={profile?._id} role="brand" />
+            {(brandSubSection === "all" || brandSubSection === "campaigns") && (
+              <MultiRoleOfferForm profileId={profile?._id} role="brand" />
+            )}
 
             {/* ESCROW PAYMENTS */}
-            <div className="rounded-3xl border border-border bg-card p-6 shadow-sm">
+            {(brandSubSection === "all" || brandSubSection === "escrow") && (
+            <div className="card-3d rounded-3xl border border-border/60 bg-card p-6 shadow-sm">
               <div>
-                <h2 className="font-display text-lg font-semibold">
+                <h2 className="font-outfit text-xl font-bold">
                   Escrow Payments
                 </h2>
                 <p className="text-xs text-muted-foreground mt-0.5 mb-4">
@@ -2709,15 +2789,16 @@ const [submittingVerification, setSubmittingVerification] =
                 </div>
               )}
             </div>
+            )}
 
             {/* REVIEWS VISIBILITY SETTINGS */}
-            <div className="rounded-3xl border border-border bg-card p-6 shadow-sm">
-              <h2 className="font-display text-lg font-semibold mb-2">
+            {(brandSubSection === "all" || brandSubSection === "preferences") && (
+            <div className="card-3d rounded-3xl border border-border/60 bg-card p-6 shadow-sm">
+              <h2 className="font-outfit text-xl font-bold mb-2">
                 Reviews from Creators
               </h2>
               <p className="text-xs text-muted-foreground mb-4">
-                Toggle display visibility of feedback and ratings left by
-                creators.
+                Toggle display visibility of feedback and ratings left by creators.
               </p>
 
               {!reviews ? (
@@ -2819,16 +2900,18 @@ const [submittingVerification, setSubmittingVerification] =
                 </div>
               )}
             </div>
+            )}
           </div>
 
           {/* RIGHT COLUMN: SIDEBAR */}
+          {(brandSubSection === "all" || brandSubSection === "preferences") && (
           <div className="space-y-6 w-full min-w-0">
             {/* LIMITED-TIME OFFERS SIDEBAR WIDGET */}
             <CreatorOffersSidebarWidget />
 
             {/* HIRING PREFERENCES PANEL */}
-            <div className="rounded-3xl border border-border bg-card p-6 shadow-sm">
-              <h2 className="font-display text-lg font-semibold mb-4 flex items-center gap-2">
+            <div className="card-3d rounded-3xl border border-border/60 bg-card p-6 shadow-sm">
+              <h2 className="font-outfit text-xl font-bold mb-4 flex items-center gap-2">
                 <Filter className="h-5 w-5 text-primary" /> Hiring Preferences
               </h2>
               <form
@@ -3055,6 +3138,7 @@ const [submittingVerification, setSubmittingVerification] =
                 </div>
               </div>
             </div>
+          )}
           </div>
         ) : (
           <SubscriptionTab role="brand" profile={profile} />
