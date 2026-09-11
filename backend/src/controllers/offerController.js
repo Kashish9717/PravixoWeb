@@ -124,7 +124,7 @@ export const createOffer = async (req, res) => {
 export const approveOffer = async (req, res) => {
   try {
     const { offerId } = req.params;
-    const adminId = req.user?._id || req.body.adminId;
+    const adminId = req.user?._id || null;
 
     const offer = await Offer.findById(offerId)
       .populate("creatorId", "fullName handle avatarUrl profilePicture")
@@ -149,7 +149,9 @@ export const approveOffer = async (req, res) => {
     const expiresAt = new Date(now + offer.validityHours * 60 * 60 * 1000);
 
     offer.status = "active";
-    offer.approvedBy = adminId || null;
+    if (adminId) {
+      offer.approvedBy = adminId;
+    }
     offer.approvedAt = new Date(now);
     offer.expiresAt = expiresAt;
     offer.rejectionReason = "";
@@ -158,14 +160,14 @@ export const approveOffer = async (req, res) => {
     const isCreatorOffer = offer.creatorOrBrandType === "creator";
     const sender = isCreatorOffer ? offer.creatorId : offer.brandId;
     const senderName = sender?.fullName || sender?.handle || (isCreatorOffer ? "A creator" : "A brand");
-    const senderId = sender?._id || adminId;
+    const rawSenderId = sender?._id || adminId;
 
     // Determine target audience for push + in-app
     const targetRole = isCreatorOffer ? "brand" : "creator";
     const targetUrl = isCreatorOffer ? "/dashboard/customer" : "/dashboard/influencer";
 
     // Notify owner
-    if (sender?._id) {
+    if (sender?._id && (adminId || sender._id)) {
       Notification.create({
         recipientId: sender._id,
         senderId: adminId || sender._id,
@@ -187,7 +189,7 @@ export const approveOffer = async (req, res) => {
       .select("_id")
       .lean();
 
-    if (audienceProfiles && audienceProfiles.length > 0) {
+    if (audienceProfiles && audienceProfiles.length > 0 && rawSenderId) {
       const recipientIds = audienceProfiles.map((p) => p._id);
       const pushTitle = isCreatorOffer
         ? `New Creator Deal! 🔥 ${offer.discountPercent ? offer.discountPercent + "% off" : offer.offerTitle}`
@@ -198,7 +200,7 @@ export const approveOffer = async (req, res) => {
       // Bulk in-app notifications
       const inAppNotifs = recipientIds.map((rId) => ({
         recipientId: rId,
-        senderId,
+        senderId: rawSenderId,
         type: "new_offer",
         text: notifText,
         targetUrl,
@@ -237,7 +239,7 @@ export const rejectOffer = async (req, res) => {
   try {
     const { offerId } = req.params;
     const { reason = "Does not meet guidelines." } = req.body;
-    const adminId = req.user?._id || req.body.adminId;
+    const adminId = req.user?._id || null;
 
     const offer = await Offer.findById(offerId);
     if (!offer) {
@@ -251,8 +253,9 @@ export const rejectOffer = async (req, res) => {
     offer.rejectionReason = reason;
     await offer.save();
 
-    const ownerId = offer.creatorId || offer.brandId;
-    if (ownerId) {
+    const rawOwner = offer.creatorId || offer.brandId;
+    const ownerId = rawOwner?._id || rawOwner;
+    if (ownerId && (adminId || ownerId)) {
       const targetUrl = offer.creatorOrBrandType === "creator" ? "/dashboard/influencer" : "/dashboard/customer";
       Notification.create({
         recipientId: ownerId,
@@ -377,7 +380,7 @@ export const getAllOffersAdmin = async (req, res) => {
 export const deleteOffer = async (req, res) => {
   try {
     const { offerId } = req.params;
-    const adminId = req.user?._id || req.body.adminId;
+    const adminId = req.user?._id || null;
 
     const offer = await Offer.findById(offerId);
     if (!offer) {
@@ -396,22 +399,27 @@ export const deleteOffer = async (req, res) => {
     }
 
     offer.status = "deleted";
-    offer.deletedBy = adminId || null;
+    if (adminId) {
+      offer.deletedBy = adminId;
+    }
     offer.deletedAt = new Date();
     await offer.save();
 
-    const ownerId = offer.creatorId || offer.brandId;
-    if (ownerId) {
-      Notification.create({
-        recipientId: ownerId,
-        senderId: adminId || ownerId,
-        type: "admin_message",
-        text: `Your offer "${offer.offerTitle}" was removed by admin.`,
-        targetUrl: offer.creatorOrBrandType === "creator" ? "/dashboard/influencer" : "/dashboard/customer",
-        createdAt: Date.now(),
-      }).catch((err) =>
-        console.error("Failed to send offer deletion notification:", err.message)
-      );
+    const rawOwner = offer.creatorId || offer.brandId;
+    const ownerId = rawOwner?._id || rawOwner;
+    if (ownerId && (adminId || ownerId)) {
+      try {
+        await Notification.create({
+          recipientId: ownerId,
+          senderId: adminId || ownerId,
+          type: "admin_message",
+          text: `Your offer "${offer.offerTitle}" was removed by admin.`,
+          targetUrl: offer.creatorOrBrandType === "creator" ? "/dashboard/influencer" : "/dashboard/customer",
+          createdAt: Date.now(),
+        });
+      } catch (notifErr) {
+        console.error("Failed to send offer deletion notification:", notifErr.message);
+      }
     }
 
     return res.status(200).json({
