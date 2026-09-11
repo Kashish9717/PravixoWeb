@@ -352,6 +352,7 @@ export function DashboardCustomer() {
   const { data: portfolioImages = [] } = useApiQuery(`/portfolio/profile/${profile?._id}?k=${galleryRefreshKey}`, {}, Boolean(profile));
 
   const { data: campaigns = [] } = useApiQuery(`/campaigns/brand/${profile?._id}`, {}, Boolean(profile));
+  const brandCampaigns = campaigns;
 
   const { data: reviews = [] } = useApiQuery(`/reviews/creator/${profile?._id}`, {}, Boolean(profile));
 
