@@ -127,11 +127,11 @@ export const getMessages = async (req, res) => {
   }
 };
 
-// Unsend message
+// Unsend / Delete message
 export const unsendMessage = async (req, res) => {
   try {
     const { messageId } = req.params;
-    const { profileId } = req.body;
+    const { profileId, mode = "for_everyone", deleteFromDb = false } = req.body;
 
     if (!profileId) {
       return res.status(400).json({
@@ -149,19 +149,51 @@ export const unsendMessage = async (req, res) => {
       });
     }
 
-    if (message.senderId.toString() !== profileId.toString()) {
-      return res.status(403).json({
-        success: false,
-        message: "You can only unsend your own messages.",
+    const isSender = message.senderId.toString() === profileId.toString();
+    const userRole = req.user?.role || "user";
+    const isAdmin = userRole === "admin";
+
+    // Hard delete from DB requested
+    if (deleteFromDb) {
+      if (!isSender && !isAdmin) {
+        return res.status(403).json({
+          success: false,
+          message: "You can only permanently delete your own messages.",
+        });
+      }
+      await Message.findByIdAndDelete(messageId);
+      return res.status(200).json({
+        success: true,
+        message: "Message permanently deleted from database.",
+        deletedMessageId: messageId,
       });
     }
 
-    message.unsent = true;
+    // Delete / Unsend modes
+    if (mode === "for_everyone") {
+      if (!isSender && !isAdmin) {
+        return res.status(403).json({
+          success: false,
+          message: "You can only unsend your own messages for everyone.",
+        });
+      }
+      message.unsent = true;
+      message.deletedAt = new Date();
+    } else if (mode === "for_brand") {
+      message.deletedForBrand = true;
+      message.deletedAt = new Date();
+    } else if (mode === "for_creator") {
+      message.deletedForCreator = true;
+      message.deletedAt = new Date();
+    } else {
+      message.unsent = true;
+    }
+
     await message.save();
 
     res.status(200).json({
       success: true,
-      message: "Message unsent successfully.",
+      message: "Message updated successfully.",
       data: message,
     });
   } catch (error) {

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { resolveImageUrl } from "@/lib/utils";
 import { Link, useNavigate } from "react-router-dom";
-import { Eye, MessageSquare, Search, Plus, Shield, Sparkles, Building2, User, Send, ArrowRight } from "lucide-react";
+import { Eye, MessageSquare, Search, Plus, Shield, Sparkles, Building2, User, Send, ArrowRight, Trash2 } from "lucide-react";
 import api from "@/lib/axios";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -100,6 +100,22 @@ export function ConversationsPage() {
       toast.error(err.response?.data?.message || "Failed to start chat.");
     } finally {
       setIsStartingChat(false);
+    }
+  };
+
+  const handleDeleteConversation = async (conversationId) => {
+    if (!window.confirm("Are you sure you want to permanently delete this entire conversation and all its messages from database?")) {
+      return;
+    }
+    try {
+      const res = await api.delete(`/admin/conversations/${conversationId}`);
+      if (res.data.success) {
+        toast.success("Conversation deleted successfully from database.");
+        setConversations((prev) => prev ? prev.filter((c) => c._id !== conversationId) : []);
+      }
+    } catch (err) {
+      console.error("Failed to delete conversation:", err);
+      toast.error(err.response?.data?.message || "Failed to delete conversation.");
     }
   };
 
@@ -382,7 +398,7 @@ export function ConversationsPage() {
                     </TableCell>
 
                     <TableCell className="text-right pr-6">
-                      <div className="flex items-center justify-end">
+                      <div className="flex items-center justify-end gap-2">
                         <Link to={`/messages/${c._id}`}>
                           <Button
                             size="sm"
@@ -391,6 +407,15 @@ export function ConversationsPage() {
                             <MessageSquare className="h-3.5 w-3.5 text-primary" /> Open Chat
                           </Button>
                         </Link>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleDeleteConversation(c._id)}
+                          className="rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10 h-8 w-8 p-0"
+                          title="Permanently Delete Conversation"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>

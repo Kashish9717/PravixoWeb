@@ -28,6 +28,8 @@ import {
   Paperclip,
   ExternalLink,
   X,
+  MoreVertical,
+  CheckCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/Badge";
@@ -95,6 +97,15 @@ export default function Messages() {
   const [loading, setLoading] = useState(false);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [sending, setSending] = useState(false);
+
+  // Modal states for Unsend / Delete Message and Delete Chat
+  const [unsendModalOpen, setUnsendModalOpen] = useState(false);
+  const [selectedMessageForAction, setSelectedMessageForAction] = useState(null);
+  const [isDeletingMessage, setIsDeletingMessage] = useState(false);
+
+  const [deleteChatModalOpen, setDeleteChatModalOpen] = useState(false);
+  const [selectedConversationForDelete, setSelectedConversationForDelete] = useState(null);
+  const [isDeletingConversation, setIsDeletingConversation] = useState(false);
 
   // Touch handling for mobile Unsend / Delete Chat
   const touchTimer = useRef(null);
@@ -269,24 +280,7 @@ export default function Messages() {
     }
   };
 
-  const handleUnsend = async (messageId) => {
-    try {
-      // Optimistic update
-      setMessages((prev) =>
-        prev.map((msg) => (msg._id === messageId ? { ...msg, unsent: true } : msg))
-      );
 
-      await api.patch(`/api/messages/${messageId}/unsend`, {
-        profileId: profile._id,
-      });
-      toast.success("Message unsent");
-    } catch (error) {
-      console.error("Unsend message error:", error);
-      toast.error("Failed to unsend message");
-      // Revert optimistic update on failure
-      fetchMessages(activeConversation._id, false);
-    }
-  };
 
   /*
    * ----------------------------------------------------
@@ -723,6 +717,103 @@ export default function Messages() {
 
   /*
    * ----------------------------------------------------
+   * UNSEND / DELETE MESSAGE HANDLER
+   * ----------------------------------------------------
+   */
+  const handleUnsend = async (messageId, mode = "for_everyone", deleteFromDb = false) => {
+    if (!messageId || !profile?._id) return;
+
+    try {
+      setIsDeletingMessage(true);
+      const res = await api.patch(`/api/messages/${messageId}/unsend`, {
+        profileId: profile._id,
+        mode,
+        deleteFromDb,
+      });
+
+      if (res.data.success) {
+        if (deleteFromDb) {
+          setMessages((prev) => prev.filter((m) => m._id !== messageId));
+          toast.success("Message deleted from database.");
+        } else {
+          setMessages((prev) =>
+            prev.map((m) => {
+              if (m._id !== messageId) return m;
+              if (mode === "for_everyone") return { ...m, unsent: true };
+              if (mode === "for_creator") return { ...m, deletedForCreator: true };
+              if (mode === "for_brand") return { ...m, deletedForBrand: true };
+              return { ...m, unsent: true };
+            })
+          );
+          toast.success(
+            mode === "for_everyone"
+              ? "Message unsent for everyone"
+              : "Message deleted for you"
+          );
+        }
+        setUnsendModalOpen(false);
+        setSelectedMessageForAction(null);
+        await fetchConversations();
+      }
+    } catch (error) {
+      console.error("Unsend message error:", error);
+      toast.error(
+        error?.response?.data?.message ||
+          error?.message ||
+          "Failed to unsend message."
+      );
+    } finally {
+      setIsDeletingMessage(false);
+    }
+  };
+
+  /*
+   * ----------------------------------------------------
+   * DELETE CONVERSATION (PERMANENT DB DELETE OR ARCHIVE)
+   * ----------------------------------------------------
+   */
+  const handleDeleteConversationInDb = async (conversation, deleteFromDb = true) => {
+    if (!conversation?._id) return;
+
+    try {
+      setIsDeletingConversation(true);
+
+      if (deleteFromDb) {
+        // Hard delete conversation & its messages from DB
+        await api.delete(`/api/conversations/${conversation._id}`, {
+          data: {
+            profileId: profile._id,
+            role: profile.role,
+            deleteFromDb: true,
+          },
+        });
+
+        setConversations((prev) => prev.filter((c) => c._id !== conversation._id));
+        if (activeConversation?._id === conversation._id) {
+          setActiveConversation(null);
+          setMessages([]);
+        }
+        toast.success("Conversation deleted permanently from database.");
+      } else {
+        // Soft delete/archive
+        await toggleArchive(conversation);
+      }
+      setDeleteChatModalOpen(false);
+      setSelectedConversationForDelete(null);
+    } catch (error) {
+      console.error("Delete conversation error:", error);
+      toast.error(
+        error?.response?.data?.message ||
+          error?.message ||
+          "Failed to delete conversation."
+      );
+    } finally {
+      setIsDeletingConversation(false);
+    }
+  };
+
+  /*
+   * ----------------------------------------------------
    * ARCHIVE / UNARCHIVE (Now "Delete Chat")
    * ----------------------------------------------------
    */
@@ -1073,27 +1164,18 @@ export default function Messages() {
                               "No messages"}
                           </p>
 
-                          {/* ARCHIVE */}
+                          {/* DELETE / ARCHIVE CONVERSATION */}
                           <button
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              toggleArchive(
-                                conversation
-                              );
+                              setSelectedConversationForDelete(conversation);
+                              setDeleteChatModalOpen(true);
                             }}
-                            className="rounded-md p-1 text-muted-foreground transition hover:bg-secondary hover:text-foreground"
-                            title={
-                              conversation.archived
-                                ? "Unarchive"
-                                : "Archive"
-                            }
+                            className="rounded-md p-1 text-muted-foreground transition hover:bg-secondary hover:text-red-500"
+                            title="Chat Options (Delete / Archive)"
                           >
-                            {conversation.archived ? (
-                              <ArchiveRestore className="h-3.5 w-3.5" />
-                            ) : (
-                              <Archive className="h-3.5 w-3.5" />
-                            )}
+                            <Trash2 className="h-3.5 w-3.5" />
                           </button>
 
                         </div>
@@ -1174,26 +1256,17 @@ export default function Messages() {
                   </p>
                 </div>
 
-                {/* DELETE CHAT */}
+                {/* DELETE / CHAT OPTIONS */}
                 <button
                   type="button"
-                  onClick={() =>
-                    toggleArchive(
-                      activeConversation
-                    )
-                  }
+                  onClick={() => {
+                    setSelectedConversationForDelete(activeConversation);
+                    setDeleteChatModalOpen(true);
+                  }}
                   className="rounded-xl p-2 text-muted-foreground hover:bg-secondary hover:text-red-500"
-                  title={
-                    activeConversation.archived
-                      ? "Restore Chat"
-                      : "Delete Chat"
-                  }
+                  title="Delete or Archive Chat"
                 >
-                  {activeConversation.archived ? (
-                    <ArchiveRestore className="h-5 w-5" />
-                  ) : (
-                    <Trash2 className="h-5 w-5" />
-                  )}
+                  <Trash2 className="h-5 w-5" />
                 </button>
 
               </div>
@@ -1536,14 +1609,19 @@ export default function Messages() {
                             </div>
                           </div>
                         ) : (
-                          <div className="flex items-end gap-2 group relative max-w-[85%] sm:max-w-[75%]">
+                          <div className="flex items-end gap-1.5 group relative max-w-[85%] sm:max-w-[75%]">
+                            {/* MESSAGE ACTION BUTTON (More / Unsend options) */}
                             {isMine && !item.messageType && (
                               <button
-                                onClick={() => handleUnsend(item._id)}
-                                className="opacity-0 transition-opacity group-hover:opacity-100 p-1 text-slate-400 hover:text-red-500 hidden md:block"
-                                title="Unsend for everyone"
+                                type="button"
+                                onClick={() => {
+                                  setSelectedMessageForAction(item);
+                                  setUnsendModalOpen(true);
+                                }}
+                                className="p-1.5 rounded-full text-slate-400 hover:text-foreground hover:bg-secondary transition opacity-75 sm:opacity-0 sm:group-hover:opacity-100"
+                                title="Message options (Unsend / Delete)"
                               >
-                                <Trash2 className="h-3.5 w-3.5" />
+                                <MoreVertical className="h-3.5 w-3.5" />
                               </button>
                             )}
 
@@ -1676,18 +1754,27 @@ export default function Messages() {
                                 }`}
                               >
                                 <p className="whitespace-pre-wrap leading-relaxed">{item.text}</p>
-                                <p
-                                  className={`mt-1 text-[10px] ${
-                                    isMine ? "text-white/70 text-right" : "text-muted-foreground"
+                                <div
+                                  className={`mt-1 flex items-center gap-1 text-[10px] ${
+                                    isMine ? "text-white/80 justify-end" : "text-muted-foreground justify-start"
                                   }`}
                                 >
-                                  {item.createdAt
-                                    ? new Date(item.createdAt).toLocaleTimeString([], {
-                                        hour: "2-digit",
-                                        minute: "2-digit",
-                                      })
-                                    : ""}
-                                </p>
+                                  <span>
+                                    {item.createdAt
+                                      ? new Date(item.createdAt).toLocaleTimeString([], {
+                                          hour: "2-digit",
+                                          minute: "2-digit",
+                                        })
+                                      : ""}
+                                  </span>
+                                  {isMine && (
+                                    item.read ? (
+                                      <CheckCheck className="h-3 w-3 text-cyan-200" title="Read" />
+                                    ) : (
+                                      <Check className="h-3 w-3 text-white/60" title="Sent" />
+                                    )
+                                  )}
+                                </div>
                               </div>
                             )}
                           </div>
@@ -1935,6 +2022,152 @@ export default function Messages() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* MESSAGE UNSEND / DELETE MODAL */}
+      <Dialog open={unsendModalOpen} onOpenChange={setUnsendModalOpen}>
+        <DialogContent className="max-w-md rounded-3xl border border-border bg-card p-6 shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="font-display text-lg font-bold flex items-center gap-2 text-foreground">
+              <Trash2 className="h-5 w-5 text-red-500" /> Message Options
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Choose how you want to remove or unsend this message.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedMessageForAction && (
+            <div className="my-2 rounded-xl bg-secondary/50 p-3 text-xs border border-border/50 text-foreground/80 italic line-clamp-2">
+              &quot;{selectedMessageForAction.text}&quot;
+            </div>
+          )}
+
+          <div className="space-y-2.5 pt-2">
+            {/* Option 1: Unsend for Everyone */}
+            <button
+              type="button"
+              disabled={isDeletingMessage}
+              onClick={() => handleUnsend(selectedMessageForAction?._id, "for_everyone", false)}
+              className="w-full flex items-center justify-between p-3 rounded-2xl border border-border hover:border-primary/50 hover:bg-primary/5 text-left transition group"
+            >
+              <div>
+                <p className="text-xs font-bold text-foreground group-hover:text-primary transition">Unsend for Everyone</p>
+                <p className="text-[11px] text-muted-foreground">Removes message text for both you and the recipient.</p>
+              </div>
+              <Ban className="h-4 w-4 text-muted-foreground group-hover:text-primary transition shrink-0" />
+            </button>
+
+            {/* Option 2: Delete for Me Only */}
+            <button
+              type="button"
+              disabled={isDeletingMessage}
+              onClick={() => handleUnsend(selectedMessageForAction?._id, profile?.role === "creator" ? "for_creator" : "for_brand", false)}
+              className="w-full flex items-center justify-between p-3 rounded-2xl border border-border hover:border-amber-500/50 hover:bg-amber-500/5 text-left transition group"
+            >
+              <div>
+                <p className="text-xs font-bold text-foreground group-hover:text-amber-600 transition">Delete for Me Only</p>
+                <p className="text-[11px] text-muted-foreground">Hides this message from your chat only.</p>
+              </div>
+              <Eye className="h-4 w-4 text-muted-foreground group-hover:text-amber-600 transition shrink-0" />
+            </button>
+
+            {/* Option 3: Permanently Delete from Database */}
+            <button
+              type="button"
+              disabled={isDeletingMessage}
+              onClick={() => handleUnsend(selectedMessageForAction?._id, "for_everyone", true)}
+              className="w-full flex items-center justify-between p-3 rounded-2xl border border-red-500/20 hover:border-red-500/60 hover:bg-red-500/10 text-left transition group"
+            >
+              <div>
+                <p className="text-xs font-bold text-red-600">Permanently Delete from Database</p>
+                <p className="text-[11px] text-muted-foreground">Completely erases the message record from the DB.</p>
+              </div>
+              <Trash2 className="h-4 w-4 text-red-500 shrink-0" />
+            </button>
+          </div>
+
+          <DialogFooter className="pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setUnsendModalOpen(false)}
+              className="w-full rounded-full text-xs h-9"
+            >
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* CONVERSATION DELETE / ARCHIVE MODAL */}
+      <Dialog open={deleteChatModalOpen} onOpenChange={setDeleteChatModalOpen}>
+        <DialogContent className="max-w-md rounded-3xl border border-border bg-card p-6 shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="font-display text-lg font-bold flex items-center gap-2 text-destructive">
+              <Trash2 className="h-5 w-5 text-red-500" /> Manage Conversation
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Select an action for this conversation with{" "}
+              <span className="font-semibold text-foreground">
+                {selectedConversationForDelete?.otherProfile?.fullName || "this user"}
+              </span>.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 pt-3">
+            {/* Action 1: Delete Permanently from Database */}
+            <button
+              type="button"
+              disabled={isDeletingConversation}
+              onClick={() => handleDeleteConversationInDb(selectedConversationForDelete, true)}
+              className="w-full flex items-start gap-3 p-3.5 rounded-2xl border border-red-500/30 bg-red-500/5 hover:bg-red-500/15 text-left transition"
+            >
+              <div className="p-2 rounded-xl bg-red-500/10 text-red-600 mt-0.5 shrink-0">
+                <Trash2 className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-red-600">Delete Entirely from Database</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
+                  Permanently deletes this chat and all sent messages from the database. This action cannot be undone.
+                </p>
+              </div>
+            </button>
+
+            {/* Action 2: Archive / Hide Chat */}
+            <button
+              type="button"
+              disabled={isDeletingConversation}
+              onClick={() => handleDeleteConversationInDb(selectedConversationForDelete, false)}
+              className="w-full flex items-start gap-3 p-3.5 rounded-2xl border border-border hover:border-primary/50 hover:bg-secondary/40 text-left transition"
+            >
+              <div className="p-2 rounded-xl bg-secondary text-foreground mt-0.5 shrink-0">
+                <Archive className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-foreground">
+                  {selectedConversationForDelete?.archived ? "Unarchive Chat" : "Archive Chat"}
+                </p>
+                <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
+                  {selectedConversationForDelete?.archived
+                    ? "Restore this conversation back to your active inbox."
+                    : "Move this conversation to the archived/deleted tab without deleting messages."}
+                </p>
+              </div>
+            </button>
+          </div>
+
+          <DialogFooter className="pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isDeletingConversation}
+              onClick={() => setDeleteChatModalOpen(false)}
+              className="w-full rounded-full text-xs h-9"
+            >
+              Cancel
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

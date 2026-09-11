@@ -351,43 +351,71 @@
   box-shadow: 0 20px 40px -15px rgba(244, 63, 94, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.16);
 }
 
-/* Interactive Stat Card 3D Feel */
+/* Interactive Stat Card 3D Feel with Vivid Ambient Glow */
 .stat-card-3d {
   position: relative;
   overflow: hidden;
-  transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
   transform: translateZ(0);
 }
 
+.stat-card-3d::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent);
+  transition: 0.6s;
+  pointer-events: none;
+}
+
+.stat-card-3d:hover::before {
+  left: 100%;
+}
+
 .stat-card-3d:hover {
-  transform: translateY(-4px) scale(1.025);
-  box-shadow: 0 14px 30px -10px rgba(236, 72, 153, 0.35);
+  transform: translateY(-6px) scale(1.02);
+  box-shadow: 0 20px 40px -12px rgba(236, 72, 153, 0.35), 0 0 0 1px rgba(236, 72, 153, 0.2);
+}
+
+.dark .stat-card-3d:hover {
+  box-shadow: 0 24px 48px -14px rgba(244, 63, 94, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.15);
 }
 
 .stat-card-3d:active {
-  transform: translateY(-1px) scale(0.99);
+  transform: translateY(-2px) scale(0.985);
 }
 
 /* Button click tactile feedback & bouncy hover */
 .btn-bouncy {
-  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  will-change: transform;
 }
 
 .btn-bouncy:hover {
-  transform: translateY(-2px) scale(1.03);
+  transform: translateY(-2.5px) scale(1.035);
+  box-shadow: 0 8px 20px -4px rgba(236, 72, 153, 0.3);
 }
 
 .btn-bouncy:active {
-  transform: translateY(1px) scale(0.96);
+  transform: translateY(1.5px) scale(0.95);
+  box-shadow: none;
 }
 
-/* Cute pill badges */
+/* Cute pill badges with vibrant bounce */
 .pill-cute {
   transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  will-change: transform;
 }
 
 .pill-cute:hover {
-  transform: scale(1.06);
+  transform: translateY(-2px) scale(1.05);
+}
+
+.pill-cute:active {
+  transform: translateY(1px) scale(0.96);
 }
 
 /* Smooth hidden scrollbar for horizontal sections */

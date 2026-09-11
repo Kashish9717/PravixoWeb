@@ -2146,6 +2146,74 @@ const CAMPAIGNS_PER_PAGE = 6;
                 {saving ? "Saving..." : "Save Profile"}
               </Button>
             </div>
+
+            {/* LIMITED-TIME OFFERS LAUNCH & MANAGEMENT */}
+            <div className="mt-8">
+              <CreatorOfferForm profileId={profile?._id} role="creator" />
+            </div>
+
+            {/* PRICING */}
+            <div className="mt-8 rounded-3xl border border-border bg-card p-6">
+              <div className="flex items-center justify-between">
+                <h2 className="font-display text-lg font-semibold">Pricing</h2>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="rounded-full"
+                  onClick={() =>
+                    setTiers([
+                      ...tiers,
+                      { name: "New tier", price: 0, sortOrder: tiers.length },
+                    ])
+                  }
+                >
+                  <Plus className="mr-1 h-3 w-3" /> Add
+                </Button>
+              </div>
+              <div className="mt-5 space-y-3">
+                {tiers.map((t, idx) => (
+                  <div key={idx} className="rounded-2xl border border-border p-4">
+                    <div className="flex items-center justify-between gap-2">
+                      <Input
+                        value={t.name}
+                        onChange={(e) => {
+                          const next = [...tiers];
+                          next[idx] = { ...t, name: e.target.value };
+                          setTiers(next);
+                        }}
+                        className="h-8 max-w-[60%] font-display font-semibold"
+                      />
+                      <span className="font-display font-bold">
+                        {formatINR(t.price)}
+                      </span>
+                      <button
+                        onClick={() => removeTier(idx)}
+                        className="text-muted-foreground hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <Input
+                      type="number"
+                      value={t.price}
+                      onChange={(e) => {
+                        const next = [...tiers];
+                        next[idx] = { ...t, price: Number(e.target.value) };
+                        setTiers(next);
+                      }}
+                      className="mt-3"
+                    />
+                  </div>
+                ))}
+              </div>
+              <Button
+                onClick={savePricing}
+                variant="secondary"
+                className="btn-bouncy mt-5 w-full rounded-full font-bold text-xs h-9"
+              >
+                Update pricing
+              </Button>
+            </div>
           </div>
           )}
 
@@ -2545,72 +2613,6 @@ const CAMPAIGNS_PER_PAGE = 6;
 
             {/* LIVE BRAND OPPORTUNITIES & INCENTIVES (Visible to creators) */}
             <CreatorOffersSidebarWidget audience="creator" />
-
-            {/* LIMITED-TIME OFFERS LAUNCH & MANAGEMENT */}
-            <CreatorOfferForm profileId={profile?._id} role="creator" />
-
-            {/* PRICING */}
-            <div className="rounded-3xl border border-border bg-card p-6">
-              <div className="flex items-center justify-between">
-                <h2 className="font-display text-lg font-semibold">Pricing</h2>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="rounded-full"
-                  onClick={() =>
-                    setTiers([
-                      ...tiers,
-                      { name: "New tier", price: 0, sortOrder: tiers.length },
-                    ])
-                  }
-                >
-                  <Plus className="mr-1 h-3 w-3" /> Add
-                </Button>
-              </div>
-              <div className="mt-5 space-y-3">
-                {tiers.map((t, idx) => (
-                  <div key={idx} className="rounded-2xl border border-border p-4">
-                    <div className="flex items-center justify-between gap-2">
-                      <Input
-                        value={t.name}
-                        onChange={(e) => {
-                          const next = [...tiers];
-                          next[idx] = { ...t, name: e.target.value };
-                          setTiers(next);
-                        }}
-                        className="h-8 max-w-[60%] font-display font-semibold"
-                      />
-                      <span className="font-display font-bold">
-                        {formatINR(t.price)}
-                      </span>
-                      <button
-                        onClick={() => removeTier(idx)}
-                        className="text-muted-foreground hover:text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                    <Input
-                      type="number"
-                      value={t.price}
-                      onChange={(e) => {
-                        const next = [...tiers];
-                        next[idx] = { ...t, price: Number(e.target.value) };
-                        setTiers(next);
-                      }}
-                      className="mt-3"
-                    />
-                  </div>
-                ))}
-              </div>
-              <Button
-                onClick={savePricing}
-                variant="secondary"
-                className="btn-bouncy mt-5 w-full rounded-full font-bold text-xs h-9"
-              >
-                Update pricing
-              </Button>
-            </div>
           </div>
           )}
         </div>

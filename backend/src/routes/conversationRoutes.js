@@ -6,6 +6,7 @@ import {
   getConversationDetails,
   markAsRead,
   toggleArchive,
+  deleteUserConversation,
 } from "../controllers/conversationController.js";
 
 const router = express.Router();
@@ -19,5 +20,7 @@ router.get("/:conversationId", getConversationDetails);
 router.patch("/:conversationId/read", markAsRead);
 
 router.patch("/:conversationId/archive", toggleArchive);
+
+router.delete("/:conversationId", deleteUserConversation);
 
 export default router;

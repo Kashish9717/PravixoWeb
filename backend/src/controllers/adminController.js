@@ -97,9 +97,16 @@ export const listAllConversations = async (req, res) => {
       })
     );
 
+    // Sort by recent activity / lastMessage so latest chats always appear at the top
+    const sortedResults = results.sort((a, b) => {
+      const timeA = new Date(a.lastMessage?.createdAt || a.updatedAt || a.createdAt || 0).getTime();
+      const timeB = new Date(b.lastMessage?.createdAt || b.updatedAt || b.createdAt || 0).getTime();
+      return timeB - timeA;
+    });
+
     return res.status(200).json({
       success: true,
-      data: results,
+      data: sortedResults,
     });
   } catch (error) {
     console.error("Admin listAllConversations error:", error);

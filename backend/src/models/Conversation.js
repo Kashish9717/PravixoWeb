@@ -46,6 +46,16 @@ const conversationSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+
+    deletedForCreator: {
+      type: Boolean,
+      default: false,
+    },
+
+    deletedForBrand: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,

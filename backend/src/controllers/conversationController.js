@@ -201,9 +201,21 @@ export const getConversations = async (req, res) => {
       })
     );
 
+    // Sort by recent activity/lastMessage timestamp first so latest conversations always appear at the top
+    const sortedResults = results.sort((a, b) => {
+      const timeA = new Date(a.lastMessage?.createdAt || a.updatedAt || a.createdAt || 0).getTime();
+      const timeB = new Date(b.lastMessage?.createdAt || b.updatedAt || b.createdAt || 0).getTime();
+      return timeB - timeA;
+    });
+
     res.status(200).json({
       success: true,
-      data: results.filter((item) => item.lastMessage || item.conversationType?.startsWith("admin_")),
+      data: sortedResults.filter((item) => {
+        // Exclude conversations permanently deleted by this role
+        if (role === "creator" && item.deletedForCreator) return false;
+        if (role === "brand" && item.deletedForBrand) return false;
+        return item.lastMessage || item.conversationType?.startsWith("admin_");
+      }),
     });
   } catch (error) {
     console.error("Get conversations error:", error);
@@ -362,6 +374,55 @@ export const toggleArchive = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to update archive status.",
+    });
+  }
+};
+
+// Delete conversation (hard delete from DB or per-role hide)
+export const deleteUserConversation = async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const { profileId, role, deleteFromDb = true } = req.body;
+
+    const conversation = await Conversation.findById(conversationId);
+    if (!conversation) {
+      return res.status(404).json({
+        success: false,
+        message: "Conversation not found.",
+      });
+    }
+
+    if (deleteFromDb) {
+      // Permanently remove all messages and the conversation from DB
+      await Message.deleteMany({ conversationId });
+      await Conversation.findByIdAndDelete(conversationId);
+
+      return res.status(200).json({
+        success: true,
+        message: "Conversation permanently deleted from database.",
+        deletedConversationId: conversationId,
+      });
+    } else {
+      // Soft-delete per role
+      if (role === "creator") {
+        conversation.deletedForCreator = true;
+      } else if (role === "brand") {
+        conversation.deletedForBrand = true;
+      } else {
+        conversation.archived = true;
+      }
+      await conversation.save();
+
+      return res.status(200).json({
+        success: true,
+        message: "Conversation hidden successfully.",
+      });
+    }
+  } catch (error) {
+    console.error("Delete conversation error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to delete conversation.",
     });
   }
 };
