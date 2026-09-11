@@ -1621,7 +1621,7 @@ export default function Messages() {
                                   setSelectedMessageForAction(item);
                                   setUnsendModalOpen(true);
                                 }}
-                                className="p-1.5 rounded-full text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition opacity-80 sm:opacity-0 sm:group-hover:opacity-100 shrink-0"
+                                className="p-1.5 rounded-full text-slate-400 hover:text-foreground bg-secondary/40 hover:bg-secondary transition opacity-90 hover:opacity-100 shrink-0 shadow-sm"
                                 title="Message options (Unsend / Delete)"
                               >
                                 <MoreVertical className="h-3.5 w-3.5" />
