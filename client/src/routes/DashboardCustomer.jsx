@@ -29,6 +29,7 @@ import {
   Activity,
   CreditCard,
   Eye,
+  Megaphone,
 } from "lucide-react";
 
 
